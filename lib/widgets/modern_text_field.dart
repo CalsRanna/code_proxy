@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../themes/shadcn_colors.dart';
+import '../themes/shadcn_spacing.dart';
 
-/// 现代化精致的文本输入框
+/// Shadcn UI 风格的文本输入框
 class ModernTextField extends StatefulWidget {
   final TextEditingController? controller;
   final String? label;
@@ -60,21 +62,24 @@ class _ModernTextFieldState extends State<ModernTextField> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final brightness = theme.brightness;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.label != null) ...[
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            padding: const EdgeInsets.only(
+              left: ShadcnSpacing.spacing4,
+              bottom: ShadcnSpacing.spacing8,
+            ),
             child: Text(
               widget.label!,
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: _isFocused
                     ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    : ShadcnColors.foreground(brightness),
               ),
             ),
           ),
@@ -82,22 +87,27 @@ class _ModernTextFieldState extends State<ModernTextField> {
         AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+            // Shadcn UI Ring 聚焦效果
             boxShadow: _isFocused
                 ? [
                     BoxShadow(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      color: theme.colorScheme.primary
+                          .withValues(alpha: ShadcnSpacing.ringOpacity),
+                      blurRadius: 0,
+                      spreadRadius: ShadcnSpacing.ringSpread,
+                      offset: const Offset(0, 0),
                     ),
                   ]
                 : [
                     BoxShadow(
                       color: Colors.black.withValues(
-                        alpha: isDark ? 0.2 : 0.03,
+                        alpha: brightness == Brightness.dark
+                            ? ShadcnSpacing.shadowOpacityDarkSmall
+                            : ShadcnSpacing.shadowOpacityLightSmall,
                       ),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      blurRadius: ShadcnSpacing.shadowBlurSmall,
+                      offset: Offset(0, ShadcnSpacing.shadowOffsetSmall),
                     ),
                   ],
           ),
@@ -118,72 +128,73 @@ class _ModernTextFieldState extends State<ModernTextField> {
               hintText: widget.hint,
               helperText: widget.helperText,
               helperStyle: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                color: ShadcnColors.mutedForeground(brightness),
               ),
               prefixIcon: widget.prefixIcon != null
                   ? Container(
-                      margin: const EdgeInsets.all(12),
-                      padding: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.all(ShadcnSpacing.spacing12),
+                      padding: const EdgeInsets.all(ShadcnSpacing.spacing8),
                       decoration: BoxDecoration(
                         color: _isFocused
-                            ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                            : theme.colorScheme.surfaceContainerHighest
-                                  .withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(8),
+                            ? theme.colorScheme.primary
+                                .withValues(alpha: 0.1)
+                            : ShadcnColors.muted(brightness),
+                        borderRadius:
+                            BorderRadius.circular(ShadcnSpacing.radiusSmall),
                       ),
                       child: Icon(
                         widget.prefixIcon,
                         color: _isFocused
                             ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                        size: 20,
+                            : ShadcnColors.mutedForeground(brightness),
+                        size: ShadcnSpacing.iconMedium,
                       ),
                     )
                   : null,
               suffixIcon: widget.suffixIcon,
               filled: true,
-              fillColor: isDark
-                  ? theme.colorScheme.surface
-                  : theme.colorScheme.surface,
+              fillColor: ShadcnColors.card(brightness),
               contentPadding: EdgeInsets.symmetric(
-                horizontal: widget.prefixIcon != null ? 16 : 20,
+                horizontal: widget.prefixIcon != null
+                    ? ShadcnSpacing.spacing16
+                    : ShadcnSpacing.spacing20,
                 vertical: widget.maxLines != null && widget.maxLines! > 1
-                    ? 16
-                    : 18,
+                    ? ShadcnSpacing.spacing16
+                    : ShadcnSpacing.spacing12,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
                 borderSide: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.2),
-                  width: 1.5,
+                  color: ShadcnColors.border(brightness),
+                  width: ShadcnSpacing.borderWidth,
                 ),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
                 borderSide: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.2),
-                  width: 1.5,
+                  color: ShadcnColors.border(brightness),
+                  width: ShadcnSpacing.borderWidth,
                 ),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
                 borderSide: BorderSide(
                   color: theme.colorScheme.primary,
-                  width: 2.5,
+                  width: ShadcnSpacing.borderWidthFocused,
                 ),
               ),
               errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
                 borderSide: const BorderSide(
-                  color: Color(0xFFEF4444),
-                  width: 2,
+                  color: ShadcnColors.error,
+                  width: ShadcnSpacing.borderWidth,
                 ),
               ),
               focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
                 borderSide: const BorderSide(
-                  color: Color(0xFFEF4444),
-                  width: 2.5,
+                  color: ShadcnColors.error,
+                  width: ShadcnSpacing.borderWidthFocused,
                 ),
               ),
             ),
@@ -194,7 +205,7 @@ class _ModernTextFieldState extends State<ModernTextField> {
   }
 }
 
-/// 现代化下拉选择框
+/// Shadcn UI 风格的下拉选择框
 class ModernDropdown<T> extends StatefulWidget {
   final T value;
   final String? label;
@@ -223,21 +234,24 @@ class _ModernDropdownState<T> extends State<ModernDropdown<T>> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final brightness = theme.brightness;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.label != null) ...[
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            padding: const EdgeInsets.only(
+              left: ShadcnSpacing.spacing4,
+              bottom: ShadcnSpacing.spacing8,
+            ),
             child: Text(
               widget.label!,
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: _isFocused
                     ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    : ShadcnColors.foreground(brightness),
               ),
             ),
           ),
@@ -245,22 +259,27 @@ class _ModernDropdownState<T> extends State<ModernDropdown<T>> {
         AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+            // Shadcn UI Ring 聚焦效果
             boxShadow: _isFocused
                 ? [
                     BoxShadow(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      color: theme.colorScheme.primary
+                          .withValues(alpha: ShadcnSpacing.ringOpacity),
+                      blurRadius: 0,
+                      spreadRadius: ShadcnSpacing.ringSpread,
+                      offset: const Offset(0, 0),
                     ),
                   ]
                 : [
                     BoxShadow(
                       color: Colors.black.withValues(
-                        alpha: isDark ? 0.2 : 0.03,
+                        alpha: brightness == Brightness.dark
+                            ? ShadcnSpacing.shadowOpacityDarkSmall
+                            : ShadcnSpacing.shadowOpacityLightSmall,
                       ),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      blurRadius: ShadcnSpacing.shadowBlurSmall,
+                      offset: Offset(0, ShadcnSpacing.shadowOffsetSmall),
                     ),
                   ],
           ),
@@ -276,60 +295,64 @@ class _ModernDropdownState<T> extends State<ModernDropdown<T>> {
               onChanged: widget.onChanged,
               style: theme.textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurface,
+                color: ShadcnColors.foreground(brightness),
               ),
+              dropdownColor: ShadcnColors.card(brightness),
               decoration: InputDecoration(
                 helperText: widget.helperText,
                 helperStyle: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: ShadcnColors.mutedForeground(brightness),
                 ),
                 prefixIcon: widget.prefixIcon != null
                     ? Container(
-                        margin: const EdgeInsets.all(12),
-                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.all(ShadcnSpacing.spacing12),
+                        padding: const EdgeInsets.all(ShadcnSpacing.spacing8),
                         decoration: BoxDecoration(
                           color: _isFocused
                               ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                              : theme.colorScheme.surfaceContainerHighest
-                                    .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(8),
+                              : ShadcnColors.muted(brightness),
+                          borderRadius:
+                              BorderRadius.circular(ShadcnSpacing.radiusSmall),
                         ),
                         child: Icon(
                           widget.prefixIcon,
                           color: _isFocused
                               ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant,
-                          size: 20,
+                              : ShadcnColors.mutedForeground(brightness),
+                          size: ShadcnSpacing.iconMedium,
                         ),
                       )
                     : null,
                 filled: true,
-                fillColor: isDark
-                    ? theme.colorScheme.surface
-                    : theme.colorScheme.surface,
+                fillColor: ShadcnColors.card(brightness),
                 contentPadding: EdgeInsets.symmetric(
-                  horizontal: widget.prefixIcon != null ? 16 : 20,
-                  vertical: 18,
+                  horizontal: widget.prefixIcon != null
+                      ? ShadcnSpacing.spacing16
+                      : ShadcnSpacing.spacing20,
+                  vertical: ShadcnSpacing.spacing12,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius:
+                      BorderRadius.circular(ShadcnSpacing.radiusMedium),
                   borderSide: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.2),
-                    width: 1.5,
+                    color: ShadcnColors.border(brightness),
+                    width: ShadcnSpacing.borderWidth,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius:
+                      BorderRadius.circular(ShadcnSpacing.radiusMedium),
                   borderSide: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.2),
-                    width: 1.5,
+                    color: ShadcnColors.border(brightness),
+                    width: ShadcnSpacing.borderWidth,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius:
+                      BorderRadius.circular(ShadcnSpacing.radiusMedium),
                   borderSide: BorderSide(
                     color: theme.colorScheme.primary,
-                    width: 2.5,
+                    width: ShadcnSpacing.borderWidthFocused,
                   ),
                 ),
               ),

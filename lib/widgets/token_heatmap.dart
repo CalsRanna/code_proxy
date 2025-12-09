@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../themes/shadcn_colors.dart';
+import '../themes/shadcn_spacing.dart';
 
-/// GitHub风格的请求成功热度图
+/// GitHub风格的请求成功热度图（Shadcn UI 风格）
 class TokenHeatmap extends StatelessWidget {
   /// 每日请求统计数据，key为日期字符串（YYYY-MM-DD），value为成功请求数
   final Map<String, int> dailyTokens;
@@ -12,7 +14,7 @@ class TokenHeatmap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final brightness = Theme.of(context).brightness;
     final heatmapData = _generateHeatmapData();
 
     // 计算最大请求数，用于颜色映射
@@ -22,20 +24,21 @@ class TokenHeatmap extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+        color: ShadcnColors.muted(brightness),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          color: ShadcnColors.border(brightness),
+          width: ShadcnSpacing.borderWidth,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(ShadcnSpacing.spacing20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             // 标题
-            Row(children: [const Spacer(), _buildLegend(context, isDark)]),
+            Row(children: [const Spacer(), _buildLegend(context, brightness)]),
             const SizedBox(height: 16),
             // 热度图 - 使用LayoutBuilder动态计算格子大小
             LayoutBuilder(
@@ -75,7 +78,7 @@ class TokenHeatmap extends StatelessWidget {
                             context,
                             heatmapData,
                             maxRequests,
-                            isDark,
+                            brightness,
                             cellWidth,
                             cellHeight,
                           ),
@@ -211,7 +214,7 @@ class TokenHeatmap extends StatelessWidget {
     BuildContext context,
     List<List<_DayData>> heatmapData,
     int maxRequests,
-    bool isDark,
+    Brightness brightness,
     double cellWidth,
     double cellHeight,
   ) {
@@ -224,7 +227,7 @@ class TokenHeatmap extends StatelessWidget {
               context,
               dayData,
               maxRequests,
-              isDark,
+              brightness,
               cellWidth,
               cellHeight,
             );
@@ -239,7 +242,7 @@ class TokenHeatmap extends StatelessWidget {
     BuildContext context,
     _DayData dayData,
     int maxRequests,
-    bool isDark,
+    Brightness brightness,
     double cellWidth,
     double cellHeight,
   ) {
@@ -247,7 +250,7 @@ class TokenHeatmap extends StatelessWidget {
       context,
       dayData.requests,
       maxRequests,
-      isDark,
+      brightness,
     );
 
     return Container(
@@ -272,8 +275,10 @@ class TokenHeatmap extends StatelessWidget {
     BuildContext context,
     int requests,
     int maxRequests,
-    bool isDark,
+    Brightness brightness,
   ) {
+    final isDark = brightness == Brightness.dark;
+
     if (requests == 0) {
       // 无数据时显示浅灰色
       return isDark ? Colors.grey.shade800 : Colors.grey.shade200;
@@ -300,7 +305,8 @@ class TokenHeatmap extends StatelessWidget {
   }
 
   /// 构建图例
-  Widget _buildLegend(BuildContext context, bool isDark) {
+  Widget _buildLegend(BuildContext context, Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
     final baseColor = isDark
         ? const Color(0xFF39D353)
         : const Color(0xFF216E39);

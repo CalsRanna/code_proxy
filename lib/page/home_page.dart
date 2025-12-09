@@ -8,6 +8,7 @@ import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
 import 'package:code_proxy/view_model/monitoring_view_model.dart';
 import 'package:code_proxy/view_model/settings_view_model.dart';
+import 'package:code_proxy/widgets/theme_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
@@ -71,6 +72,12 @@ class _HomePageState extends State<HomePage> {
                 ...List.generate(4, (index) {
                   return _buildNavItem(index);
                 }),
+                const Spacer(),
+                // 主题切换器
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
+                  child: ThemeSwitcher(compact: true),
+                ),
               ],
             ),
           ),

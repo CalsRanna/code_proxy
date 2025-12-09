@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:signals/signals.dart';
+import 'package:signals/signals_flutter.dart';
 import 'di.dart';
 import 'router/router.dart';
+import 'services/theme_service.dart';
 import 'themes/app_theme.dart';
 
 void main() async {
@@ -19,12 +20,14 @@ class CodeProxyRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Code Proxy',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light,
-      routerConfig: router.config(),
-    );
+    final themeService = getIt<ThemeService>();
+
+    return Watch((context) => MaterialApp.router(
+          title: 'Code Proxy',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeService.currentTheme.value,
+          routerConfig: router.config(),
+        ));
   }
 }

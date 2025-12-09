@@ -5,6 +5,7 @@ import 'package:code_proxy/services/health_checker.dart';
 import 'package:code_proxy/services/load_balancer.dart';
 import 'package:code_proxy/services/proxy_server.dart';
 import 'package:code_proxy/services/stats_collector.dart';
+import 'package:code_proxy/services/theme_service.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
@@ -24,6 +25,9 @@ Future<void> setupServiceLocator() async {
 
   // 注册 DatabaseService（单例）
   getIt.registerLazySingleton<DatabaseService>(() => DatabaseService());
+
+  // 注册 ThemeService（单例，独立服务）
+  getIt.registerLazySingleton<ThemeService>(() => ThemeService());
 
   // 注册 ConfigManager（单例，依赖 DatabaseService）
   getIt.registerLazySingleton<ConfigManager>(
