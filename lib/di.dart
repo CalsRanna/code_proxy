@@ -35,6 +35,13 @@ Future<void> setupServiceLocator() async {
   // 初始化 ConfigManager（会自动初始化 DatabaseService）
   await getIt<ConfigManager>().init();
 
+  // 初始化全局 endpoints signal（从数据库加载）
+  final endpoints = await getIt<ConfigManager>().loadEndpoints();
+  EndpointsViewModel.endpoints.value = endpoints;
+
+  // 初始化全局主题 signal（从 SharedPreferences 加载）
+  await SettingsViewModel.initGlobalTheme(getIt<ThemeService>());
+
   // 加载初始配置
   final config = await getIt<ConfigManager>().loadProxyConfig();
 
@@ -55,15 +62,18 @@ Future<void> setupServiceLocator() async {
   getIt.registerLazySingleton<ProxyServer>(
     () => ProxyServer(
       config: config,
-      // 从 ConfigManager 获取端点列表
-      getEndpoints: () => getIt<ConfigManager>().endpoints.value,
+      // 从 EndpointsViewModel 的 static signal 获取端点列表
+      getEndpoints: () => EndpointsViewModel.endpoints.value,
       // 更新端点 enabled 状态的回调
       updateEndpointEnabled: (endpointId, enabled) async {
         final configManager = getIt<ConfigManager>();
-        final endpoint = configManager.endpoints.value
+        final endpoint = EndpointsViewModel.endpoints.value
             .firstWhere((e) => e.id == endpointId);
         final updatedEndpoint = endpoint.copyWith(enabled: enabled);
         await configManager.saveEndpoint(updatedEndpoint);
+        // 重新加载端点到 signal
+        final updatedEndpoints = await configManager.loadEndpoints();
+        EndpointsViewModel.endpoints.value = updatedEndpoints;
       },
       statsCollector: getIt<StatsCollector>(),
       claudeCodeConfigManager: getIt<ClaudeCodeConfigManager>(),
@@ -94,7 +104,6 @@ Future<void> setupServiceLocator() async {
   getIt.registerFactory<MonitoringViewModel>(
     () => MonitoringViewModel(
       statsCollector: getIt<StatsCollector>(),
-      configManager: getIt<ConfigManager>(),
     ),
   );
 
@@ -108,7 +117,10 @@ Future<void> setupServiceLocator() async {
 
   // 注册 SettingsViewModel（工厂模式）
   getIt.registerFactory<SettingsViewModel>(
-    () => SettingsViewModel(configManager: getIt<ConfigManager>()),
+    () => SettingsViewModel(
+      configManager: getIt<ConfigManager>(),
+      themeService: getIt<ThemeService>(),
+    ),
   );
 }
 

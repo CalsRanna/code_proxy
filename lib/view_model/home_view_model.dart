@@ -8,6 +8,7 @@ import 'package:code_proxy/services/proxy_server.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:signals/signals.dart';
 import 'base_view_model.dart';
+import 'endpoints_view_model.dart';
 
 /// 主页 ViewModel
 /// 管理代理服务器状态和端点列表
@@ -23,8 +24,8 @@ class HomeViewModel extends BaseViewModel {
   final serverState = signal(const ProxyServerState());
   final dailyTokenStats = signal<Map<String, int>>({});
 
-  /// 端点列表（使用 ConfigManager 的全局 signal）
-  ListSignal<Endpoint> get endpoints => _configManager.endpoints;
+  /// 端点列表（使用 EndpointsViewModel 的全局 static signal）
+  ListSignal<Endpoint> get endpoints => EndpointsViewModel.endpoints;
 
   /// 状态更新定时器
   Timer? _statusUpdateTimer;

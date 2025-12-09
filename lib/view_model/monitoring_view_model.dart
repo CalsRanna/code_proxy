@@ -1,31 +1,28 @@
 import 'dart:async';
 import 'package:code_proxy/model/endpoint.dart';
 import 'package:code_proxy/model/endpoint_stats.dart';
-import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:signals/signals.dart';
 import 'base_view_model.dart';
+import 'endpoints_view_model.dart';
 
 /// 监控 ViewModel
 /// 负责实时监控端点统计信息
 class MonitoringViewModel extends BaseViewModel {
   final StatsCollector _statsCollector;
-  final ConfigManager _configManager;
 
   /// 响应式状态
   final endpointStats = signal<Map<String, EndpointStats>>({});
 
-  /// 端点列表（使用 ConfigManager 的全局 signal）
-  ListSignal<Endpoint> get endpoints => _configManager.endpoints;
+  /// 端点列表（使用 EndpointsViewModel 的全局 static signal）
+  ListSignal<Endpoint> get endpoints => EndpointsViewModel.endpoints;
 
   /// 监控定时器
   Timer? _monitoringTimer;
 
   MonitoringViewModel({
     required StatsCollector statsCollector,
-    required ConfigManager configManager,
-  }) : _statsCollector = statsCollector,
-       _configManager = configManager;
+  }) : _statsCollector = statsCollector;
 
   /// 初始化
   Future<void> init() async {

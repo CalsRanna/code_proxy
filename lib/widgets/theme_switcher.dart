@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../di.dart';
-import '../services/theme_service.dart';
+import '../view_model/settings_view_model.dart';
 import '../themes/shadcn_spacing.dart';
 
 /// Shadcn UI 风格的主题切换器
@@ -22,16 +22,18 @@ class ThemeSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeService = getIt<ThemeService>();
+    // 从 DI 获取 SettingsViewModel 工厂，创建实例用于主题切换
+    final settingsViewModel = getIt<SettingsViewModel>();
     final theme = Theme.of(context);
 
     return Watch((context) {
       final brightness = Theme.of(context).brightness;
+      final currentTheme = SettingsViewModel.currentTheme.value;
 
       return Tooltip(
-        message: '当前主题: ${themeService.currentThemeDisplayName}\n点击切换主题',
+        message: '当前主题: ${_getThemeDisplayName(currentTheme)}\n点击切换主题',
         child: InkWell(
-          onTap: () => themeService.toggleTheme(),
+          onTap: () => settingsViewModel.toggleTheme(),
           borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
           child: Container(
             padding: EdgeInsets.all(compact ? 8 : 12),
@@ -49,7 +51,7 @@ class ThemeSwitcher extends StatelessWidget {
                       _buildIcon(brightness),
                       const SizedBox(width: 8),
                       Text(
-                        themeService.currentThemeDisplayName,
+                        _getThemeDisplayName(currentTheme),
                         style: theme.textTheme.labelLarge,
                       ),
                     ],
@@ -67,5 +69,16 @@ class ThemeSwitcher extends StatelessWidget {
       brightness == Brightness.dark ? LucideIcons.moon : LucideIcons.sun,
       size: ShadcnSpacing.iconMedium,
     );
+  }
+
+  String _getThemeDisplayName(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return '浅色';
+      case ThemeMode.dark:
+        return '暗色';
+      case ThemeMode.system:
+        return '跟随系统';
+    }
   }
 }

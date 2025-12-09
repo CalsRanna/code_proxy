@@ -5,7 +5,6 @@ import 'package:code_proxy/model/proxy_config.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:signals/signals.dart';
 import 'database_service.dart';
 
 /// 配置管理器
@@ -15,9 +14,6 @@ class ConfigManager {
   final DatabaseService _databaseService;
   late SharedPreferences _prefs;
   bool _initialized = false;
-
-  /// 全局端点列表 signal（所有 ViewModel 共享）
-  final endpoints = listSignal<Endpoint>([]);
 
   ConfigManager(this._databaseService);
 
@@ -33,10 +29,6 @@ class ConfigManager {
 
     // 初始化 SharedPreferences
     _prefs = await SharedPreferences.getInstance();
-
-    // 加载端点到全局 signal（直接加载，不调用 refreshEndpoints 避免初始化检查）
-    final data = await _databaseService.getAllEndpoints();
-    endpoints.value = data;
 
     _initialized = true;
   }
@@ -63,13 +55,6 @@ class ConfigManager {
     return await _databaseService.getAllEndpoints();
   }
 
-  /// 刷新全局端点列表（从数据库重新加载）
-  Future<void> refreshEndpoints() async {
-    _ensureInitialized();
-    final data = await _databaseService.getAllEndpoints();
-    endpoints.value = data;
-  }
-
   /// 保存端点（插入或更新）
   Future<void> saveEndpoint(Endpoint endpoint) async {
     _ensureInitialized();
@@ -81,18 +66,12 @@ class ConfigManager {
     } else {
       await _databaseService.updateEndpoint(endpoint);
     }
-
-    // 刷新全局端点列表
-    await refreshEndpoints();
   }
 
   /// 删除端点
   Future<void> deleteEndpoint(String id) async {
     _ensureInitialized();
     await _databaseService.deleteEndpoint(id);
-
-    // 刷新全局端点列表
-    await refreshEndpoints();
   }
 
   /// 根据 ID 获取端点
@@ -105,17 +84,12 @@ class ConfigManager {
   Future<void> clearAllEndpoints() async {
     _ensureInitialized();
     await _databaseService.clearAllEndpoints();
-
-    // 刷新全局端点列表
-    await refreshEndpoints();
   }
 
   // =========================
   // 应用配置（通过 SharedPreferences）
   // =========================
 
-  // 主题模式键
-  static const String _keyThemeMode = 'theme_mode';
   // 语言键
   static const String _keyLanguage = 'language';
   // 最后使用的端点 ID
@@ -126,19 +100,6 @@ class ConfigManager {
   // 窗口位置
   static const String _keyWindowX = 'window_x';
   static const String _keyWindowY = 'window_y';
-
-  /// 获取主题模式
-  /// 返回值: 'light', 'dark', 'system'
-  String getThemeMode() {
-    _ensureInitialized();
-    return _prefs.getString(_keyThemeMode) ?? 'system';
-  }
-
-  /// 设置主题模式
-  Future<void> setThemeMode(String mode) async {
-    _ensureInitialized();
-    await _prefs.setString(_keyThemeMode, mode);
-  }
 
   /// 获取语言
   /// 返回值: 'zh', 'en', 'auto'

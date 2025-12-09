@@ -1,5 +1,7 @@
 import 'package:code_proxy/model/proxy_config.dart';
 import 'package:code_proxy/services/config_manager.dart';
+import 'package:code_proxy/services/theme_service.dart';
+import 'package:flutter/material.dart';
 import 'package:signals/signals.dart';
 import 'base_view_model.dart';
 
@@ -7,6 +9,11 @@ import 'base_view_model.dart';
 /// 负责应用设置和配置管理
 class SettingsViewModel extends BaseViewModel {
   final ConfigManager _configManager;
+  final ThemeService _themeService;
+
+  /// 全局共享的主题模式 signal（所有 ViewModel 实例共享）
+  /// 使用 static 确保跨实例共享状态，并在应用启动时可访问
+  static final currentTheme = signal(ThemeMode.system);
 
   /// 响应式状态
   final config = signal(const ProxyConfig());
@@ -15,17 +22,25 @@ class SettingsViewModel extends BaseViewModel {
   final isExporting = signal(false);
 
   // 应用设置
-  final themeMode = signal('system'); // 'light', 'dark', 'system'
   final language = signal('auto'); // 'zh', 'en', 'auto'
 
-  SettingsViewModel({required ConfigManager configManager})
-    : _configManager = configManager;
+  SettingsViewModel({
+    required ConfigManager configManager,
+    required ThemeService themeService,
+  }) : _configManager = configManager,
+       _themeService = themeService;
 
   /// 初始化
   Future<void> init() async {
     ensureNotDisposed();
     await loadConfig();
-    loadAppSettings();
+    await loadAppSettings();
+  }
+
+  /// 静态方法：初始化全局主题（在应用启动时调用）
+  static Future<void> initGlobalTheme(ThemeService themeService) async {
+    final theme = await themeService.loadTheme();
+    currentTheme.value = theme;
   }
 
   // =========================
@@ -108,20 +123,83 @@ class SettingsViewModel extends BaseViewModel {
   // =========================
 
   /// 加载应用设置
-  void loadAppSettings() {
+  Future<void> loadAppSettings() async {
     ensureNotDisposed();
 
-    themeMode.value = _configManager.getThemeMode();
+    // 主题已在 initGlobalTheme 中加载，这里只加载其他设置
     language.value = _configManager.getLanguage();
   }
 
+  // =========================
+  // 主题设置
+  // =========================
+
+  /// 是否为暗色模式
+  bool get isDark => currentTheme.value == ThemeMode.dark;
+
+  /// 是否为浅色模式
+  bool get isLight => currentTheme.value == ThemeMode.light;
+
+  /// 是否跟随系统
+  bool get isSystem => currentTheme.value == ThemeMode.system;
+
   /// 设置主题模式
-  Future<void> setThemeMode(String mode) async {
+  Future<void> setTheme(ThemeMode mode) async {
     ensureNotDisposed();
 
-    await _configManager.setThemeMode(mode);
-    themeMode.value = mode;
+    if (currentTheme.value != mode) {
+      currentTheme.value = mode;
+      await _themeService.saveTheme(mode);
+    }
   }
+
+  /// 切换到浅色主题
+  Future<void> setLightTheme() async {
+    await setTheme(ThemeMode.light);
+  }
+
+  /// 切换到暗色主题
+  Future<void> setDarkTheme() async {
+    await setTheme(ThemeMode.dark);
+  }
+
+  /// 切换到跟随系统
+  Future<void> setSystemTheme() async {
+    await setTheme(ThemeMode.system);
+  }
+
+  /// 在浅色和暗色之间切换
+  /// 如果当前是 system 模式，则切换到 light
+  Future<void> toggleTheme() async {
+    switch (currentTheme.value) {
+      case ThemeMode.light:
+        await setDarkTheme();
+        break;
+      case ThemeMode.dark:
+      case ThemeMode.system:
+        await setLightTheme();
+        break;
+    }
+  }
+
+  /// 获取主题模式的显示名称
+  String getThemeDisplayName(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return '浅色';
+      case ThemeMode.dark:
+        return '暗色';
+      case ThemeMode.system:
+        return '跟随系统';
+    }
+  }
+
+  /// 获取当前主题的显示名称
+  String get currentThemeDisplayName => getThemeDisplayName(currentTheme.value);
+
+  // =========================
+  // 语言设置
+  // =========================
 
   /// 设置语言
   Future<void> setLanguage(String lang) async {
@@ -178,7 +256,7 @@ class SettingsViewModel extends BaseViewModel {
     try {
       await _configManager.clearAll();
       await loadConfig();
-      loadAppSettings();
+      await loadAppSettings();
     } catch (e) {
       rethrow;
     }

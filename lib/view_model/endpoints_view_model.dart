@@ -10,13 +10,14 @@ class EndpointsViewModel extends BaseViewModel {
   final ConfigManager _configManager;
   final Uuid _uuid = const Uuid();
 
+  /// 全局共享的端点列表 signal（所有 ViewModel 实例共享）
+  /// 使用 static 确保跨实例共享状态
+  static final endpoints = listSignal<Endpoint>([]);
+
   /// 响应式状态
   final isLoading = signal(false);
   final errorMessage = signal<String?>(null);
   final searchQuery = signal('');
-
-  /// 端点列表（使用 ConfigManager 的全局 signal）
-  ListSignal<Endpoint> get endpoints => _configManager.endpoints;
 
   /// 过滤后的端点列表（根据搜索查询）
   late final filteredEndpoints = computed(() {
@@ -37,7 +38,20 @@ class EndpointsViewModel extends BaseViewModel {
   /// 初始化
   Future<void> init() async {
     ensureNotDisposed();
-    // 端点已由 ConfigManager 加载，无需再次加载
+    // 从 ConfigManager 加载端点到 ViewModel 的 signal
+    await _loadEndpoints();
+  }
+
+  /// 从数据库加载端点列表
+  Future<void> _loadEndpoints() async {
+    ensureNotDisposed();
+    try {
+      final data = await _configManager.loadEndpoints();
+      endpoints.value = data;
+    } catch (e) {
+      errorMessage.value = e.toString();
+      rethrow;
+    }
   }
 
   // =========================
@@ -81,8 +95,9 @@ class EndpointsViewModel extends BaseViewModel {
     );
 
     try {
-      // ConfigManager 会自动更新全局 signal
       await _configManager.saveEndpoint(endpoint);
+      // 重新加载端点列表以更新 signal
+      await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
       rethrow;
@@ -113,8 +128,9 @@ class EndpointsViewModel extends BaseViewModel {
     );
 
     try {
-      // ConfigManager 会自动更新全局 signal
       await _configManager.saveEndpoint(updated);
+      // 重新加载端点列表以更新 signal
+      await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
       rethrow;
@@ -126,8 +142,9 @@ class EndpointsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     try {
-      // ConfigManager 会自动更新全局 signal
       await _configManager.deleteEndpoint(id);
+      // 重新加载端点列表以更新 signal
+      await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
       rethrow;
@@ -159,8 +176,9 @@ class EndpointsViewModel extends BaseViewModel {
     );
 
     try {
-      // ConfigManager 会自动更新全局 signal
       await _configManager.saveEndpoint(updated);
+      // 重新加载端点列表以更新 signal
+      await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
       rethrow;
@@ -207,7 +225,8 @@ class EndpointsViewModel extends BaseViewModel {
         );
         await _configManager.saveEndpoint(updated);
       }
-      // ConfigManager 会自动更新全局 signal
+      // 重新加载端点列表以更新 signal
+      await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
       rethrow;
@@ -219,8 +238,9 @@ class EndpointsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     try {
-      // ConfigManager 会自动更新全局 signal
       await _configManager.clearAllEndpoints();
+      // 重新加载端点列表以更新 signal
+      await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
       rethrow;
