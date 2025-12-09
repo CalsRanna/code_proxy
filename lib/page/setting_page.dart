@@ -1,6 +1,7 @@
 import 'package:code_proxy/model/proxy_config.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/settings_view_model.dart';
+import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
@@ -18,17 +19,14 @@ class SettingPage extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            child: const Text(
-              '应用设置',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
+          PageHeader(
+            title: '应用设置',
+            subtitle: '管理代理服务器配置和应用选项',
+            icon: Icons.settings_outlined,
           ),
-          const Divider(height: 1),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
               children: [
                 const SectionHeader(
                   title: '代理服务器',

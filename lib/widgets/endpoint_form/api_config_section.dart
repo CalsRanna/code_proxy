@@ -1,5 +1,6 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
+import 'package:code_proxy/widgets/modern_dropdown.dart';
 import 'package:code_proxy/widgets/modern_text_field.dart';
 import 'package:flutter/material.dart';
 

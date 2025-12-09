@@ -1,7 +1,10 @@
+import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
+import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/log/log_detail_dialog.dart';
+import 'package:code_proxy/widgets/log/log_filter_bar.dart';
 import 'package:code_proxy/widgets/log/log_list_item.dart';
 import 'package:code_proxy/widgets/log/log_pagination.dart';
 import 'package:flutter/material.dart';
@@ -20,35 +23,52 @@ class LogPage extends StatelessWidget {
       final totalPages = viewModel.totalPages.value;
       final totalRecords = viewModel.totalRecords.value;
       final pageSize = viewModel.pageSize.value;
+      final hasSearch = viewModel.searchQuery.value.isNotEmpty ||
+          viewModel.endpointFilter.value != null ||
+          viewModel.successFilter.value != null;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题栏
-          Container(
-            padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
-            child: Row(
-              children: [
-                const Text(
-                  '请求日志',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          PageHeader(
+            title: '请求日志',
+            subtitle: '$totalRecords 条记录',
+            icon: Icons.article_outlined,
+            actions: [
+              if (hasSearch)
+                OutlinedButton.icon(
+                  onPressed: viewModel.clearFilters,
+                  icon: const Icon(Icons.filter_alt_off),
+                  label: const Text('清除过滤'),
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.delete_sweep),
-                  onPressed: () => _showClearDialog(context),
-                  tooltip: '清空日志',
+              if (hasSearch) const SizedBox(width: ShadcnSpacing.spacing12),
+              FilledButton.icon(
+                onPressed: () => _showClearDialog(context),
+                icon: const Icon(Icons.delete_sweep),
+                label: const Text('清空日志'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: ShadcnColors.error,
+                  foregroundColor: Colors.white,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          // 主内容
+          LogFilterBar(
+            searchQuery: viewModel.searchQuery.value,
+            onSearchChanged: viewModel.updateSearchQuery,
+            endpointFilter: viewModel.endpointFilter.value,
+            availableEndpoints: viewModel.availableEndpoints.value,
+            onEndpointChanged: viewModel.updateEndpointFilter,
+            successFilter: viewModel.successFilter.value,
+            onSuccessChanged: viewModel.updateSuccessFilter,
+          ),
           Expanded(
             child: filteredLogs.isEmpty
-                ? const EmptyState(
-                    icon: Icons.article_outlined,
-                    message: '暂无日志记录',
+                ? EmptyState(
+                    icon: hasSearch
+                        ? Icons.search_off
+                        : Icons.article_outlined,
+                    message: hasSearch ? '未找到匹配的日志' : '暂无日志记录',
                   )
                 : Column(
                     children: [

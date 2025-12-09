@@ -19,6 +19,11 @@ class LogsViewModel extends BaseViewModel {
   final filterEndpointId = signal<String?>(null);
   final autoRefresh = signal(true);
 
+  // 新的过滤器（用于新UI）
+  final searchQuery = signal('');
+  final endpointFilter = signal<String?>(null);
+  final successFilter = signal<bool?>(null);
+
   /// 分页状态
   final currentPage = signal(1);
   final pageSize = signal(50); // 每页显示 50 条
@@ -31,8 +36,13 @@ class LogsViewModel extends BaseViewModel {
   LogsViewModel({
     required StatsCollector statsCollector,
     required DatabaseService databaseService,
-  }) : _statsCollector = statsCollector,
-       _databaseService = databaseService;
+  })  : _statsCollector = statsCollector,
+        _databaseService = databaseService;
+
+  /// 获取所有可用的端点名称（用于过滤下拉框）
+  late final availableEndpoints = computed(() {
+    return logs.value.map((log) => log.endpointName).toSet().toList()..sort();
+  });
 
   /// 初始化
   void init() {
@@ -106,23 +116,40 @@ class LogsViewModel extends BaseViewModel {
 
     var result = logs.value;
 
-    // 关键词过滤
-    if (filterKeyword.value.isNotEmpty) {
-      final keyword = filterKeyword.value.toLowerCase();
+    // 新的搜索查询过滤（优先使用新UI的searchQuery）
+    final query = searchQuery.value.isNotEmpty
+        ? searchQuery.value
+        : filterKeyword.value;
+
+    if (query.isNotEmpty) {
+      final keyword = query.toLowerCase();
       result = result.where((log) {
         return log.path.toLowerCase().contains(keyword) ||
+            (log.model?.toLowerCase().contains(keyword) ?? false) ||
             log.endpointName.toLowerCase().contains(keyword) ||
             log.method.toLowerCase().contains(keyword) ||
             (log.error?.toLowerCase().contains(keyword) ?? false);
       }).toList();
     }
 
-    // 日志级别过滤
+    // 新的端点名称过滤（优先使用新UI的endpointFilter）
+    final endpoint = endpointFilter.value;
+    if (endpoint != null) {
+      result = result.where((log) => log.endpointName == endpoint).toList();
+    }
+
+    // 新的成功状态过滤
+    final success = successFilter.value;
+    if (success != null) {
+      result = result.where((log) => log.success == success).toList();
+    }
+
+    // 日志级别过滤（保留旧逻辑兼容性）
     if (filterLevel.value != null) {
       result = result.where((log) => log.level == filterLevel.value).toList();
     }
 
-    // 端点过滤
+    // 端点ID过滤（保留旧逻辑兼容性）
     if (filterEndpointId.value != null) {
       result = result
           .where((log) => log.endpointId == filterEndpointId.value)
@@ -180,7 +207,38 @@ class LogsViewModel extends BaseViewModel {
     filterKeyword.value = '';
     filterLevel.value = null;
     filterEndpointId.value = null;
+    searchQuery.value = '';
+    endpointFilter.value = null;
+    successFilter.value = null;
     currentPage.value = 1; // 重置到第一页
+    applyFilter();
+  }
+
+  // =========================
+  // 新的过滤方法（用于新UI）
+  // =========================
+
+  /// 更新搜索查询
+  void updateSearchQuery(String query) {
+    ensureNotDisposed();
+    searchQuery.value = query;
+    currentPage.value = 1;
+    applyFilter();
+  }
+
+  /// 更新端点过滤
+  void updateEndpointFilter(String? endpoint) {
+    ensureNotDisposed();
+    endpointFilter.value = endpoint;
+    currentPage.value = 1;
+    applyFilter();
+  }
+
+  /// 更新成功状态过滤
+  void updateSuccessFilter(bool? success) {
+    ensureNotDisposed();
+    successFilter.value = success;
+    currentPage.value = 1;
     applyFilter();
   }
 

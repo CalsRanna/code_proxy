@@ -1,7 +1,12 @@
 import 'package:code_proxy/model/endpoint.dart';
+import 'package:code_proxy/themes/shadcn_colors.dart';
+import 'package:code_proxy/themes/shadcn_color_helpers.dart';
+import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
+import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/endpoint_form/endpoint_form_dialog.dart';
+import 'package:code_proxy/widgets/modern_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -13,36 +18,35 @@ class EndpointPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Watch((context) {
-      final endpoints = viewModel.endpoints.value;
+      final filteredEndpoints = viewModel.filteredEndpoints.value;
       final isLoading = viewModel.isLoading.value;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                const Text(
-                  '端点管理',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                FilledButton.icon(
-                  onPressed: () => _showAddEndpointDialog(context),
-                  icon: const Icon(Icons.add),
-                  label: const Text('添加端点'),
-                ),
-              ],
+          PageHeader(
+            title: '端点管理',
+            subtitle: '${filteredEndpoints.length} 个端点',
+            icon: Icons.dns_outlined,
+            searchField: ModernTextField(
+              hint: '搜索端点名称、URL或分类...',
+              prefixIcon: Icons.search,
+              onChanged: viewModel.updateSearchQuery,
             ),
+            actions: [
+              FilledButton.icon(
+                onPressed: () => _showAddEndpointDialog(context),
+                icon: const Icon(Icons.add),
+                label: const Text('添加端点'),
+              ),
+            ],
           ),
-          const Divider(height: 1),
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : endpoints.isEmpty
-                ? _buildEmptyState(context)
-                : _buildEndpointsList(context, endpoints),
+                : filteredEndpoints.isEmpty
+                    ? _buildEmptyState(context)
+                    : _buildEndpointsList(context, filteredEndpoints),
           ),
         ],
       );
@@ -50,58 +54,97 @@ class EndpointPage extends StatelessWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final hasSearch = viewModel.searchQuery.value.isNotEmpty;
     return EmptyState(
-      icon: Icons.dns_outlined,
-      message: '暂无端点配置',
-      actionLabel: '添加端点',
-      onAction: () => _showAddEndpointDialog(context),
+      icon: hasSearch ? Icons.search_off : Icons.dns_outlined,
+      message: hasSearch ? '未找到匹配的端点' : '暂无端点配置',
+      actionLabel: hasSearch ? null : '添加端点',
+      onAction: hasSearch ? null : () => _showAddEndpointDialog(context),
     );
   }
 
   Widget _buildEndpointsList(BuildContext context, List<Endpoint> endpoints) {
     return ListView.builder(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       itemCount: endpoints.length,
       itemBuilder: (context, index) {
         final endpoint = endpoints[index];
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 12,
-            ),
-            title: Text(
-              endpoint.name,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          margin: const EdgeInsets.only(bottom: ShadcnSpacing.spacing12),
+          child: Padding(
+            padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
+            child: Row(
               children: [
-                const SizedBox(height: 4),
-                Text(endpoint.url),
-                const SizedBox(height: 2),
-                Text(
-                  '分类: ${_getCategoryLabel(endpoint.category)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                // 左侧：图标徽章
+                IconBadge(
+                  icon: _getCategoryIcon(endpoint.category),
+                  color: _getCategoryColor(endpoint.category),
+                  size: IconBadgeSize.large,
                 ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+                const SizedBox(width: ShadcnSpacing.spacing16),
+
+                // 中间：信息列
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            endpoint.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                          const SizedBox(width: ShadcnSpacing.spacing8),
+                          StatusBadge(
+                            label: _getCategoryLabel(endpoint.category),
+                            type: _getCategoryStatusType(endpoint.category),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        endpoint.url,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: ShadcnColors.mutedForeground(
+                                Theme.of(context).brightness,
+                              ),
+                              fontFamily: 'monospace',
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (endpoint.notes != null &&
+                          endpoint.notes!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          endpoint.notes!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // 右侧：开关和菜单
+                const SizedBox(width: ShadcnSpacing.spacing16),
                 Switch(
                   value: endpoint.enabled,
                   onChanged: (_) => viewModel.toggleEnabled(endpoint.id),
                 ),
-                const SizedBox(width: 8),
                 PopupMenuButton(
                   itemBuilder: (context) => [
                     const PopupMenuItem(
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(Icons.edit, size: 20),
+                          Icon(Icons.edit_outlined, size: 20),
                           SizedBox(width: 8),
                           Text('编辑'),
                         ],
@@ -111,7 +154,8 @@ class EndpointPage extends StatelessWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete, size: 20, color: Colors.red),
+                          Icon(Icons.delete_outlined,
+                              size: 20, color: Colors.red),
                           SizedBox(width: 8),
                           Text('删除', style: TextStyle(color: Colors.red)),
                         ],
@@ -184,6 +228,45 @@ class EndpointPage extends StatelessWidget {
         return '自定义';
       default:
         return category;
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'official':
+        return Icons.verified_outlined;
+      case 'aggregator':
+        return Icons.hub_outlined;
+      case 'custom':
+        return Icons.edit_outlined;
+      default:
+        return Icons.dns_outlined;
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'official':
+        return ShadcnColors.success;
+      case 'aggregator':
+        return ShadcnColors.info;
+      case 'custom':
+        return ShadcnColors.warning;
+      default:
+        return ShadcnColors.secondary;
+    }
+  }
+
+  StatusType _getCategoryStatusType(String category) {
+    switch (category) {
+      case 'official':
+        return StatusType.success;
+      case 'aggregator':
+        return StatusType.info;
+      case 'custom':
+        return StatusType.warning;
+      default:
+        return StatusType.neutral;
     }
   }
 }

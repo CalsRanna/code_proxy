@@ -4,6 +4,7 @@ import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:flutter/material.dart';
 import '../themes/shadcn_colors.dart';
 import '../themes/shadcn_spacing.dart';
+import 'modern_dropdown.dart';
 import 'modern_text_field.dart';
 
 /// 端点编辑表单对话框（StatefulWidget 以支持表单状态）

@@ -3,6 +3,7 @@ import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/themes/shadcn_color_helpers.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
+import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/token_heatmap.dart';
 import 'package:flutter/material.dart';
@@ -21,57 +22,49 @@ class DashboardPage extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题栏
-          Container(
-            padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
-            child: Row(
-              children: [
-                Text(
-                  'Code Proxy'.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+          Watch((context) {
+            final isRunning = viewModel.isServerRunning.value;
+            return PageHeader(
+              title: '控制面板',
+              subtitle: isRunning && serverState.listenAddress != null
+                  ? '服务器运行中 - ${serverState.listenAddress}:${serverState.listenPort}'
+                  : '服务器已停止',
+              icon: Icons.dashboard_outlined,
+              actions: [
+                FilledButton.icon(
+                  onPressed: () async {
+                    try {
+                      if (isRunning) {
+                        await viewModel.stopServer();
+                      } else {
+                        await viewModel.startServer();
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('操作失败: $e')),
+                        );
+                      }
+                    }
+                  },
+                  icon: Icon(
+                    isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                  ),
+                  label: Text(isRunning ? '停止服务器' : '启动服务器'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isRunning
+                        ? ShadcnColors.error
+                        : ShadcnColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: ShadcnSpacing.buttonPaddingH,
+                      vertical: ShadcnSpacing.buttonPaddingV,
+                    ),
                   ),
                 ),
-                const Spacer(),
-                Watch((context) {
-                  final isRunning = viewModel.isServerRunning.value;
-                  return FilledButton.icon(
-                    onPressed: () async {
-                      try {
-                        if (isRunning) {
-                          await viewModel.stopServer();
-                        } else {
-                          await viewModel.startServer();
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('操作失败: $e')),
-                          );
-                        }
-                      }
-                    },
-                    icon: Icon(
-                      isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                    ),
-                    label: Text(isRunning ? '停止服务器' : '启动服务器'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isRunning
-                          ? ShadcnColors.error
-                          : ShadcnColors.success,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: ShadcnSpacing.buttonPaddingH,
-                        vertical: ShadcnSpacing.buttonPaddingV,
-                      ),
-                    ),
-                  );
-                }),
               ],
-            ),
-          ),
-          const Divider(height: 1),
+            );
+          }),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
@@ -86,45 +79,46 @@ class DashboardPage extends StatelessWidget {
                     return TokenHeatmap(dailyTokens: dailyTokens, weeks: 52);
                   }),
                   const SizedBox(height: ShadcnSpacing.spacing16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: StatCard(
-                          label: '总请求',
-                          value: serverState.totalRequests.toString(),
-                          icon: Icons.analytics_outlined,
-                          accentColor: ShadcnColors.info,
-                        ),
-                      ),
-                      const SizedBox(width: ShadcnSpacing.spacing16),
-                      Expanded(
-                        child: StatCard(
-                          label: '成功率',
-                          value:
-                              '${serverState.successRate.toStringAsFixed(1)}%',
-                          icon: Icons.check_circle_outline,
-                          accentColor: ShadcnColors.success,
-                        ),
-                      ),
-                      const SizedBox(width: ShadcnSpacing.spacing16),
-                      Expanded(
-                        child: StatCard(
-                          label: '运行时间',
-                          value: _formatUptime(serverState.uptimeSeconds),
-                          icon: Icons.timer_outlined,
-                          accentColor: ShadcnColors.warning,
-                        ),
-                      ),
-                      const SizedBox(width: ShadcnSpacing.spacing16),
-                      Expanded(
-                        child: StatCard(
-                          label: '活跃连接',
-                          value: serverState.activeConnections.toString(),
-                          icon: Icons.link,
-                          accentColor: ShadcnColors.secondary,
-                        ),
-                      ),
-                    ],
+                  // 响应式统计卡片网格
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columnCount = _getColumnCount(context);
+                      return GridView.count(
+                        crossAxisCount: columnCount,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: ShadcnSpacing.spacing16,
+                        crossAxisSpacing: ShadcnSpacing.spacing16,
+                        childAspectRatio: 1.5,
+                        children: [
+                          StatCard(
+                            label: '总请求',
+                            value: serverState.totalRequests.toString(),
+                            icon: Icons.analytics_outlined,
+                            accentColor: ShadcnColors.info,
+                          ),
+                          StatCard(
+                            label: '成功率',
+                            value:
+                                '${serverState.successRate.toStringAsFixed(1)}%',
+                            icon: Icons.check_circle_outline,
+                            accentColor: ShadcnColors.success,
+                          ),
+                          StatCard(
+                            label: '运行时间',
+                            value: _formatUptime(serverState.uptimeSeconds),
+                            icon: Icons.timer_outlined,
+                            accentColor: ShadcnColors.warning,
+                          ),
+                          StatCard(
+                            label: '活跃连接',
+                            value: serverState.activeConnections.toString(),
+                            icon: Icons.link,
+                            accentColor: ShadcnColors.secondary,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -141,6 +135,14 @@ class DashboardPage extends StatelessWidget {
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
     return '$hours小时$minutes分';
+  }
+
+  /// 根据屏幕宽度获取统计卡片列数
+  int _getColumnCount(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 800) return 2; // 小屏：2列
+    if (width < 1200) return 3; // 中屏：3列
+    return 4; // 大屏：4列
   }
 }
 

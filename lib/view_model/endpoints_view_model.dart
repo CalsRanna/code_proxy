@@ -13,9 +13,23 @@ class EndpointsViewModel extends BaseViewModel {
   /// 响应式状态
   final isLoading = signal(false);
   final errorMessage = signal<String?>(null);
+  final searchQuery = signal('');
 
   /// 端点列表（使用 ConfigManager 的全局 signal）
   ListSignal<Endpoint> get endpoints => _configManager.endpoints;
+
+  /// 过滤后的端点列表（根据搜索查询）
+  late final filteredEndpoints = computed(() {
+    final query = searchQuery.value.toLowerCase();
+    if (query.isEmpty) return endpoints.value;
+
+    return endpoints.value.where((endpoint) {
+      return endpoint.name.toLowerCase().contains(query) ||
+          endpoint.url.toLowerCase().contains(query) ||
+          endpoint.category.toLowerCase().contains(query) ||
+          (endpoint.notes?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  });
 
   EndpointsViewModel({required ConfigManager configManager})
     : _configManager = configManager;
@@ -233,4 +247,9 @@ class EndpointsViewModel extends BaseViewModel {
 
   /// 获取总端点数量
   int get totalEndpointCount => endpoints.value.length;
+
+  /// 更新搜索查询
+  void updateSearchQuery(String query) {
+    searchQuery.value = query;
+  }
 }
