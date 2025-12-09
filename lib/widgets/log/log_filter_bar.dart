@@ -3,6 +3,7 @@ import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/widgets/modern_dropdown.dart';
 import 'package:code_proxy/widgets/modern_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// 日志过滤栏组件
 ///
@@ -49,7 +50,7 @@ class LogFilterBar extends StatelessWidget {
             flex: 2,
             child: ModernTextField(
               hint: '搜索请求路径、模型...',
-              prefixIcon: Icons.search,
+              prefixIcon: LucideIcons.search,
               controller: TextEditingController(text: searchQuery)
                 ..selection = TextSelection.fromPosition(
                   TextPosition(offset: searchQuery.length),

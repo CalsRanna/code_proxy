@@ -12,6 +12,7 @@ import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:code_proxy/widgets/theme_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 @RoutePage()
 class HomePage extends StatefulWidget {
@@ -92,16 +93,16 @@ class _HomePageState extends State<HomePage> {
   Widget _buildNavItem(int index) {
     final isSelected = _selectedIndex == index;
     final icons = [
-      Icons.home_outlined,
-      Icons.dns_outlined,
-      Icons.article_outlined,
-      Icons.settings_outlined,
+      LucideIcons.layoutDashboard,
+      LucideIcons.server,
+      LucideIcons.fileText,
+      LucideIcons.settings,
     ];
     final selectedIcons = [
-      Icons.home,
-      Icons.dns,
-      Icons.article,
-      Icons.settings,
+      LucideIcons.layoutDashboard,
+      LucideIcons.server,
+      LucideIcons.fileText,
+      LucideIcons.settings,
     ];
     final labels = ['主页', '端点', '日志', '设置'];
 

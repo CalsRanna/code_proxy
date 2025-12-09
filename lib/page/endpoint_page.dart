@@ -9,6 +9,7 @@ import 'package:code_proxy/widgets/endpoint_form/endpoint_form_dialog.dart';
 import 'package:code_proxy/widgets/modern_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class EndpointPage extends StatelessWidget {
   final EndpointsViewModel viewModel;
@@ -27,16 +28,16 @@ class EndpointPage extends StatelessWidget {
           PageHeader(
             title: '端点管理',
             subtitle: '${filteredEndpoints.length} 个端点',
-            icon: Icons.dns_outlined,
+            icon: LucideIcons.server,
             searchField: ModernTextField(
               hint: '搜索端点名称、URL或分类...',
-              prefixIcon: Icons.search,
+              prefixIcon: LucideIcons.search,
               onChanged: viewModel.updateSearchQuery,
             ),
             actions: [
               FilledButton.icon(
                 onPressed: () => _showAddEndpointDialog(context),
-                icon: const Icon(Icons.add),
+                icon: const Icon(LucideIcons.plus),
                 label: const Text('添加端点'),
               ),
             ],
@@ -56,7 +57,7 @@ class EndpointPage extends StatelessWidget {
   Widget _buildEmptyState(BuildContext context) {
     final hasSearch = viewModel.searchQuery.value.isNotEmpty;
     return EmptyState(
-      icon: hasSearch ? Icons.search_off : Icons.dns_outlined,
+      icon: hasSearch ? LucideIcons.searchX : LucideIcons.server,
       message: hasSearch ? '未找到匹配的端点' : '暂无端点配置',
       actionLabel: hasSearch ? null : '添加端点',
       onAction: hasSearch ? null : () => _showAddEndpointDialog(context),
@@ -140,11 +141,11 @@ class EndpointPage extends StatelessWidget {
                 ),
                 PopupMenuButton(
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(Icons.edit_outlined, size: 20),
+                          Icon(LucideIcons.pencil, size: 20),
                           SizedBox(width: 8),
                           Text('编辑'),
                         ],
@@ -154,7 +155,7 @@ class EndpointPage extends StatelessWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outlined,
+                          Icon(LucideIcons.trash2,
                               size: 20, color: Colors.red),
                           SizedBox(width: 8),
                           Text('删除', style: TextStyle(color: Colors.red)),
@@ -234,13 +235,13 @@ class EndpointPage extends StatelessWidget {
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'official':
-        return Icons.verified_outlined;
+        return LucideIcons.shieldCheck;
       case 'aggregator':
-        return Icons.hub_outlined;
+        return LucideIcons.network;
       case 'custom':
-        return Icons.edit_outlined;
+        return LucideIcons.pencil;
       default:
-        return Icons.dns_outlined;
+        return LucideIcons.server;
     }
   }
 

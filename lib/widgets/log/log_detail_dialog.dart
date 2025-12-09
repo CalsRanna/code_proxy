@@ -4,6 +4,7 @@ import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// 日志详情对话框
 class LogDetailDialog extends StatelessWidget {
@@ -55,39 +56,39 @@ class LogDetailDialog extends StatelessWidget {
                   children: [
                     LogDetailSection(
                       title: '基本信息',
-                      icon: Icons.info_outline,
+                      icon: LucideIcons.info,
                       children: [
                         InfoRow(
                           label: '端点',
                           value: log.endpointName,
-                          icon: Icons.dns_outlined,
+                          icon: LucideIcons.server,
                         ),
                         InfoRow(
                           label: '时间',
                           value: _formatFullTime(DateTime.fromMillisecondsSinceEpoch(log.timestamp)),
-                          icon: Icons.access_time,
+                          icon: LucideIcons.clock,
                         ),
                         InfoRow(
                           label: '状态码',
                           value: '${log.statusCode ?? 0}',
-                          icon: Icons.code,
+                          icon: LucideIcons.code,
                         ),
                         InfoRow(
                           label: '响应时间',
                           value: '${log.responseTime ?? 0}ms',
-                          icon: Icons.timer_outlined,
+                          icon: LucideIcons.timer,
                         ),
                         InfoRow(
                           label: '模型',
                           value: log.model ?? 'unknown',
-                          icon: Icons.psychology_outlined,
+                          icon: LucideIcons.brain,
                         ),
                       ],
                     ),
                     const SizedBox(height: ShadcnSpacing.spacing24),
                     LogDetailSection(
                       title: 'Token使用',
-                      icon: Icons.data_usage_outlined,
+                      icon: LucideIcons.activity,
                       children: [
                         InfoRow(
                           label: '输入Token',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../di.dart';
 import '../services/theme_service.dart';
 import '../themes/shadcn_spacing.dart';
@@ -63,7 +64,7 @@ class ThemeSwitcher extends StatelessWidget {
   Widget _buildIcon(Brightness brightness) {
     // 根据当前实际主题显示图标（不是模式，而是实际生效的主题）
     return Icon(
-      brightness == Brightness.dark ? Icons.dark_mode : Icons.light_mode,
+      brightness == Brightness.dark ? LucideIcons.moon : LucideIcons.sun,
       size: ShadcnSpacing.iconMedium,
     );
   }

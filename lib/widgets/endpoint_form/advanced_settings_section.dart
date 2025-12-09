@@ -1,6 +1,7 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// 高级设置section
 class AdvancedSettingsSection extends StatelessWidget {
@@ -18,9 +19,9 @@ class AdvancedSettingsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(
+        SectionHeader(
           title: '高级选项',
-          icon: Icons.tune_outlined,
+          icon: LucideIcons.slidersHorizontal,
         ),
         const SizedBox(height: ShadcnSpacing.spacing12),
         CheckboxListTile(

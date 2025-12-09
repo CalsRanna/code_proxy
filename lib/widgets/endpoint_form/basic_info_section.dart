@@ -3,6 +3,7 @@ import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/modern_dropdown.dart';
 import 'package:code_proxy/widgets/modern_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// 基本信息section
 class BasicInfoSection extends StatelessWidget {
@@ -26,14 +27,14 @@ class BasicInfoSection extends StatelessWidget {
       children: [
         const SectionHeader(
           title: '基本信息',
-          icon: Icons.info_outline,
+          icon: LucideIcons.info,
         ),
         const SizedBox(height: ShadcnSpacing.spacing12),
         ModernTextField(
           controller: nameController,
           label: '端点名称',
           hint: '例如：Anthropic Official',
-          prefixIcon: Icons.label_outline_rounded,
+          prefixIcon: LucideIcons.tag,
           validator: (value) {
             if (value == null || value.isEmpty) {
               return '请输入端点名称';
@@ -51,14 +52,14 @@ class BasicInfoSection extends StatelessWidget {
             DropdownMenuItem(value: 'custom', child: Text('自定义')),
           ],
           onChanged: onCategoryChanged,
-          prefixIcon: Icons.category_outlined,
+          prefixIcon: LucideIcons.layers,
         ),
         const SizedBox(height: ShadcnSpacing.spacing16),
         ModernTextField(
           controller: notesController,
           label: '备注',
           hint: '可选的备注信息',
-          prefixIcon: Icons.edit_note,
+          prefixIcon: LucideIcons.fileText,
           maxLines: 2,
         ),
       ],

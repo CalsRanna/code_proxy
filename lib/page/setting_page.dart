@@ -5,6 +5,7 @@ import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class SettingPage extends StatelessWidget {
   final SettingsViewModel viewModel;
@@ -22,7 +23,7 @@ class SettingPage extends StatelessWidget {
           PageHeader(
             title: '应用设置',
             subtitle: '管理代理服务器配置和应用选项',
-            icon: Icons.settings_outlined,
+            icon: LucideIcons.settings,
           ),
           Expanded(
             child: ListView(
@@ -30,7 +31,7 @@ class SettingPage extends StatelessWidget {
               children: [
                 const SectionHeader(
                   title: '代理服务器',
-                  icon: Icons.router_outlined,
+                  icon: LucideIcons.router,
                 ),
                 const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
@@ -39,14 +40,14 @@ class SettingPage extends StatelessWidget {
                       ListTile(
                         title: const Text('监听地址'),
                         subtitle: Text(config.listenAddress),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const Icon(LucideIcons.chevronRight),
                         onTap: () => _editListenAddress(context, config),
                       ),
                       const Divider(height: 1),
                       ListTile(
                         title: const Text('监听端口'),
                         subtitle: Text(config.listenPort.toString()),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const Icon(LucideIcons.chevronRight),
                         onTap: () => _editListenPort(context, config),
                       ),
                     ],
@@ -55,7 +56,7 @@ class SettingPage extends StatelessWidget {
                 const SizedBox(height: ShadcnSpacing.spacing24),
                 const SectionHeader(
                   title: '健康检查',
-                  icon: Icons.health_and_safety_outlined,
+                  icon: LucideIcons.heartPulse,
                 ),
                 const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
@@ -78,23 +79,23 @@ class SettingPage extends StatelessWidget {
                 const SizedBox(height: ShadcnSpacing.spacing24),
                 const SectionHeader(
                   title: '数据管理',
-                  icon: Icons.storage_outlined,
+                  icon: LucideIcons.database,
                 ),
                 const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
                   child: Column(
                     children: [
                       ListTile(
-                        leading: const Icon(Icons.upload_file),
+                        leading: const Icon(LucideIcons.upload),
                         title: const Text('导出配置'),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const Icon(LucideIcons.chevronRight),
                         onTap: () => _exportConfig(context),
                       ),
                       const Divider(height: 1),
                       ListTile(
-                        leading: const Icon(Icons.restore),
+                        leading: Icon(LucideIcons.rotateCcw),
                         title: const Text('恢复默认'),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const Icon(LucideIcons.chevronRight),
                         onTap: () => _resetDefaults(context),
                       ),
                     ],

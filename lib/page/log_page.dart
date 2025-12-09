@@ -9,6 +9,7 @@ import 'package:code_proxy/widgets/log/log_list_item.dart';
 import 'package:code_proxy/widgets/log/log_pagination.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class LogPage extends StatelessWidget {
   final LogsViewModel viewModel;
@@ -33,18 +34,18 @@ class LogPage extends StatelessWidget {
           PageHeader(
             title: '请求日志',
             subtitle: '$totalRecords 条记录',
-            icon: Icons.article_outlined,
+            icon: LucideIcons.fileText,
             actions: [
               if (hasSearch)
                 OutlinedButton.icon(
                   onPressed: viewModel.clearFilters,
-                  icon: const Icon(Icons.filter_alt_off),
+                  icon: Icon(LucideIcons.x),
                   label: const Text('清除过滤'),
                 ),
               if (hasSearch) const SizedBox(width: ShadcnSpacing.spacing12),
               FilledButton.icon(
                 onPressed: () => _showClearDialog(context),
-                icon: const Icon(Icons.delete_sweep),
+                icon: const Icon(LucideIcons.trash2),
                 label: const Text('清空日志'),
                 style: FilledButton.styleFrom(
                   backgroundColor: ShadcnColors.error,
@@ -66,8 +67,8 @@ class LogPage extends StatelessWidget {
             child: filteredLogs.isEmpty
                 ? EmptyState(
                     icon: hasSearch
-                        ? Icons.search_off
-                        : Icons.article_outlined,
+                        ? LucideIcons.searchX
+                        : LucideIcons.fileText,
                     message: hasSearch ? '未找到匹配的日志' : '暂无日志记录',
                   )
                 : Column(

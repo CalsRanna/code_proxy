@@ -6,6 +6,7 @@ import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/token_heatmap.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class DashboardPage extends StatelessWidget {
   final HomeViewModel viewModel;
@@ -27,7 +28,7 @@ class DashboardPage extends StatelessWidget {
               subtitle: isRunning && serverState.listenAddress != null
                   ? '服务器运行中 - ${serverState.listenAddress}:${serverState.listenPort}'
                   : '服务器启动中...',
-              icon: Icons.dashboard_outlined,
+              icon: LucideIcons.layoutDashboard,
             );
           }),
           Expanded(
@@ -57,26 +58,26 @@ class DashboardPage extends StatelessWidget {
                           StatCard(
                             label: '总请求',
                             value: serverState.totalRequests.toString(),
-                            icon: Icons.analytics_outlined,
+                            icon: LucideIcons.activity,
                             accentColor: ShadcnColors.info,
                           ),
                           StatCard(
                             label: '成功率',
                             value:
                                 '${serverState.successRate.toStringAsFixed(1)}%',
-                            icon: Icons.check_circle_outline,
+                            icon: LucideIcons.circleCheck,
                             accentColor: ShadcnColors.success,
                           ),
                           StatCard(
                             label: '运行时间',
                             value: _formatUptime(serverState.uptimeSeconds),
-                            icon: Icons.timer_outlined,
+                            icon: LucideIcons.clock,
                             accentColor: ShadcnColors.warning,
                           ),
                           StatCard(
                             label: '活跃连接',
                             value: serverState.activeConnections.toString(),
-                            icon: Icons.link,
+                            icon: LucideIcons.link,
                             accentColor: ShadcnColors.secondary,
                           ),
                         ],

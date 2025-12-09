@@ -9,6 +9,7 @@ import 'package:code_proxy/widgets/endpoint_form/api_config_section.dart';
 import 'package:code_proxy/widgets/endpoint_form/basic_info_section.dart';
 import 'package:code_proxy/widgets/endpoint_form/model_config_section.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// 端点编辑表单对话框（重构后的主对话框）
 class EndpointFormDialog extends StatefulWidget {
@@ -190,7 +191,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       child: Row(
         children: [
           IconBadge(
-            icon: Icons.dns_outlined,
+            icon: LucideIcons.server,
             color: Theme.of(context).colorScheme.primary,
             size: IconBadgeSize.medium,
           ),
@@ -203,7 +204,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(LucideIcons.x),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],

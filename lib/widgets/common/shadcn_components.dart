@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/themes/shadcn_color_helpers.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Shadcn UI 风格的通用组件库
 /// 包含符合Shadcn设计规范的基础组件
@@ -313,7 +314,7 @@ class EmptyState extends StatelessWidget {
               const SizedBox(height: ShadcnSpacing.spacing24),
               FilledButton.icon(
                 onPressed: onAction,
-                icon: const Icon(Icons.add),
+                icon: const Icon(LucideIcons.plus),
                 label: Text(actionLabel!),
               ),
             ],
