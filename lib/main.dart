@@ -22,12 +22,14 @@ class CodeProxyRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeService = getIt<ThemeService>();
 
-    return Watch((context) => MaterialApp.router(
-          title: 'Code Proxy',
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: themeService.currentTheme.value,
-          routerConfig: router.config(),
-        ));
+    return Watch(
+      (context) => MaterialApp.router(
+        title: 'Code Proxy',
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: themeService.currentTheme.value,
+        routerConfig: router.config(),
+      ),
+    );
   }
 }

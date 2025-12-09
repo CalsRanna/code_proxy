@@ -1,6 +1,7 @@
 import 'package:code_proxy/model/endpoint.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
-import 'package:code_proxy/widgets/endpoint_form_dialog.dart';
+import 'package:code_proxy/widgets/common/shadcn_components.dart';
+import 'package:code_proxy/widgets/endpoint_form/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -40,7 +41,7 @@ class EndpointPage extends StatelessWidget {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : endpoints.isEmpty
-                ? _buildEmptyState()
+                ? _buildEmptyState(context)
                 : _buildEndpointsList(context, endpoints),
           ),
         ],
@@ -48,19 +49,12 @@ class EndpointPage extends StatelessWidget {
     });
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.dns_outlined, size: 64, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(
-            '暂无端点',
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
+  Widget _buildEmptyState(BuildContext context) {
+    return EmptyState(
+      icon: Icons.dns_outlined,
+      message: '暂无端点配置',
+      actionLabel: '添加端点',
+      onAction: () => _showAddEndpointDialog(context),
     );
   }
 

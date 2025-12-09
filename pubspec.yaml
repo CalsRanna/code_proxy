@@ -31,54 +31,26 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-
-  # HTTP 代理服务器
+  auto_route: ^9.2.2
+  get_it: ^9.2.0
+  http: ^1.2.0
+  laconic: ^1.0.0
+  path: ^1.8.0
+  path_provider: ^2.1.0
+  shared_preferences: ^2.2.0
   shelf: ^1.4.0
   shelf_router: ^1.1.0
-
-  # HTTP 客户端
-  http: ^1.2.0
-
-  # 状态管理
   signals: ^6.3.0
-
-  # 依赖注入
-  get_it: ^9.2.0
-
-  # 本地存储
-  laconic: ^1.0.0+36
   sqlite3: ^2.9.4
-  shared_preferences: ^2.2.0
-  path_provider: ^2.1.0
-
-  # 路由管理
-  auto_route: ^9.2.2
-
-  # UUID 生成
   uuid: ^4.5.1
-
-  # 路径操作
-  path: ^1.8.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^6.0.0
-
-  # 代码生成
-  build_runner: ^2.4.0
-
-  # 路由代码生成
+    
   auto_route_generator: ^9.0.0
+  build_runner: ^2.4.0
+  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

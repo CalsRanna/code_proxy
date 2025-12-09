@@ -3,6 +3,7 @@ import 'package:code_proxy/page/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint_page.dart';
 import 'package:code_proxy/page/log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
+import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
@@ -118,25 +119,20 @@ class _HomePageState extends State<HomePage> {
             },
             borderRadius: BorderRadius.circular(12),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 150),
               curve: Curves.easeInOut,
               width: 48,
               height: 48,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 color: isSelected
-                    ? Theme.of(context).colorScheme.primaryContainer
+                    ? ShadcnColors.muted(Theme.of(context).brightness)
                     : Colors.transparent,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
+                border: isSelected
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 1.0,
+                      )
                     : null,
               ),
               child: Icon(

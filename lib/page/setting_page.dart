@@ -1,5 +1,7 @@
 import 'package:code_proxy/model/proxy_config.dart';
+import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/settings_view_model.dart';
+import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -28,11 +30,11 @@ class SettingPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                const Text(
-                  '代理服务器',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                const SectionHeader(
+                  title: '代理服务器',
+                  icon: Icons.router_outlined,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
                   child: Column(
                     children: [
@@ -52,12 +54,12 @@ class SettingPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  '健康检查',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                const SizedBox(height: ShadcnSpacing.spacing24),
+                const SectionHeader(
+                  title: '健康检查',
+                  icon: Icons.health_and_safety_outlined,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
                   child: Column(
                     children: [
@@ -75,12 +77,12 @@ class SettingPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  '数据管理',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                const SizedBox(height: ShadcnSpacing.spacing24),
+                const SectionHeader(
+                  title: '数据管理',
+                  icon: Icons.storage_outlined,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
                   child: Column(
                     children: [
