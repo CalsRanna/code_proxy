@@ -40,18 +40,19 @@ class TokenHeatmap extends StatelessWidget {
             // 标题
             Row(children: [const Spacer(), _buildLegend(context, brightness)]),
             const SizedBox(height: 16),
-            // 热度图 - 使用LayoutBuilder动态计算格子大小
+            // 热度图 - 根据容器宽度自动计算格子大小
             LayoutBuilder(
               builder: (context, constraints) {
                 final availableWidth = constraints.maxWidth;
-                final weekdayLabelWidth = 40.0;
-                final hGap = 8.0;
 
-                // 计算每周的可用宽度
-                final heatmapWidth =
-                    availableWidth - weekdayLabelWidth - hGap - 2; //2px为border
-                final cellWidth =
-                    (heatmapWidth - (weeks - 1) * 2) / weeks; // 2px为间距
+                // 计算实际周数
+                final actualWeeks = heatmapData.length;
+
+                // 根据周数和可用宽度计算每个格子的大小
+                // 每个格子有 margin: all(1)，所以每个格子实际占用 cellWidth + 2px
+                // 总宽度 = actualWeeks * (cellWidth + 2)
+                // cellWidth = availableWidth / actualWeeks - 2
+                final cellWidth = (availableWidth / actualWeeks) - 2;
                 final cellHeight = cellWidth; // 保持方形
 
                 return Column(
@@ -62,28 +63,17 @@ class TokenHeatmap extends StatelessWidget {
                     _buildMonthLabels(
                       heatmapData,
                       cellWidth,
-                      weekdayLabelWidth + hGap,
+                      0,
                     ),
                     const SizedBox(height: 4),
                     // 热度方格
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 星期标签
-                        _buildWeekdayLabels(context, cellHeight),
-                        SizedBox(width: hGap),
-                        // 热度方格网格
-                        Expanded(
-                          child: _buildHeatmapGrid(
-                            context,
-                            heatmapData,
-                            maxRequests,
-                            brightness,
-                            cellWidth,
-                            cellHeight,
-                          ),
-                        ),
-                      ],
+                    _buildHeatmapGrid(
+                      context,
+                      heatmapData,
+                      maxRequests,
+                      brightness,
+                      cellWidth,
+                      cellHeight,
                     ),
                   ],
                 );
@@ -98,13 +88,24 @@ class TokenHeatmap extends StatelessWidget {
   /// 生成热度图数据（按周分组）
   List<List<_DayData>> _generateHeatmapData() {
     final now = DateTime.now();
-    final totalWeeks = weeks; // 使用成员变量
-    final startDate = now.subtract(Duration(days: totalWeeks * 7));
+    // 从今年1月1日开始
+    final startDate = DateTime(now.year, 1, 1);
+    // 到今年12月31日结束
+    final endDate = DateTime(now.year, 12, 31);
 
-    // 找到起始日期所在周的周日
+    // 找到1月1日所在周的周日（作为起始点）
     final firstSunday = startDate.subtract(
       Duration(days: (startDate.weekday % 7)),
     );
+
+    // 找到12月31日所在周的周六（作为结束点）
+    final lastSaturday = endDate.add(
+      Duration(days: (6 - endDate.weekday % 7)),
+    );
+
+    // 计算总天数
+    final totalDays = lastSaturday.difference(firstSunday).inDays + 1;
+    final totalWeeks = (totalDays / 7).ceil();
 
     final List<List<_DayData>> weeksList = [];
     List<_DayData> currentWeek = [];
@@ -112,22 +113,67 @@ class TokenHeatmap extends StatelessWidget {
     // 生成所有日期
     for (int i = 0; i < totalWeeks * 7; i++) {
       final date = firstSunday.add(Duration(days: i));
+
+      // 跳过今年1月1日之前的日期（用空白填充）
+      if (date.year < now.year) {
+        currentWeek.add(
+          _DayData(date: date, requests: -1, isToday: false, isEmpty: true),
+        );
+        if (currentWeek.length == 7) {
+          weeksList.add(currentWeek);
+          currentWeek = [];
+        }
+        continue;
+      }
+
+      // 跳过12月31日之后的日期（用空白填充）
+      if (date.year > now.year) {
+        currentWeek.add(
+          _DayData(date: date, requests: -1, isToday: false, isEmpty: true),
+        );
+        if (currentWeek.length == 7) {
+          weeksList.add(currentWeek);
+          currentWeek = [];
+        }
+        continue;
+      }
+
       final dateStr = _formatDate(date);
       final requests = dailyTokens[dateStr] ?? 0;
       final isToday =
           date.year == now.year &&
           date.month == now.month &&
           date.day == now.day;
+      // 未来日期标记为空但不是完全透明
+      final isFuture = date.isAfter(now);
 
       currentWeek.add(
-        _DayData(date: date, requests: requests, isToday: isToday),
+        _DayData(
+          date: date,
+          requests: requests,
+          isToday: isToday,
+          isEmpty: false,
+          isFuture: isFuture,
+        ),
       );
 
       // 每7天（一周）创建新列
-      if ((i + 1) % 7 == 0) {
+      if (currentWeek.length == 7) {
         weeksList.add(currentWeek);
         currentWeek = [];
       }
+    }
+
+    // 添加最后未满的一周（理论上不会出现，因为我们已经对齐到周六）
+    if (currentWeek.isNotEmpty) {
+      while (currentWeek.length < 7) {
+        final lastDate = currentWeek.last.date;
+        final nextDate = lastDate.add(const Duration(days: 1));
+        currentWeek.add(
+          _DayData(date: nextDate, requests: -1, isToday: false, isEmpty: true),
+        );
+      }
+      weeksList.add(currentWeek);
     }
 
     return weeksList;
@@ -186,29 +232,6 @@ class TokenHeatmap extends StatelessWidget {
     );
   }
 
-  /// 构建星期标签
-  Widget _buildWeekdayLabels(BuildContext context, double cellHeight) {
-    final weekdays = ['一', '三', '五'];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        SizedBox(height: cellHeight), // 对齐第一行（周一）
-        ...weekdays.map((day) {
-          return Container(
-            width: 40,
-            height: cellHeight,
-            alignment: Alignment.centerRight,
-            margin: const EdgeInsets.only(bottom: 2),
-            child: Text(
-              day,
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
   /// 构建热度图网格
   Widget _buildHeatmapGrid(
     BuildContext context,
@@ -246,26 +269,41 @@ class TokenHeatmap extends StatelessWidget {
     double cellWidth,
     double cellHeight,
   ) {
+    // 如果是空白日期（年初/年末的占位），返回透明占位符
+    if (dayData.isEmpty) {
+      return Container(
+        width: cellWidth,
+        height: cellHeight,
+        margin: const EdgeInsets.all(1),
+      );
+    }
+
     final color = _getColorForRequests(
       context,
       dayData.requests,
       maxRequests,
       brightness,
+      isFuture: dayData.isFuture,
     );
 
-    return Container(
-      width: cellWidth,
-      height: cellHeight,
-      margin: const EdgeInsets.all(1),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
-        border: dayData.isToday
-            ? Border.all(
-                color: Theme.of(context).colorScheme.primary,
-                width: 1.5,
-              )
-            : null,
+    return Tooltip(
+      message: dayData.isFuture
+          ? '${_formatDate(dayData.date)}\n未来日期'
+          : '${_formatDate(dayData.date)}\n${dayData.requests} 个请求',
+      child: Container(
+        width: cellWidth,
+        height: cellHeight,
+        margin: const EdgeInsets.all(1),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+          border: dayData.isToday
+              ? Border.all(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 1.5,
+                )
+              : null,
+        ),
       ),
     );
   }
@@ -275,12 +313,13 @@ class TokenHeatmap extends StatelessWidget {
     BuildContext context,
     int requests,
     int maxRequests,
-    Brightness brightness,
-  ) {
+    Brightness brightness, {
+    bool isFuture = false,
+  }) {
     final isDark = brightness == Brightness.dark;
 
-    if (requests == 0) {
-      // 无数据时显示浅灰色
+    // 未来日期和无数据都显示相同的浅灰色
+    if (isFuture || requests == 0) {
       return isDark ? Colors.grey.shade800 : Colors.grey.shade200;
     }
 
@@ -347,6 +386,14 @@ class _DayData {
   final DateTime date;
   final int requests;
   final bool isToday;
+  final bool isEmpty; // 是否为空白占位符（年初/年末）
+  final bool isFuture; // 是否为未来日期
 
-  _DayData({required this.date, required this.requests, required this.isToday});
+  _DayData({
+    required this.date,
+    required this.requests,
+    required this.isToday,
+    this.isEmpty = false,
+    this.isFuture = false,
+  });
 }

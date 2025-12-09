@@ -143,17 +143,20 @@ class HomeViewModel extends BaseViewModel {
   // 状态更新
   // =========================
 
-  /// 加载热度图数据（最近52周）
+  /// 加载热度图数据（全年数据：从今年1月1日到12月31日）
   Future<void> _loadHeatmapData() async {
     if (isDisposed) return;
 
     try {
       final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 52 * 7));
+      // 从今年1月1日开始
+      final startDate = DateTime(now.year, 1, 1);
+      // 到今年12月31日结束
+      final endDate = DateTime(now.year, 12, 31);
 
       final stats = await _databaseService.getDailySuccessRequestStats(
         startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: now.millisecondsSinceEpoch,
+        endTimestamp: endDate.millisecondsSinceEpoch,
       );
 
       if (!isDisposed) {
