@@ -99,103 +99,68 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     final brightness = theme.brightness;
 
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusLarge),
-      ),
       elevation: 0,
-      backgroundColor: Colors.transparent,
+      backgroundColor: ShadcnColors.card(brightness),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+      ),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 680),
         decoration: BoxDecoration(
-          color: ShadcnColors.card(brightness),
-          borderRadius: BorderRadius.circular(ShadcnSpacing.radiusLarge),
+          borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
           border: Border.all(
             color: ShadcnColors.border(brightness),
             width: ShadcnSpacing.borderWidth,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(
-                alpha: brightness == Brightness.dark
-                    ? ShadcnSpacing.shadowOpacityDarkSmall
-                    : ShadcnSpacing.shadowOpacityLightMedium,
-              ),
-              blurRadius: ShadcnSpacing.shadowBlurMedium,
-              offset: Offset(0, ShadcnSpacing.shadowOffsetMedium),
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 标题栏（Shadcn 风格 - 纯色背景）
-            Container(
+            // 标题栏 - 极简设计，无背景色
+            Padding(
               padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
-              decoration: BoxDecoration(
-                color: ShadcnColors.muted(brightness),
-                border: Border(
-                  bottom: BorderSide(
-                    color: ShadcnColors.border(brightness),
-                    width: ShadcnSpacing.borderWidth,
-                  ),
-                ),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(ShadcnSpacing.radiusLarge),
-                  topRight: Radius.circular(ShadcnSpacing.radiusLarge),
-                ),
-              ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(ShadcnSpacing.spacing12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-                    ),
-                    child: Icon(
-                      widget.endpoint == null
-                          ? Icons.add_rounded
-                          : Icons.edit_rounded,
-                      color: theme.colorScheme.primary,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           widget.endpoint == null ? '添加端点' : '编辑端点',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.endpoint == null
-                              ? '配置新的 Claude API 端点'
-                              : '修改端点配置信息',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.6,
+                        if (widget.endpoint == null ||
+                            widget.endpoint != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.endpoint == null
+                                ? '配置新的 Claude API 端点'
+                                : '修改端点配置信息',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: ShadcnColors.mutedForeground(brightness),
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(Icons.close_rounded, size: 20),
                     style: IconButton.styleFrom(
-                      backgroundColor: theme.colorScheme.surface.withValues(
-                        alpha: 0.5,
-                      ),
+                      foregroundColor: ShadcnColors.mutedForeground(brightness),
                     ),
                   ),
                 ],
               ),
+            ),
+            // 分隔线
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: ShadcnColors.border(brightness),
             ),
             // 内容区域
             Flexible(
@@ -404,49 +369,25 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ),
             ),
-            // 精致的按钮栏
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.3,
-                ),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-                border: Border(
-                  top: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.5),
-                    width: 1,
-                  ),
-                ),
-              ),
+            // 底部按钮栏 - 极简设计
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: ShadcnColors.border(brightness),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    label: const Text('取消'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                    ),
+                    child: const Text('取消'),
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
+                  const SizedBox(width: 8),
+                  FilledButton(
                     onPressed: _handleSave,
-                    icon: const Icon(Icons.check_rounded, size: 20),
-                    label: const Text('保存'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 28,
-                        vertical: 16,
-                      ),
-                    ),
+                    child: const Text('保存'),
                   ),
                 ],
               ),
@@ -463,7 +404,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     IconData icon,
   ) {
     final theme = Theme.of(context);
-    final brightness = theme.brightness;
 
     return Row(
       children: [

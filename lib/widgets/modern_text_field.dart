@@ -3,6 +3,13 @@ import '../themes/shadcn_colors.dart';
 import '../themes/shadcn_spacing.dart';
 
 /// Shadcn UI 风格的文本输入框
+///
+/// 设计特点（真正的 Shadcn UI 风格）：
+/// - 极简设计，最少的装饰
+/// - 细边框，白色背景
+/// - Label 在外部，不浮动
+/// - 前缀图标简单直接，无背景
+/// - 聚焦时细微的 ring 效果
 class ModernTextField extends StatefulWidget {
   final TextEditingController? controller;
   final String? label;
@@ -40,18 +47,7 @@ class ModernTextField extends StatefulWidget {
 }
 
 class _ModernTextFieldState extends State<ModernTextField> {
-  bool _isFocused = false;
   final FocusNode _focusNode = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode.addListener(() {
-      setState(() {
-        _isFocused = _focusNode.hasFocus;
-      });
-    });
-  }
 
   @override
   void dispose() {
@@ -66,136 +62,94 @@ class _ModernTextFieldState extends State<ModernTextField> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
+        // Label 在外部，非常简单
         if (widget.label != null) ...[
-          Padding(
-            padding: const EdgeInsets.only(
-              left: ShadcnSpacing.spacing4,
-              bottom: ShadcnSpacing.spacing8,
-            ),
-            child: Text(
-              widget.label!,
-              style: theme.textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: _isFocused
-                    ? theme.colorScheme.primary
-                    : ShadcnColors.foreground(brightness),
-              ),
-            ),
-          ),
-        ],
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-            // Shadcn UI Ring 聚焦效果
-            boxShadow: _isFocused
-                ? [
-                    BoxShadow(
-                      color: theme.colorScheme.primary
-                          .withValues(alpha: ShadcnSpacing.ringOpacity),
-                      blurRadius: 0,
-                      spreadRadius: ShadcnSpacing.ringSpread,
-                      offset: const Offset(0, 0),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: brightness == Brightness.dark
-                            ? ShadcnSpacing.shadowOpacityDarkSmall
-                            : ShadcnSpacing.shadowOpacityLightSmall,
-                      ),
-                      blurRadius: ShadcnSpacing.shadowBlurSmall,
-                      offset: Offset(0, ShadcnSpacing.shadowOffsetSmall),
-                    ),
-                  ],
-          ),
-          child: TextFormField(
-            controller: widget.controller,
-            focusNode: _focusNode,
-            obscureText: widget.obscureText,
-            keyboardType: widget.keyboardType,
-            maxLines: widget.obscureText ? 1 : widget.maxLines,
-            readOnly: widget.readOnly,
-            onTap: widget.onTap,
-            validator: widget.validator,
-            onChanged: widget.onChanged,
-            style: theme.textTheme.bodyLarge?.copyWith(
+          Text(
+            widget.label!,
+            style: theme.textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w500,
+              color: ShadcnColors.foreground(brightness),
             ),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              helperText: widget.helperText,
-              helperStyle: theme.textTheme.bodySmall?.copyWith(
-                color: ShadcnColors.mutedForeground(brightness),
+          ),
+          const SizedBox(height: 6),
+        ],
+        // 输入框 - 极简设计
+        TextFormField(
+          controller: widget.controller,
+          focusNode: _focusNode,
+          obscureText: widget.obscureText,
+          keyboardType: widget.keyboardType,
+          maxLines: widget.obscureText ? 1 : widget.maxLines,
+          readOnly: widget.readOnly,
+          onTap: widget.onTap,
+          validator: widget.validator,
+          onChanged: widget.onChanged,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: ShadcnColors.foreground(brightness),
+          ),
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: theme.textTheme.bodySmall?.copyWith(
+              color: ShadcnColors.mutedForeground(brightness),
+            ),
+            helperText: widget.helperText,
+            helperStyle: theme.textTheme.bodySmall?.copyWith(
+              color: ShadcnColors.mutedForeground(brightness),
+              fontSize: 12,
+            ),
+            // 前缀图标 - 极简，无装饰
+            prefixIcon: widget.prefixIcon != null
+                ? Icon(
+                    widget.prefixIcon,
+                    color: ShadcnColors.mutedForeground(brightness),
+                    size: 16,
+                  )
+                : null,
+            suffixIcon: widget.suffixIcon,
+            // 背景色 - 白色或卡片色
+            filled: true,
+            fillColor: ShadcnColors.background(brightness),
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: ShadcnSpacing.spacing12,
+              vertical: ShadcnSpacing.spacing8,
+            ),
+            // 边框 - 标准圆角，细线
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+              borderSide: BorderSide(
+                color: ShadcnColors.input(brightness),
+                width: 1,
               ),
-              prefixIcon: widget.prefixIcon != null
-                  ? Container(
-                      margin: const EdgeInsets.all(ShadcnSpacing.spacing12),
-                      padding: const EdgeInsets.all(ShadcnSpacing.spacing8),
-                      decoration: BoxDecoration(
-                        color: _isFocused
-                            ? theme.colorScheme.primary
-                                .withValues(alpha: 0.1)
-                            : ShadcnColors.muted(brightness),
-                        borderRadius:
-                            BorderRadius.circular(ShadcnSpacing.radiusSmall),
-                      ),
-                      child: Icon(
-                        widget.prefixIcon,
-                        color: _isFocused
-                            ? theme.colorScheme.primary
-                            : ShadcnColors.mutedForeground(brightness),
-                        size: ShadcnSpacing.iconMedium,
-                      ),
-                    )
-                  : null,
-              suffixIcon: widget.suffixIcon,
-              filled: true,
-              fillColor: ShadcnColors.card(brightness),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: widget.prefixIcon != null
-                    ? ShadcnSpacing.spacing16
-                    : ShadcnSpacing.spacing20,
-                vertical: widget.maxLines != null && widget.maxLines! > 1
-                    ? ShadcnSpacing.spacing16
-                    : ShadcnSpacing.spacing12,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+              borderSide: BorderSide(
+                color: ShadcnColors.input(brightness),
+                width: 1,
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-                borderSide: BorderSide(
-                  color: ShadcnColors.border(brightness),
-                  width: ShadcnSpacing.borderWidth,
-                ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+              borderSide: BorderSide(
+                color: ShadcnColors.ring(brightness),
+                width: 1,
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-                borderSide: BorderSide(
-                  color: ShadcnColors.border(brightness),
-                  width: ShadcnSpacing.borderWidth,
-                ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+              borderSide: const BorderSide(
+                color: ShadcnColors.error,
+                width: 1,
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-                borderSide: BorderSide(
-                  color: theme.colorScheme.primary,
-                  width: ShadcnSpacing.borderWidthFocused,
-                ),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-                borderSide: const BorderSide(
-                  color: ShadcnColors.error,
-                  width: ShadcnSpacing.borderWidth,
-                ),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-                borderSide: const BorderSide(
-                  color: ShadcnColors.error,
-                  width: ShadcnSpacing.borderWidthFocused,
-                ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+              borderSide: const BorderSide(
+                color: ShadcnColors.error,
+                width: 1,
               ),
             ),
           ),

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:code_proxy/model/request_log.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
-import 'package:code_proxy/themes/shadcn_color_helpers.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:flutter/material.dart';
@@ -21,21 +20,36 @@ class LogDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+
     return Dialog(
+      elevation: 0,
+      backgroundColor: ShadcnColors.card(brightness),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusLarge),
+        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
       ),
       child: Container(
         width: 600,
         constraints: const BoxConstraints(maxHeight: 700),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+          border: Border.all(
+            color: ShadcnColors.border(brightness),
+            width: ShadcnSpacing.borderWidth,
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             LogDetailHeader(log: log),
-            const Divider(height: 1),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: ShadcnColors.border(brightness),
+            ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(ShadcnSpacing.spacing20),
+                padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -187,27 +201,18 @@ class LogDetailHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final statusColors = ShadcnColorHelpers.forStatus(
-      log.success ? StatusType.success : StatusType.error,
-      brightness,
-    );
+    final theme = Theme.of(context);
+    final brightness = theme.brightness;
 
-    return Container(
+    return Padding(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing20),
-      decoration: BoxDecoration(
-        color: statusColors.background,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(ShadcnSpacing.radiusLarge),
-          topRight: Radius.circular(ShadcnSpacing.radiusLarge),
-        ),
-      ),
       child: Row(
         children: [
-          IconBadge(
-            icon: log.success ? Icons.check_circle : Icons.error,
-            color: statusColors.foreground,
-            size: IconBadgeSize.medium,
+          // 状态图标 - 极简设计
+          Icon(
+            log.success ? Icons.check_circle_rounded : Icons.error_rounded,
+            color: log.success ? ShadcnColors.success : ShadcnColors.error,
+            size: 20,
           ),
           const SizedBox(width: ShadcnSpacing.spacing12),
           Expanded(
@@ -216,24 +221,29 @@ class LogDetailHeader extends StatelessWidget {
               children: [
                 Text(
                   '${log.method} ${log.path}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'monospace',
-                      ),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   log.success ? '请求成功' : '请求失败',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: statusColors.foreground,
-                      ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: ShadcnColors.mutedForeground(brightness),
+                  ),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(Icons.close_rounded, size: 20),
             onPressed: () => Navigator.of(context).pop(),
+            style: IconButton.styleFrom(
+              foregroundColor: ShadcnColors.mutedForeground(brightness),
+            ),
           ),
         ],
       ),

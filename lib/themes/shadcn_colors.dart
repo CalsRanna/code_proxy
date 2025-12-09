@@ -29,8 +29,8 @@ class ShadcnColors {
   /// 输入框边框色 - 同 border
   static const lightInput = Color(0xFFE4E4E7);
 
-  /// 聚焦环颜色 - 深色 (zinc-900)
-  static const lightRing = Color(0xFF18181B);
+  /// 聚焦环颜色 - 中灰 (zinc-400) - 官方标准
+  static const lightRing = Color(0xFFA1A1AA);
 
   // ==================== Dark Mode Colors ====================
 
@@ -58,8 +58,8 @@ class ShadcnColors {
   /// 输入框边框色 - 同 border
   static const darkInput = Color(0xFF27272A);
 
-  /// 聚焦环颜色 - 浅色 (zinc-300)
-  static const darkRing = Color(0xFFD4D4D8);
+  /// 聚焦环颜色 - 中深灰 (zinc-500) - 官方标准
+  static const darkRing = Color(0xFF71717A);
 
   // ==================== 状态颜色 ====================
 

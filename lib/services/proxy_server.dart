@@ -426,11 +426,6 @@ class ProxyServer {
     // 保存实际使用的请求头（用于日志记录）
     final actualHeaders = Map<String, String>.from(headers);
 
-    // 打印转发请求信息到控制台
-    print(
-      '[Proxy] Forwarding ${request.method} ${upstreamUrl.toString()} -> ${endpoint.name}',
-    );
-
     // 获取超时配置（如果有）
     final timeoutMs = claudeConfig.env.apiTimeoutMs;
     final timeoutDuration = timeoutMs != null
