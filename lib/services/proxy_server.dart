@@ -152,6 +152,19 @@ class ProxyServer {
         final error = triedEndpoints.isEmpty
             ? 'No available endpoints'
             : 'All available endpoints failed';
+
+        // 尝试从请求体中提取模型信息
+        String? model;
+        try {
+          final rawRequestBody = utf8.decode(bodyBytes, allowMalformed: true);
+          final requestJson = jsonDecode(rawRequestBody);
+          if (requestJson is Map<String, dynamic>) {
+            model = requestJson['model'] as String?;
+          }
+        } catch (_) {
+          // JSON 解析失败，忽略
+        }
+
         _recordFailure(
           endpointId: 'unknown',
           endpointName: 'unknown',
@@ -161,6 +174,9 @@ class ProxyServer {
           startTime: startTime,
           header: null,
           message: error,
+          model: model,
+          inputTokens: null,
+          outputTokens: null,
         );
 
         return Response(
@@ -282,6 +298,9 @@ class ProxyServer {
             statusCode: statusCode,
             header: headerMap,
             message: 'Client error: HTTP $statusCode',
+            model: model,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
             rawHeader: rawHeaderString,
             rawRequest: rawRequestBody,
             rawResponse: rawResponseBody,
@@ -305,6 +324,9 @@ class ProxyServer {
             statusCode: statusCode,
             header: headerMap,
             message: 'Server error: HTTP $statusCode',
+            model: model,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
             rawHeader: rawHeaderString,
             rawRequest: rawRequestBody,
             rawResponse: rawResponseBody,
@@ -326,6 +348,17 @@ class ProxyServer {
         // 记录失败（异常情况下没有实际的请求头，使用 null）
         final rawRequestBody = utf8.decode(bodyBytes, allowMalformed: true);
 
+        // 尝试从请求体中提取模型信息
+        String? model;
+        try {
+          final requestJson = jsonDecode(rawRequestBody);
+          if (requestJson is Map<String, dynamic>) {
+            model = requestJson['model'] as String?;
+          }
+        } catch (_) {
+          // JSON 解析失败，忽略
+        }
+
         _recordFailure(
           endpointId: endpoint.id,
           endpointName: endpoint.name,
@@ -335,6 +368,9 @@ class ProxyServer {
           startTime: startTime,
           header: null,
           message: 'Exception: ${e.toString()}',
+          model: model,
+          inputTokens: null,
+          outputTokens: null,
           rawHeader: null,
           rawRequest: rawRequestBody,
           rawResponse: null,
@@ -533,6 +569,9 @@ class ProxyServer {
     int? statusCode,
     Map<String, dynamic>? header,
     String? message,
+    String? model,
+    int? inputTokens,
+    int? outputTokens,
     String? rawHeader,
     String? rawRequest,
     String? rawResponse,
@@ -550,6 +589,9 @@ class ProxyServer {
       responseTime: responseTime,
       header: header,
       message: message,
+      model: model,
+      inputTokens: inputTokens,
+      outputTokens: outputTokens,
       rawHeader: rawHeader,
       rawRequest: rawRequest,
       rawResponse: rawResponse,
