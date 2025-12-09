@@ -2,6 +2,8 @@ import 'package:code_proxy/model/claude_config.dart';
 import 'package:code_proxy/model/endpoint.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:flutter/material.dart';
+import '../themes/shadcn_colors.dart';
+import '../themes/shadcn_spacing.dart';
 import 'modern_text_field.dart';
 
 /// 端点编辑表单对话框（StatefulWidget 以支持表单状态）
@@ -93,79 +95,68 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final brightness = theme.brightness;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusLarge),
+      ),
       elevation: 0,
       backgroundColor: Colors.transparent,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 680),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
+          color: ShadcnColors.card(brightness),
+          borderRadius: BorderRadius.circular(ShadcnSpacing.radiusLarge),
+          border: Border.all(
+            color: ShadcnColors.border(brightness),
+            width: ShadcnSpacing.borderWidth,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
-              blurRadius: 32,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(
+                alpha: brightness == Brightness.dark
+                    ? ShadcnSpacing.shadowOpacityDarkSmall
+                    : ShadcnSpacing.shadowOpacityLightMedium,
+              ),
+              blurRadius: ShadcnSpacing.shadowBlurMedium,
+              offset: Offset(0, ShadcnSpacing.shadowOffsetMedium),
             ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 精致的标题栏
+            // 标题栏（Shadcn 风格 - 纯色背景）
             Container(
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    theme.colorScheme.primary.withValues(
-                      alpha: isDark ? 0.15 : 0.08,
-                    ),
-                    theme.colorScheme.secondary.withValues(
-                      alpha: isDark ? 0.1 : 0.05,
-                    ),
-                  ],
+                color: ShadcnColors.muted(brightness),
+                border: Border(
+                  bottom: BorderSide(
+                    color: ShadcnColors.border(brightness),
+                    width: ShadcnSpacing.borderWidth,
+                  ),
                 ),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(ShadcnSpacing.radiusLarge),
+                  topRight: Radius.circular(ShadcnSpacing.radiusLarge),
                 ),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(ShadcnSpacing.spacing12),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          theme.colorScheme.primary,
-                          theme.colorScheme.secondary,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.3,
-                          ),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
                     ),
                     child: Icon(
                       widget.endpoint == null
                           ? Icons.add_rounded
                           : Icons.edit_rounded,
-                      color: Colors.white,
-                      size: 28,
+                      color: theme.colorScheme.primary,
+                      size: 24,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -471,24 +462,23 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     IconData icon,
   ) {
     final theme = Theme.of(context);
+    final brightness = theme.brightness;
+
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(ShadcnSpacing.spacing8),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.colorScheme.primary.withValues(alpha: 0.15),
-                theme.colorScheme.secondary.withValues(alpha: 0.1),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(10),
+            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(ShadcnSpacing.radiusSmall),
           ),
-          child: Icon(icon, color: theme.colorScheme.primary, size: 22),
+          child: Icon(
+            icon,
+            color: theme.colorScheme.primary,
+            size: ShadcnSpacing.iconMedium,
+          ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: ShadcnSpacing.spacing12),
         Text(
           title,
           style: theme.textTheme.titleLarge?.copyWith(
