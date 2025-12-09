@@ -6,8 +6,6 @@ import 'package:code_proxy/model/proxy_config.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:http/http.dart' as http;
-import 'load_balancer.dart';
-import 'health_checker.dart';
 import 'stats_collector.dart';
 import 'claude_code_config_manager.dart';
 
@@ -21,12 +19,11 @@ class _ForwardedResponse {
 }
 
 /// 代理服务器
-/// 使用 shelf 实现透明 HTTP 代理
+/// 使用 shelf 实现透明 HTTP 代理，支持简单的故障转移
 class ProxyServer {
   final ProxyConfig config;
   final List<Endpoint> Function() getEndpoints;
-  final LoadBalancer loadBalancer;
-  final HealthChecker healthChecker;
+  final Future<void> Function(String endpointId, bool enabled) updateEndpointEnabled;
   final StatsCollector statsCollector;
   final ClaudeCodeConfigManager claudeCodeConfigManager;
 
@@ -45,11 +42,16 @@ class ProxyServer {
   /// 缓存的真实 API Key（从备份配置读取）
   String? _realApiKey;
 
+  /// 端点失败计数器 (endpointId -> 连续失败次数)
+  final Map<String, int> _failureCount = {};
+
+  /// 最大连续失败次数阈值
+  static const int _maxConsecutiveFailures = 3;
+
   ProxyServer({
     required this.config,
     required this.getEndpoints,
-    required this.loadBalancer,
-    required this.healthChecker,
+    required this.updateEndpointEnabled,
     required this.statsCollector,
     required this.claudeCodeConfigManager,
   });
@@ -67,7 +69,7 @@ class ProxyServer {
     // 从备份配置读取真实的 API Key
     await _loadRealApiKey();
 
-    // 创建请求处理管道（不使用 logRequests middleware）
+    // 创建请求处理管道
     final handler = _proxyHandler;
 
     // 启动服务器
@@ -78,26 +80,19 @@ class ProxyServer {
     );
 
     _startedAt = DateTime.now().millisecondsSinceEpoch;
-
-    // 启动健康检查
-    healthChecker.startActiveHealthCheck();
   }
 
-  /// 从备份配置读取真实的 API Key
+  /// 从配置读取真实的 API Key
   Future<void> _loadRealApiKey() async {
-    final backupConfig = await claudeCodeConfigManager.readBackupConfig();
-    if (backupConfig != null) {
-      _realApiKey = backupConfig['env']?['ANTHROPIC_AUTH_TOKEN'] as String?;
-      if (_realApiKey != null) {}
+    _realApiKey = await claudeCodeConfigManager.getRealApiKey();
+    if (_realApiKey != null) {
+      // API Key 已加载
     }
   }
 
   /// 停止代理服务器
   Future<void> stop() async {
     if (_server == null) return;
-
-    // 停止健康检查
-    healthChecker.stopActiveHealthCheck();
 
     // 关闭服务器
     await _server!.close(force: false);
@@ -107,6 +102,9 @@ class ProxyServer {
 
     // 清理缓存的 API Key
     _realApiKey = null;
+
+    // 清理失败计数
+    _failureCount.clear();
   }
 
   /// 服务器是否正在运行
@@ -467,39 +465,19 @@ class ProxyServer {
     );
   }
 
-  /// 选择未尝试过的端点
+  /// 选择未尝试过的端点（简单的故障转移策略）
+  /// 按照端点顺序选择第一个启用的、未尝试的端点
   Endpoint? _selectUntried(Set<String> triedEndpoints) {
     final allEndpoints = getEndpoints();
 
-    // 获取所有启用且健康的端点
-    final availableEndpoints = allEndpoints.where((endpoint) {
-      return endpoint.enabled &&
-          healthChecker.isHealthy(endpoint.id) &&
-          !triedEndpoints.contains(endpoint.id);
-    }).toList();
-
-    if (availableEndpoints.isEmpty) {
-      return null;
-    }
-
-    // 如果只有一个，直接返回
-    if (availableEndpoints.length == 1) {
-      return availableEndpoints.first;
-    }
-
-    // 选择响应时间最快的
-    Endpoint? bestEndpoint;
-    double bestAvgResponseTime = double.infinity;
-
-    for (final endpoint in availableEndpoints) {
-      final avgResponseTime = loadBalancer.getAverageResponseTime(endpoint.id);
-      if (avgResponseTime < bestAvgResponseTime) {
-        bestAvgResponseTime = avgResponseTime;
-        bestEndpoint = endpoint;
+    // 获取所有启用且未尝试过的端点
+    for (final endpoint in allEndpoints) {
+      if (endpoint.enabled && !triedEndpoints.contains(endpoint.id)) {
+        return endpoint;
       }
     }
 
-    return bestEndpoint;
+    return null;
   }
 
   // =========================
@@ -540,11 +518,8 @@ class ProxyServer {
       rawResponse: rawResponse,
     );
 
-    // 更新负载均衡器
-    loadBalancer.recordResponseTime(endpoint.id, responseTime);
-
-    // 更新健康检查器（被动检查）
-    healthChecker.recordRequestSuccess(endpoint.id);
+    // 重置失败计数
+    _failureCount[endpoint.id] = 0;
   }
 
   /// 记录失败请求
@@ -580,8 +555,18 @@ class ProxyServer {
       rawResponse: rawResponse,
     );
 
-    // 更新健康检查器（被动检查）
-    healthChecker.recordRequestFailure(endpointId, error);
+    // 增加失败计数
+    _failureCount[endpointId] = (_failureCount[endpointId] ?? 0) + 1;
+
+    // 检查是否达到阈值，如果达到则禁用端点
+    if (_failureCount[endpointId]! >= _maxConsecutiveFailures) {
+      print('Endpoint $endpointName ($endpointId) reached maximum consecutive failures ($_maxConsecutiveFailures), disabling...');
+
+      // 异步更新端点状态
+      updateEndpointEnabled(endpointId, false).catchError((error) {
+        print('Failed to disable endpoint $endpointId: $error');
+      });
+    }
   }
 
   /// 解析 SSE（Server-Sent Events）格式的响应

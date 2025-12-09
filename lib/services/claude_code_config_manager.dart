@@ -195,17 +195,56 @@ class ClaudeCodeConfigManager {
     }
   }
 
-  /// 检查当前是否为代理模式
-  Future<bool> isProxyMode() async {
+  /// 检查当前配置是否指向代理服务器
+  /// 通过检查 ANTHROPIC_BASE_URL 是否指向本地代理地址来判断
+  Future<bool> isPointingToProxy({
+    required String proxyAddress,
+    required int proxyPort,
+  }) async {
     try {
       final config = await readConfig();
       if (config == null) {
         return false;
       }
 
-      return config['_proxy_mode'] == true;
+      final env = config['env'] as Map<String, dynamic>?;
+      if (env == null) {
+        return false;
+      }
+
+      final baseUrl = env['ANTHROPIC_BASE_URL'] as String?;
+      if (baseUrl == null) {
+        return false;
+      }
+
+      // 检查 URL 是否指向本地代理
+      final expectedUrl = 'http://$proxyAddress:$proxyPort';
+      return baseUrl == expectedUrl;
     } catch (e) {
       return false;
     }
+  }
+
+  /// 获取真实的 API Key（从备份配置或当前配置读取）
+  Future<String?> getRealApiKey() async {
+    // 优先从备份配置读取
+    final backupConfig = await readBackupConfig();
+    if (backupConfig != null) {
+      final env = backupConfig['env'] as Map<String, dynamic>?;
+      return env?['ANTHROPIC_AUTH_TOKEN'] as String?;
+    }
+
+    // 如果没有备份，从当前配置读取
+    final config = await readConfig();
+    if (config != null) {
+      final env = config['env'] as Map<String, dynamic>?;
+      final token = env?['ANTHROPIC_AUTH_TOKEN'] as String?;
+      // 排除代理生成的临时 token
+      if (token != null && !isProxyToken(token)) {
+        return token;
+      }
+    }
+
+    return null;
   }
 }

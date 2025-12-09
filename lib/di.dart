@@ -1,8 +1,6 @@
 import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/database_service.dart';
-import 'package:code_proxy/services/health_checker.dart';
-import 'package:code_proxy/services/load_balancer.dart';
 import 'package:code_proxy/services/proxy_server.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:code_proxy/services/theme_service.dart';
@@ -48,25 +46,6 @@ Future<void> setupServiceLocator() async {
     ),
   );
 
-  // 注册 HealthChecker（单例）
-  getIt.registerLazySingleton<HealthChecker>(
-    () => HealthChecker(
-      config: config,
-      // 从 ConfigManager 获取端点列表
-      getEndpoints: () => getIt<ConfigManager>().endpoints.value,
-    ),
-  );
-
-  // 注册 LoadBalancer（单例）
-  getIt.registerLazySingleton<LoadBalancer>(
-    () => LoadBalancer(
-      // 从 ConfigManager 获取端点列表
-      getEndpoints: () => getIt<ConfigManager>().endpoints.value,
-      isHealthy: (endpointId) => getIt<HealthChecker>().isHealthy(endpointId),
-      responseTimeWindowSize: config.responseTimeWindowSize,
-    ),
-  );
-
   // 注册 ClaudeCodeConfigManager（单例）
   getIt.registerLazySingleton<ClaudeCodeConfigManager>(
     () => ClaudeCodeConfigManager(),
@@ -78,8 +57,14 @@ Future<void> setupServiceLocator() async {
       config: config,
       // 从 ConfigManager 获取端点列表
       getEndpoints: () => getIt<ConfigManager>().endpoints.value,
-      loadBalancer: getIt<LoadBalancer>(),
-      healthChecker: getIt<HealthChecker>(),
+      // 更新端点 enabled 状态的回调
+      updateEndpointEnabled: (endpointId, enabled) async {
+        final configManager = getIt<ConfigManager>();
+        final endpoint = configManager.endpoints.value
+            .firstWhere((e) => e.id == endpointId);
+        final updatedEndpoint = endpoint.copyWith(enabled: enabled);
+        await configManager.saveEndpoint(updatedEndpoint);
+      },
       statsCollector: getIt<StatsCollector>(),
       claudeCodeConfigManager: getIt<ClaudeCodeConfigManager>(),
     ),
@@ -93,7 +78,6 @@ Future<void> setupServiceLocator() async {
   getIt.registerFactory<HomeViewModel>(
     () => HomeViewModel(
       proxyServer: getIt<ProxyServer>(),
-      healthChecker: getIt<HealthChecker>(),
       statsCollector: getIt<StatsCollector>(),
       configManager: getIt<ConfigManager>(),
       claudeCodeConfigManager: getIt<ClaudeCodeConfigManager>(),
@@ -110,7 +94,6 @@ Future<void> setupServiceLocator() async {
   getIt.registerFactory<MonitoringViewModel>(
     () => MonitoringViewModel(
       statsCollector: getIt<StatsCollector>(),
-      healthChecker: getIt<HealthChecker>(),
       configManager: getIt<ConfigManager>(),
     ),
   );

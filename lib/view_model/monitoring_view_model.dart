@@ -1,23 +1,19 @@
 import 'dart:async';
 import 'package:code_proxy/model/endpoint.dart';
 import 'package:code_proxy/model/endpoint_stats.dart';
-import 'package:code_proxy/model/health_status.dart';
 import 'package:code_proxy/services/config_manager.dart';
-import 'package:code_proxy/services/health_checker.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:signals/signals.dart';
 import 'base_view_model.dart';
 
 /// 监控 ViewModel
-/// 负责实时监控端点统计信息和健康状态
+/// 负责实时监控端点统计信息
 class MonitoringViewModel extends BaseViewModel {
   final StatsCollector _statsCollector;
-  final HealthChecker _healthChecker;
   final ConfigManager _configManager;
 
   /// 响应式状态
   final endpointStats = signal<Map<String, EndpointStats>>({});
-  final healthStatuses = signal<Map<String, HealthStatus>>({});
 
   /// 端点列表（使用 ConfigManager 的全局 signal）
   ListSignal<Endpoint> get endpoints => _configManager.endpoints;
@@ -27,10 +23,8 @@ class MonitoringViewModel extends BaseViewModel {
 
   MonitoringViewModel({
     required StatsCollector statsCollector,
-    required HealthChecker healthChecker,
     required ConfigManager configManager,
   }) : _statsCollector = statsCollector,
-       _healthChecker = healthChecker,
        _configManager = configManager;
 
   /// 初始化
@@ -70,7 +64,6 @@ class MonitoringViewModel extends BaseViewModel {
     if (isDisposed) return;
 
     endpointStats.value = _statsCollector.getAllEndpointStats();
-    healthStatuses.value = _healthChecker.getAllHealthStatuses();
   }
 
   /// 手动刷新统计信息（供 UI 调用）
@@ -96,13 +89,6 @@ class MonitoringViewModel extends BaseViewModel {
     _updateStats();
   }
 
-  /// 重置端点健康状态
-  void resetEndpointHealth(String endpointId) {
-    ensureNotDisposed();
-    _healthChecker.resetEndpointHealth(endpointId);
-    _updateStats();
-  }
-
   // =========================
   // 数据访问
   // =========================
@@ -110,25 +96,6 @@ class MonitoringViewModel extends BaseViewModel {
   /// 获取指定端点的统计信息
   EndpointStats? getEndpointStats(String endpointId) {
     return endpointStats.value[endpointId];
-  }
-
-  /// 获取指定端点的健康状态
-  HealthStatus? getHealthStatus(String endpointId) {
-    return healthStatuses.value[endpointId];
-  }
-
-  /// 获取健康的端点数量
-  int get healthyEndpointCount {
-    return healthStatuses.value.values
-        .where((status) => status.state == HealthState.healthy)
-        .length;
-  }
-
-  /// 获取不健康的端点数量
-  int get unhealthyEndpointCount {
-    return healthStatuses.value.values
-        .where((status) => status.state == HealthState.unhealthy)
-        .length;
   }
 
   /// 获取总请求数

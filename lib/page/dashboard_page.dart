@@ -1,7 +1,5 @@
-import 'package:code_proxy/model/proxy_server_state.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
-import 'package:code_proxy/themes/shadcn_color_helpers.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
@@ -28,41 +26,8 @@ class DashboardPage extends StatelessWidget {
               title: '控制面板',
               subtitle: isRunning && serverState.listenAddress != null
                   ? '服务器运行中 - ${serverState.listenAddress}:${serverState.listenPort}'
-                  : '服务器已停止',
+                  : '服务器启动中...',
               icon: Icons.dashboard_outlined,
-              actions: [
-                FilledButton.icon(
-                  onPressed: () async {
-                    try {
-                      if (isRunning) {
-                        await viewModel.stopServer();
-                      } else {
-                        await viewModel.startServer();
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('操作失败: $e')),
-                        );
-                      }
-                    }
-                  },
-                  icon: Icon(
-                    isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                  ),
-                  label: Text(isRunning ? '停止服务器' : '启动服务器'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isRunning
-                        ? ShadcnColors.error
-                        : ShadcnColors.success,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: ShadcnSpacing.buttonPaddingH,
-                      vertical: ShadcnSpacing.buttonPaddingV,
-                    ),
-                  ),
-                ),
-              ],
             );
           }),
           Expanded(
@@ -71,8 +36,6 @@ class DashboardPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ServerStatusCard(state: serverState),
-                  const SizedBox(height: ShadcnSpacing.spacing16),
                   // Token使用热度图
                   Watch((context) {
                     final dailyTokens = viewModel.dailyTokenStats.value;
@@ -143,85 +106,5 @@ class DashboardPage extends StatelessWidget {
     if (width < 800) return 2; // 小屏：2列
     if (width < 1200) return 3; // 中屏：3列
     return 4; // 大屏：4列
-  }
-}
-
-class _ServerStatusCard extends StatelessWidget {
-  final ProxyServerState state;
-
-  const _ServerStatusCard({required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final isRunning = state.running;
-
-    // 使用StatusType确定颜色
-    final statusColors = ShadcnColorHelpers.forStatus(
-      isRunning ? StatusType.success : StatusType.neutral,
-      brightness,
-    );
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusLarge),
-        color: statusColors.background,
-        border: Border.all(
-          color: statusColors.border,
-          width: ShadcnSpacing.borderWidth,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: brightness == Brightness.dark
-                  ? ShadcnSpacing.shadowOpacityDarkSmall
-                  : ShadcnSpacing.shadowOpacityLightSmall,
-            ),
-            blurRadius: ShadcnSpacing.shadowBlurSmall,
-            offset: Offset(0, ShadcnSpacing.shadowOffsetSmall),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
-        child: Row(
-          children: [
-            // 使用新建的IconBadge组件
-            IconBadge(
-              icon: isRunning ? Icons.check_circle : Icons.pause_circle,
-              color: statusColors.foreground,
-              size: IconBadgeSize.large,
-            ),
-            const SizedBox(width: ShadcnSpacing.spacing24),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isRunning ? '服务器运行中' : '服务器已停止',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (isRunning && state.listenAddress != null)
-                    StatusBadge(
-                      label: '${state.listenAddress}:${state.listenPort}',
-                      type: StatusType.info,
-                    )
-                  else
-                    Text(
-                      '点击右上角按钮启动代理服务器',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: ShadcnColors.mutedForeground(brightness),
-                          ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
