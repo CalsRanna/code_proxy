@@ -6,7 +6,6 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/proxy_server_config_entity.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
-import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -107,9 +106,15 @@ class ProxyServerService {
     );
     onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
 
+    // 清理响应头，移除可能导致问题的头部
+    final cleanHeaders = Map<String, String>.from(response.headers);
+    cleanHeaders.remove('transfer-encoding');
+    cleanHeaders.remove('content-encoding');
+    cleanHeaders.remove('content-length');
+
     return shelf.Response(
       response.statusCode,
-      headers: response.headers,
+      headers: cleanHeaders,
       body: responseBodyBytes,
     );
   }
@@ -168,9 +173,15 @@ class ProxyServerService {
       ),
     );
 
+    // 清理响应头，移除可能导致问题的头部
+    final cleanHeaders = Map<String, String>.from(response.headers);
+    cleanHeaders.remove('transfer-encoding');
+    cleanHeaders.remove('content-encoding');
+    cleanHeaders.remove('content-length');
+
     return shelf.Response(
       response.statusCode,
-      headers: response.headers,
+      headers: cleanHeaders,
       body: transformedStream,
     );
   }

@@ -108,7 +108,12 @@ class HomeViewModel extends BaseViewModel {
     }
 
     // 启动代理服务器
-    _proxyServer ??= ProxyServerService(config: config);
+    _proxyServer ??= ProxyServerService(
+      config: config,
+      onRequestCompleted: (endpoint, request, response) {
+        handleRequestCompleted(_statsCollector, endpoint, request, response);
+      },
+    );
     await _proxyServer?.start();
     _proxyServer?.endpoints = endpoints.value;
     _updateServerState();
@@ -206,26 +211,34 @@ class HomeViewModel extends BaseViewModel {
       int? inputTokens;
       int? outputTokens;
 
+      // 从请求中解析 model（更可靠）
+      if (request.body.isNotEmpty) {
+        try {
+          final requestJson = jsonDecode(request.body);
+          if (requestJson is Map<String, dynamic>) {
+            model = requestJson['model'] as String?;
+          }
+        } catch (_) {
+          // 解析失败，忽略
+        }
+      }
+
       // 检测是否是 SSE 响应
       final contentType = response.headers['content-type'] ?? '';
       final isSSE = contentType.contains('text/event-stream');
 
-      // 尝试从响应中解析 token 信息
+      // 从响应中解析 token 信息
       if (success && response.body.isNotEmpty) {
         try {
           if (isSSE) {
             // SSE 格式：解析多个 data: {...} 块
             final tokens = _parseSSETokens(response.body);
-            model = tokens['model'];
             inputTokens = tokens['input'];
             outputTokens = tokens['output'];
           } else {
             // 普通 JSON 格式
             final responseJson = jsonDecode(response.body);
             if (responseJson is Map<String, dynamic>) {
-              // 提取 model
-              model = responseJson['model'] as String?;
-
               // 提取 usage 信息
               final usage = responseJson['usage'];
               if (usage is Map<String, dynamic>) {
@@ -281,14 +294,13 @@ class HomeViewModel extends BaseViewModel {
     }
   }
 
-  /// 解析 SSE 格式的响应，提取 Token 和 Model 信息
+  /// 解析 SSE 格式的响应，提取 Token 信息
   /// SSE 格式示例（Anthropic API）：
   /// data: {"type":"content_block_delta","delta":{"text":"Hello"},"usage":{"input_tokens":10}}
   /// data: {"type":"message_stop","usage":{"output_tokens":20}}
   static Map<String, dynamic> _parseSSETokens(String sseBody) {
     int totalInput = 0;
     int totalOutput = 0;
-    String? lastModel;
 
     // 解析 SSE 格式：data: {...}
     final lines = sseBody.split('\n');
@@ -305,11 +317,6 @@ class HomeViewModel extends BaseViewModel {
           final json = jsonDecode(jsonStr);
 
           if (json is Map<String, dynamic>) {
-            // 提取 model
-            if (json['model'] != null) {
-              lastModel = json['model'];
-            }
-
             // 提取并累加 tokens (Anthropic API 格式)
             final usage = json['usage'];
             if (usage is Map<String, dynamic>) {
@@ -326,7 +333,6 @@ class HomeViewModel extends BaseViewModel {
     return {
       'input': totalInput > 0 ? totalInput : null,
       'output': totalOutput > 0 ? totalOutput : null,
-      'model': lastModel,
     };
   }
 }
