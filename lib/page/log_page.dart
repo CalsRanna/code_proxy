@@ -18,15 +18,11 @@ class LogPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Watch((context) {
-      final filteredLogs = viewModel.filteredLogs.value;
+      final logs = viewModel.logs.value;
       final currentPage = viewModel.currentPage.value;
       final totalPages = viewModel.totalPages.value;
       final totalRecords = viewModel.totalRecords.value;
       final pageSize = viewModel.pageSize.value;
-      final hasSearch =
-          viewModel.searchQuery.value.isNotEmpty ||
-          viewModel.endpointFilter.value != null ||
-          viewModel.successFilter.value != null;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,13 +32,6 @@ class LogPage extends StatelessWidget {
             subtitle: '$totalRecords 条记录',
             icon: LucideIcons.arrowUpDown,
             actions: [
-              if (hasSearch)
-                OutlinedButton.icon(
-                  onPressed: viewModel.clearFilters,
-                  icon: Icon(LucideIcons.x),
-                  label: const Text('清除过滤'),
-                ),
-              if (hasSearch) const SizedBox(width: ShadcnSpacing.spacing12),
               FilledButton.icon(
                 onPressed: () => _showClearDialog(context),
                 icon: const Icon(LucideIcons.trash2),
@@ -55,12 +44,10 @@ class LogPage extends StatelessWidget {
             ],
           ),
           Expanded(
-            child: filteredLogs.isEmpty
-                ? EmptyState(
-                    icon: hasSearch
-                        ? LucideIcons.searchX
-                        : LucideIcons.arrowUpDown,
-                    message: hasSearch ? '未找到匹配的日志' : '暂无日志记录',
+            child: logs.isEmpty
+                ? const EmptyState(
+                    icon: LucideIcons.arrowUpDown,
+                    message: '暂无日志记录',
                   )
                 : Column(
                     children: [
@@ -69,13 +56,13 @@ class LogPage extends StatelessWidget {
                           padding: const EdgeInsets.all(
                             ShadcnSpacing.spacing24,
                           ),
-                          itemCount: filteredLogs.length,
+                          itemCount: logs.length,
                           itemBuilder: (context, index) {
                             return LogListItem(
-                              log: filteredLogs[index],
+                              log: logs[index],
                               onTap: () => LogDetailDialog.show(
                                 context,
-                                filteredLogs[index],
+                                logs[index],
                               ),
                             );
                           },

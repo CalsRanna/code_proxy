@@ -265,9 +265,6 @@ class HomeViewModel extends BaseViewModel {
           model: model,
           inputTokens: inputTokens,
           outputTokens: outputTokens,
-          rawHeader: response.headers.toString(),
-          rawRequest: request.body,
-          rawResponse: response.body,
         );
       } else {
         statsCollector.recordFailure(
@@ -284,9 +281,6 @@ class HomeViewModel extends BaseViewModel {
           model: model,
           inputTokens: inputTokens,
           outputTokens: outputTokens,
-          rawHeader: response.headers.toString(),
-          rawRequest: request.body,
-          rawResponse: response.body,
         );
       }
     } catch (e) {

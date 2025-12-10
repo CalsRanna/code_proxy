@@ -460,6 +460,13 @@ class DatabaseService {
     return results.map((row) => _requestLogFromRow(row)).toList();
   }
 
+  /// 获取日志总数
+  Future<int> getRequestLogTotalCount() async {
+    _ensureInitialized();
+    final results = _db.select('SELECT COUNT(*) as count FROM request_logs');
+    return results.first['count'] as int;
+  }
+
   /// 根据端点 ID 获取日志
   Future<List<RequestLog>> getRequestLogsByEndpoint(
     String endpointId, {

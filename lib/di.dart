@@ -41,15 +41,9 @@ Future<void> setupServiceLocator() async {
   // 初始化全局主题 signal（从 SharedPreferences 加载）
   await SettingsViewModel.initGlobalTheme(getIt<ThemeService>());
 
-  // 加载初始配置
-  final config = await getIt<ConfigManager>().loadProxyConfig();
-
   // 注册 StatsCollector（单例）
   getIt.registerLazySingleton<StatsCollector>(
-    () => StatsCollector(
-      maxLogEntries: config.maxLogEntries,
-      databaseService: getIt<DatabaseService>(),
-    ),
+    () => StatsCollector(databaseService: getIt<DatabaseService>()),
   );
 
   // 注册 ClaudeCodeConfigManager（单例）
@@ -84,7 +78,6 @@ Future<void> setupServiceLocator() async {
   // 注册 LogsViewModel（工厂模式）
   getIt.registerFactory<LogsViewModel>(
     () => LogsViewModel(
-      statsCollector: getIt<StatsCollector>(),
       databaseService: getIt<DatabaseService>(),
     ),
   );

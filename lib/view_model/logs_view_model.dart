@@ -1,28 +1,17 @@
 import 'dart:async';
 import 'package:code_proxy/model/request_log.dart';
 import 'package:code_proxy/services/database_service.dart';
-import 'package:code_proxy/services/stats_collector.dart';
 import 'package:signals/signals.dart';
 import 'base_view_model.dart';
 
 /// 日志 ViewModel
 /// 负责日志管理和过滤
 class LogsViewModel extends BaseViewModel {
-  final StatsCollector _statsCollector;
   final DatabaseService _databaseService;
 
   /// 响应式状态
   final logs = listSignal<RequestLog>([]);
-  final filteredLogs = listSignal<RequestLog>([]);
-  final filterKeyword = signal('');
-  final filterLevel = signal<LogLevel?>(null);
-  final filterEndpointId = signal<String?>(null);
   final autoRefresh = signal(true);
-
-  // 新的过滤器（用于新UI）
-  final searchQuery = signal('');
-  final endpointFilter = signal<String?>(null);
-  final successFilter = signal<bool?>(null);
 
   /// 分页状态
   final currentPage = signal(1);
@@ -34,15 +23,8 @@ class LogsViewModel extends BaseViewModel {
   Timer? _refreshTimer;
 
   LogsViewModel({
-    required StatsCollector statsCollector,
     required DatabaseService databaseService,
-  })  : _statsCollector = statsCollector,
-        _databaseService = databaseService;
-
-  /// 获取所有可用的端点名称（用于过滤下拉框）
-  late final availableEndpoints = computed(() {
-    return logs.value.map((log) => log.endpointName).toSet().toList()..sort();
-  });
+  })  : _databaseService = databaseService;
 
   /// 初始化
   void init() {
@@ -55,25 +37,48 @@ class LogsViewModel extends BaseViewModel {
   // 日志加载
   // =========================
 
-  /// 加载日志
+  /// 加载日志（真正的分页加载）
   void loadLogs() async {
     if (isDisposed) return;
 
     try {
-      // 优先从数据库加载日志
+      // 优先从数据库分页加载
       if (_databaseService.isInitialized) {
-        final dbLogs = await _databaseService.getAllRequestLogs(limit: 1000);
+        final startIndex = (currentPage.value - 1) * pageSize.value;
+        final dbLogs = await _databaseService.getAllRequestLogs(
+          limit: pageSize.value,
+          offset: startIndex,
+        );
         logs.value = dbLogs;
-      } else {
-        // 如果数据库未初始化，从内存加载
-        logs.value = _statsCollector.getAllLogs();
-      }
 
-      applyFilter();
+        // 获取总记录数并计算总页数
+        final total = await _databaseService.getRequestLogTotalCount();
+        totalRecords.value = total;
+        totalPages.value = (total / pageSize.value).ceil();
+        if (totalPages.value == 0) totalPages.value = 1;
+
+        // 确保当前页在有效范围内
+        if (currentPage.value > totalPages.value) {
+          currentPage.value = totalPages.value;
+          // 重新加载当前页数据
+          final newStartIndex = (currentPage.value - 1) * pageSize.value;
+          final newDbLogs = await _databaseService.getAllRequestLogs(
+            limit: pageSize.value,
+            offset: newStartIndex,
+          );
+          logs.value = newDbLogs;
+        }
+      } else {
+        // 如果数据库未初始化，返回空列表
+        logs.value = [];
+        totalRecords.value = 0;
+        totalPages.value = 1;
+      }
     } catch (e) {
-      // 出错时从内存加载
-      logs.value = _statsCollector.getAllLogs();
-      applyFilter();
+      // 出错时返回空列表
+      logs.value = [];
+      totalRecords.value = 0;
+      totalPages.value = 1;
     }
   }
 
@@ -107,151 +112,15 @@ class LogsViewModel extends BaseViewModel {
   }
 
   // =========================
-  // 过滤操作
-  // =========================
-
-  /// 应用过滤
-  void applyFilter() {
-    if (isDisposed) return;
-
-    var result = logs.value;
-
-    // 新的搜索查询过滤（优先使用新UI的searchQuery）
-    final query = searchQuery.value.isNotEmpty
-        ? searchQuery.value
-        : filterKeyword.value;
-
-    if (query.isNotEmpty) {
-      final keyword = query.toLowerCase();
-      result = result.where((log) {
-        return log.path.toLowerCase().contains(keyword) ||
-            (log.model?.toLowerCase().contains(keyword) ?? false) ||
-            log.endpointName.toLowerCase().contains(keyword) ||
-            log.method.toLowerCase().contains(keyword) ||
-            (log.error?.toLowerCase().contains(keyword) ?? false);
-      }).toList();
-    }
-
-    // 新的端点名称过滤（优先使用新UI的endpointFilter）
-    final endpoint = endpointFilter.value;
-    if (endpoint != null) {
-      result = result.where((log) => log.endpointName == endpoint).toList();
-    }
-
-    // 新的成功状态过滤
-    final success = successFilter.value;
-    if (success != null) {
-      result = result.where((log) => log.success == success).toList();
-    }
-
-    // 日志级别过滤（保留旧逻辑兼容性）
-    if (filterLevel.value != null) {
-      result = result.where((log) => log.level == filterLevel.value).toList();
-    }
-
-    // 端点ID过滤（保留旧逻辑兼容性）
-    if (filterEndpointId.value != null) {
-      result = result
-          .where((log) => log.endpointId == filterEndpointId.value)
-          .toList();
-    }
-
-    // 计算总记录数和总页数
-    totalRecords.value = result.length;
-    totalPages.value = (result.length / pageSize.value).ceil();
-    if (totalPages.value == 0) totalPages.value = 1;
-
-    // 确保当前页在有效范围内
-    if (currentPage.value > totalPages.value) {
-      currentPage.value = totalPages.value;
-    }
-
-    // 应用分页
-    final startIndex = (currentPage.value - 1) * pageSize.value;
-    final endIndex = (startIndex + pageSize.value).clamp(0, result.length);
-
-    if (startIndex < result.length) {
-      filteredLogs.value = result.sublist(startIndex, endIndex);
-    } else {
-      filteredLogs.value = [];
-    }
-  }
-
-  /// 设置关键词过滤
-  void setFilterKeyword(String keyword) {
-    ensureNotDisposed();
-    filterKeyword.value = keyword;
-    currentPage.value = 1; // 重置到第一页
-    applyFilter();
-  }
-
-  /// 设置日志级别过滤
-  void setFilterLevel(LogLevel? level) {
-    ensureNotDisposed();
-    filterLevel.value = level;
-    currentPage.value = 1; // 重置到第一页
-    applyFilter();
-  }
-
-  /// 设置端点过滤
-  void setFilterEndpointId(String? endpointId) {
-    ensureNotDisposed();
-    filterEndpointId.value = endpointId;
-    currentPage.value = 1; // 重置到第一页
-    applyFilter();
-  }
-
-  /// 清除所有过滤
-  void clearFilters() {
-    ensureNotDisposed();
-    filterKeyword.value = '';
-    filterLevel.value = null;
-    filterEndpointId.value = null;
-    searchQuery.value = '';
-    endpointFilter.value = null;
-    successFilter.value = null;
-    currentPage.value = 1; // 重置到第一页
-    applyFilter();
-  }
-
-  // =========================
-  // 新的过滤方法（用于新UI）
-  // =========================
-
-  /// 更新搜索查询
-  void updateSearchQuery(String query) {
-    ensureNotDisposed();
-    searchQuery.value = query;
-    currentPage.value = 1;
-    applyFilter();
-  }
-
-  /// 更新端点过滤
-  void updateEndpointFilter(String? endpoint) {
-    ensureNotDisposed();
-    endpointFilter.value = endpoint;
-    currentPage.value = 1;
-    applyFilter();
-  }
-
-  /// 更新成功状态过滤
-  void updateSuccessFilter(bool? success) {
-    ensureNotDisposed();
-    successFilter.value = success;
-    currentPage.value = 1;
-    applyFilter();
-  }
-
-  // =========================
   // 分页操作
   // =========================
 
   /// 跳转到指定页
   void goToPage(int page) {
     ensureNotDisposed();
-    if (page < 1 || page > totalPages.value) return;
+    if (page < 1) return;
     currentPage.value = page;
-    applyFilter();
+    loadLogs();
   }
 
   /// 上一页
@@ -263,19 +132,12 @@ class LogsViewModel extends BaseViewModel {
 
   /// 下一页
   void nextPage() {
-    if (currentPage.value < totalPages.value) {
-      goToPage(currentPage.value + 1);
-    }
+    goToPage(currentPage.value + 1);
   }
 
   /// 第一页
   void firstPage() {
     goToPage(1);
-  }
-
-  /// 最后一页
-  void lastPage() {
-    goToPage(totalPages.value);
   }
 
   /// 设置每页数量
@@ -284,58 +146,20 @@ class LogsViewModel extends BaseViewModel {
     if (size < 1) return;
     pageSize.value = size;
     currentPage.value = 1; // 重置到第一页
-    applyFilter();
+    loadLogs();
   }
 
   // =========================
   // 日志操作
   // =========================
 
-  /// 清空日志（内存 + 数据库）
+  /// 清空日志（仅清空数据库）
   Future<void> clearLogs() async {
     ensureNotDisposed();
-    await _statsCollector.clearLogs();
-    loadLogs();
-  }
-
-  /// 获取最近 N 条日志
-  List<RequestLog> getRecentLogs(int count) {
-    return _statsCollector.getRecentLogs(count);
-  }
-
-  /// 根据端点获取日志
-  List<RequestLog> getLogsByEndpoint(String endpointId) {
-    return _statsCollector.getLogsByEndpoint(endpointId);
-  }
-
-  /// 根据级别获取日志
-  List<RequestLog> getLogsByLevel(LogLevel level) {
-    return _statsCollector.getLogsByLevel(level);
-  }
-
-  // =========================
-  // 统计信息
-  // =========================
-
-  /// 获取总日志数
-  int get totalLogCount => logs.value.length;
-
-  /// 获取过滤后的日志数
-  int get filteredLogCount => filteredLogs.value.length;
-
-  /// 获取错误日志数
-  int get errorLogCount {
-    return logs.value.where((log) => log.level == LogLevel.error).length;
-  }
-
-  /// 获取警告日志数
-  int get warningLogCount {
-    return logs.value.where((log) => log.level == LogLevel.warning).length;
-  }
-
-  /// 获取信息日志数
-  int get infoLogCount {
-    return logs.value.where((log) => log.level == LogLevel.info).length;
+    if (_databaseService.isInitialized) {
+      await _databaseService.clearAllRequestLogs();
+      loadLogs(); // 重新加载（当前页）
+    }
   }
 
   // =========================
