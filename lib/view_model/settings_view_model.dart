@@ -289,4 +289,21 @@ class SettingsViewModel extends BaseViewModel {
   bool isValidHealthCheckPath(String path) {
     return path.startsWith('/') && path.isNotEmpty;
   }
+
+  // =========================
+  // 清理资源
+  // =========================
+
+  @override
+  void dispose() {
+    // 注意：currentTheme 是静态的，不在这里清理
+    // 清理实例信号
+    config.dispose();
+    isSaving.dispose();
+    isImporting.dispose();
+    isExporting.dispose();
+    language.dispose();
+
+    super.dispose();
+  }
 }

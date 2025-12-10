@@ -16,6 +16,7 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Watch((context) {
       final chartData = viewModel.chartData.value;
+      final dailyTokens = viewModel.dailyTokenStats.value;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,10 +33,7 @@ class DashboardPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Token使用热度图（全年）
-                  Watch((context) {
-                    final dailyTokens = viewModel.dailyTokenStats.value;
-                    return TokenHeatmap(dailyTokens: dailyTokens, weeks: 52);
-                  }),
+                  TokenHeatmap(dailyTokens: dailyTokens, weeks: 52),
                   const SizedBox(height: ShadcnSpacing.spacing24),
 
                   // 三个图表平均分布在一行（最近7天）

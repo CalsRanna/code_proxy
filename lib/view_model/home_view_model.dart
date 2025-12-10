@@ -48,6 +48,11 @@ class HomeViewModel extends BaseViewModel {
     _stopServer().catchError((error) {
       // 静默处理错误
     });
+
+    // 清理所有信号
+    chartData.dispose();
+    dailyTokenStats.dispose();
+
     super.dispose();
   }
 

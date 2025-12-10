@@ -29,9 +29,9 @@ class CodeProxyRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Watch(
-      (context) => ShadApp.custom(
-        appBuilder: (context) => MaterialApp.router(
+    return ShadApp.custom(
+      appBuilder: (context) => Watch(
+        (context) => MaterialApp.router(
           title: 'Code Proxy',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,

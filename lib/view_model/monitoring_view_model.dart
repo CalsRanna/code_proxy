@@ -85,4 +85,12 @@ class MonitoringViewModel extends BaseViewModel {
   // =========================
   // 清理资源
   // =========================
+
+  @override
+  void dispose() {
+    // 清理所有信号
+    endpointStats.dispose();
+
+    super.dispose();
+  }
 }

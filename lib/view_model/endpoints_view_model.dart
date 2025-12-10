@@ -203,6 +203,11 @@ class EndpointsViewModel extends BaseViewModel {
   @override
   void dispose() {
     shadPopoverController.dispose();
+
+    // 清理所有信号
+    isLoading.dispose();
+    searchQuery.dispose();
+
     super.dispose();
   }
 }

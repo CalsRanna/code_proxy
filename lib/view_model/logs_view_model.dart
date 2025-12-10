@@ -168,7 +168,17 @@ class LogsViewModel extends BaseViewModel {
 
   @override
   void dispose() {
+    // 停止自动刷新并清理定时器
     stopAutoRefresh();
+
+    // 清理所有信号
+    logs.dispose();
+    autoRefresh.dispose();
+    currentPage.dispose();
+    pageSize.dispose();
+    totalPages.dispose();
+    totalRecords.dispose();
+
     super.dispose();
   }
 }
