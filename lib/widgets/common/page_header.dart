@@ -1,6 +1,5 @@
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
-import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:flutter/material.dart';
 
 /// 统一的页面头部组件
@@ -39,33 +38,24 @@ class PageHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              if (icon != null) ...[
-                IconBadge(
-                  icon: icon!,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: IconBadgeSize.medium,
-                ),
-                const SizedBox(width: ShadcnSpacing.spacing12),
-              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 4),
                       Text(
                         subtitle!,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: ShadcnColors.mutedForeground(
-                                Theme.of(context).brightness,
-                              ),
-                            ),
+                          color: ShadcnColors.mutedForeground(
+                            Theme.of(context).brightness,
+                          ),
+                        ),
                       ),
                     ],
                   ],

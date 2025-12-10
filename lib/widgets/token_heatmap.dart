@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../themes/shadcn_colors.dart';
-import '../themes/shadcn_spacing.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// GitHub风格的请求成功热度图（Shadcn UI 风格）
 class TokenHeatmap extends StatelessWidget {
@@ -22,65 +21,46 @@ class TokenHeatmap extends StatelessWidget {
         ? 1
         : dailyTokens.values.reduce((a, b) => a > b ? a : b);
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
-        color: ShadcnColors.muted(brightness),
-        border: Border.all(
-          color: ShadcnColors.border(brightness),
-          width: ShadcnSpacing.borderWidth,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(ShadcnSpacing.spacing20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 标题
-            Row(children: [const Spacer(), _buildLegend(context, brightness)]),
-            const SizedBox(height: 16),
-            // 热度图 - 根据容器宽度自动计算格子大小
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final availableWidth = constraints.maxWidth;
+    return ShadCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final availableWidth = constraints.maxWidth;
 
-                // 计算实际周数
-                final actualWeeks = heatmapData.length;
+              // 计算实际周数
+              final actualWeeks = heatmapData.length;
 
-                // 根据周数和可用宽度计算每个格子的大小
-                // 每个格子有 margin: all(1)，所以每个格子实际占用 cellWidth + 2px
-                // 总宽度 = actualWeeks * (cellWidth + 2)
-                // cellWidth = availableWidth / actualWeeks - 2
-                final cellWidth = (availableWidth / actualWeeks) - 2;
-                final cellHeight = cellWidth; // 保持方形
+              // 根据周数和可用宽度计算每个格子的大小
+              // 每个格子有 margin: all(1)，所以每个格子实际占用 cellWidth + 2px
+              // 总宽度 = actualWeeks * (cellWidth + 2)
+              // cellWidth = availableWidth / actualWeeks - 2
+              final cellWidth = (availableWidth / actualWeeks) - 2;
+              final cellHeight = cellWidth; // 保持方形
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 月份标签
-                    _buildMonthLabels(
-                      heatmapData,
-                      cellWidth,
-                      0,
-                    ),
-                    const SizedBox(height: 4),
-                    // 热度方格
-                    _buildHeatmapGrid(
-                      context,
-                      heatmapData,
-                      maxRequests,
-                      brightness,
-                      cellWidth,
-                      cellHeight,
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 月份标签
+                  _buildMonthLabels(heatmapData, cellWidth, 0),
+                  const SizedBox(height: 4),
+                  // 热度方格
+                  _buildHeatmapGrid(
+                    context,
+                    heatmapData,
+                    maxRequests,
+                    brightness,
+                    cellWidth,
+                    cellHeight,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -99,9 +79,7 @@ class TokenHeatmap extends StatelessWidget {
     );
 
     // 找到12月31日所在周的周六（作为结束点）
-    final lastSaturday = endDate.add(
-      Duration(days: (6 - endDate.weekday % 7)),
-    );
+    final lastSaturday = endDate.add(Duration(days: (6 - endDate.weekday % 7)));
 
     // 计算总天数
     final totalDays = lastSaturday.difference(firstSunday).inDays + 1;
@@ -199,7 +177,7 @@ class TokenHeatmap extends StatelessWidget {
       if (week.isEmpty) continue;
 
       final date = week.first.date;
-      final monthStr = '${date.month}月';
+      final monthStr = '${date.month}';
 
       // 只在月份变化时显示标签
       if (monthStr != lastMonth) {
@@ -341,43 +319,6 @@ class TokenHeatmap extends StatelessWidget {
     } else {
       return baseColor;
     }
-  }
-
-  /// 构建图例
-  Widget _buildLegend(BuildContext context, Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    final baseColor = isDark
-        ? const Color(0xFF39D353)
-        : const Color(0xFF216E39);
-    final emptyColor = isDark ? Colors.grey.shade800 : Colors.grey.shade200;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('少', style: TextStyle(fontSize: 10, color: Colors.grey)),
-        const SizedBox(width: 4),
-        _buildLegendCell(emptyColor),
-        _buildLegendCell(baseColor.withValues(alpha: isDark ? 0.3 : 0.3)),
-        _buildLegendCell(baseColor.withValues(alpha: isDark ? 0.5 : 0.5)),
-        _buildLegendCell(baseColor.withValues(alpha: isDark ? 0.75 : 0.75)),
-        _buildLegendCell(baseColor),
-        const SizedBox(width: 4),
-        const Text('多', style: TextStyle(fontSize: 10, color: Colors.grey)),
-      ],
-    );
-  }
-
-  /// 构建图例方格
-  Widget _buildLegendCell(Color color) {
-    return Container(
-      width: 10,
-      height: 10,
-      margin: const EdgeInsets.symmetric(horizontal: 2),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
   }
 }
 

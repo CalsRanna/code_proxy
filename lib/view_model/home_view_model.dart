@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:code_proxy/model/chart_data.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/config_manager.dart';
@@ -21,6 +22,7 @@ class HomeViewModel extends BaseViewModel {
   final DatabaseService _databaseService;
 
   final dailyTokenStats = signal<Map<String, int>>({});
+  final chartData = signal<ChartData?>(null);
 
   ProxyServerService? _proxyServer;
 
@@ -57,6 +59,7 @@ class HomeViewModel extends BaseViewModel {
     await _autoStartServer();
 
     await _loadHeatmapData();
+    await _loadChartData();
   }
 
   // =========================
@@ -133,6 +136,44 @@ class HomeViewModel extends BaseViewModel {
 
       if (!isDisposed) {
         dailyTokenStats.value = stats;
+      }
+    } catch (e) {
+      // 静默失败，保持空数据
+    }
+  }
+
+  /// 加载图表数据（最近7天）
+  Future<void> _loadChartData() async {
+    if (isDisposed) return;
+
+    try {
+      final now = DateTime.now();
+      // 最近7天
+      final startDate = now.subtract(const Duration(days: 7));
+      final endDate = now;
+
+      // 并行加载所有数据
+      final results = await Future.wait([
+        _databaseService.getDailyRequestStats(
+          startTimestamp: startDate.millisecondsSinceEpoch,
+          endTimestamp: endDate.millisecondsSinceEpoch,
+        ),
+        _databaseService.getEndpointTokenStats(
+          startTimestamp: startDate.millisecondsSinceEpoch,
+          endTimestamp: endDate.millisecondsSinceEpoch,
+        ),
+        _databaseService.getModelDateTokenStats(
+          startTimestamp: startDate.millisecondsSinceEpoch,
+          endTimestamp: endDate.millisecondsSinceEpoch,
+        ),
+      ]);
+
+      if (!isDisposed) {
+        chartData.value = ChartData(
+          dailyRequests: results[0] as Map<String, int>,
+          endpointTokenUsage: results[1] as Map<String, int>,
+          modelDateTokenUsage: results[2] as Map<String, Map<String, int>>,
+        );
       }
     } catch (e) {
       // 静默失败，保持空数据

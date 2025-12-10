@@ -467,6 +467,162 @@ class DatabaseService {
     return results.first['count'] as int;
   }
 
+  /// 获取每日请求量统计（用于趋势图）
+  Future<Map<String, int>> getDailyRequestStats({
+    required int startTimestamp,
+    required int endTimestamp,
+  }) async {
+    _ensureInitialized();
+
+    final query = '''
+      SELECT
+        date(timestamp / 1000, 'unixepoch', 'localtime') as date,
+        COUNT(*) as request_count
+      FROM request_logs
+      WHERE timestamp >= ? AND timestamp <= ?
+      GROUP BY date
+      ORDER BY date
+    ''';
+
+    final results = _db.select(query, [startTimestamp, endTimestamp]);
+
+    final Map<String, int> dailyStats = {};
+    for (final row in results) {
+      final date = row['date'] as String;
+      final count = row['request_count'] as int;
+      dailyStats[date] = count;
+    }
+
+    return dailyStats;
+  }
+
+  /// 获取每日成功率统计（用于趋势图）
+  Future<Map<String, double>> getDailySuccessRateStats({
+    required int startTimestamp,
+    required int endTimestamp,
+  }) async {
+    _ensureInitialized();
+
+    final query = '''
+      SELECT
+        date(timestamp / 1000, 'unixepoch', 'localtime') as date,
+        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count,
+        COUNT(*) as total_count
+      FROM request_logs
+      WHERE timestamp >= ? AND timestamp <= ?
+      GROUP BY date
+      ORDER BY date
+    ''';
+
+    final results = _db.select(query, [startTimestamp, endTimestamp]);
+
+    final Map<String, double> dailyStats = {};
+    for (final row in results) {
+      final date = row['date'] as String;
+      final success = row['success_count'] as int;
+      final total = row['total_count'] as int;
+      final rate = total > 0 ? (success / total) * 100.0 : 0.0;
+      dailyStats[date] = rate;
+    }
+
+    return dailyStats;
+  }
+
+  /// 获取端点响应时间统计（用于饼图或柱状图）
+  Future<Map<String, List<int>>> getEndpointResponseTimeStats({
+    required int startTimestamp,
+    required int endTimestamp,
+  }) async {
+    _ensureInitialized();
+
+    final query = '''
+      SELECT
+        endpoint_name,
+        response_time
+      FROM request_logs
+      WHERE timestamp >= ? AND timestamp <= ?
+        AND success = 1
+        AND response_time IS NOT NULL
+      ORDER BY timestamp DESC
+      LIMIT 1000
+    ''';
+
+    final results = _db.select(query, [startTimestamp, endTimestamp]);
+
+    final Map<String, List<int>> endpointStats = {};
+    for (final row in results) {
+      final endpointName = row['endpoint_name'] as String;
+      final responseTime = row['response_time'] as int;
+      endpointStats.putIfAbsent(endpointName, () => []).add(responseTime);
+    }
+
+    return endpointStats;
+  }
+
+  /// 获取按端点的Token使用统计（用于饼图）
+  Future<Map<String, int>> getEndpointTokenStats({
+    required int startTimestamp,
+    required int endTimestamp,
+  }) async {
+    _ensureInitialized();
+
+    final query = '''
+      SELECT
+        endpoint_name,
+        SUM(input_tokens + output_tokens) as total_tokens
+      FROM request_logs
+      WHERE timestamp >= ? AND timestamp <= ?
+        AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL)
+      GROUP BY endpoint_name
+      ORDER BY total_tokens DESC
+    ''';
+
+    final results = _db.select(query, [startTimestamp, endTimestamp]);
+
+    final Map<String, int> endpointTokenStats = {};
+    for (final row in results) {
+      final endpointName = row['endpoint_name'] as String;
+      final totalTokens = row['total_tokens'] as int;
+      endpointTokenStats[endpointName] = totalTokens;
+    }
+
+    return endpointTokenStats;
+  }
+
+  /// 获取按模型和日期的Token使用统计（用于柱状图）
+  Future<Map<String, Map<String, int>>> getModelDateTokenStats({
+    required int startTimestamp,
+    required int endTimestamp,
+  }) async {
+    _ensureInitialized();
+
+    final query = '''
+      SELECT
+        date(timestamp / 1000, 'unixepoch', 'localtime') as date,
+        COALESCE(model, 'unknown') as model,
+        SUM(input_tokens + output_tokens) as total_tokens
+      FROM request_logs
+      WHERE timestamp >= ? AND timestamp <= ?
+        AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL)
+      GROUP BY date, model
+      ORDER BY date, model
+    ''';
+
+    final results = _db.select(query, [startTimestamp, endTimestamp]);
+
+    final Map<String, Map<String, int>> modelDateStats = {};
+    for (final row in results) {
+      final date = row['date'] as String;
+      final model = row['model'] as String;
+      final totalTokens = row['total_tokens'] as int;
+
+      modelDateStats.putIfAbsent(date, () => {});
+      modelDateStats[date]![model] = totalTokens;
+    }
+
+    return modelDateStats;
+  }
+
   /// 根据端点 ID 获取日志
   Future<List<RequestLog>> getRequestLogsByEndpoint(
     String endpointId, {
