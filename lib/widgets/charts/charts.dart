@@ -110,37 +110,33 @@ class EndpointTokenPieChart extends StatelessWidget {
           const Color(0xFFF97316), // 橙红色
         ];
 
-        return SizedBox(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-          child: SfCircularChart(
-            legend: const Legend(
-              isVisible: true,
-              position: LegendPosition.bottom,
-              overflowMode: LegendItemOverflowMode.scroll,
-              textStyle: TextStyle(fontSize: 10),
-            ),
-            tooltipBehavior: TooltipBehavior(
-              enable: true,
-              header: '',
-              canShowMarker: false,
-            ),
-            series: <CircularSeries<PieData, String>>[
-              PieSeries<PieData, String>(
-                dataSource: data,
-                xValueMapper: (PieData data, _) => data.x,
-                yValueMapper: (PieData data, _) => data.y,
-                pointColorMapper: (PieData data, int index) =>
-                    colors[index % colors.length],
-                dataLabelSettings: const DataLabelSettings(
-                  isVisible: true,
-                  textStyle: TextStyle(fontSize: 10),
-                ),
-                radius: '70%',
-                explode: true,
-              ),
-            ],
+        return SfCircularChart(
+          legend: const Legend(
+            isVisible: true,
+            position: LegendPosition.bottom,
+            overflowMode: LegendItemOverflowMode.scroll,
+            textStyle: TextStyle(fontSize: 10),
           ),
+          tooltipBehavior: TooltipBehavior(
+            enable: true,
+            header: '',
+            canShowMarker: false,
+          ),
+          series: <CircularSeries<PieData, String>>[
+            PieSeries<PieData, String>(
+              dataSource: data,
+              xValueMapper: (PieData data, _) => data.x,
+              yValueMapper: (PieData data, _) => data.y,
+              pointColorMapper: (PieData data, int index) =>
+                  colors[index % colors.length],
+              dataLabelSettings: const DataLabelSettings(
+                isVisible: true,
+                textStyle: TextStyle(fontSize: 10),
+              ),
+              radius: '70%',
+              explode: true,
+            ),
+          ],
         );
       },
     );
@@ -196,38 +192,30 @@ class ModelDateTokenBarChart extends StatelessWidget {
           const Color(0xFFF97316), // 橙红色
         ];
 
-        return SizedBox(
-          width: constraints.maxWidth,
-          height: constraints.maxHeight,
-          child: SfCartesianChart(
-            primaryXAxis: const CategoryAxis(
-              labelStyle: TextStyle(fontSize: 10),
-            ),
-            primaryYAxis: const NumericAxis(
-              labelStyle: TextStyle(fontSize: 10),
-            ),
-            plotAreaBorderWidth: 0,
-            legend: const Legend(isVisible: false),
-            tooltipBehavior: TooltipBehavior(
-              enable: true,
-              header: '',
-              canShowMarker: false,
-              format: 'series.name: point.y',
-            ),
-            series: modelList.map((model) {
-              final color = colors[modelList.indexOf(model) % colors.length];
-
-              return StackedColumnSeries<StackedColumnData, String>(
-                dataSource: data,
-                xValueMapper: (StackedColumnData data, _) => data.x,
-                yValueMapper: (StackedColumnData data, _) =>
-                    data.yValues[model] ?? 0,
-                name: model,
-                color: color,
-                dataLabelSettings: const DataLabelSettings(isVisible: false),
-              );
-            }).toList(),
+        return SfCartesianChart(
+          primaryXAxis: const CategoryAxis(labelStyle: TextStyle(fontSize: 10)),
+          primaryYAxis: const NumericAxis(labelStyle: TextStyle(fontSize: 10)),
+          plotAreaBorderWidth: 0,
+          legend: const Legend(isVisible: false),
+          tooltipBehavior: TooltipBehavior(
+            enable: true,
+            header: '',
+            canShowMarker: false,
+            format: 'series.name: point.y',
           ),
+          series: modelList.map((model) {
+            final color = colors[modelList.indexOf(model) % colors.length];
+
+            return StackedColumnSeries<StackedColumnData, String>(
+              dataSource: data,
+              xValueMapper: (StackedColumnData data, _) => data.x,
+              yValueMapper: (StackedColumnData data, _) =>
+                  data.yValues[model] ?? 0,
+              name: model,
+              color: color,
+              dataLabelSettings: const DataLabelSettings(isVisible: false),
+            );
+          }).toList(),
         );
       },
     );

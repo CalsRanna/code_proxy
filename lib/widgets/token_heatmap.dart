@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:code_proxy/themes/shadcn_colors.dart';
 
 /// GitHub风格的请求成功热度图（Shadcn UI 风格）
 class TokenHeatmap extends StatelessWidget {
@@ -186,7 +187,7 @@ class TokenHeatmap extends StatelessWidget {
             left: offset,
             child: Text(
               monthStr,
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
+              style: const TextStyle(fontSize: 10, color: ShadcnColors.zinc500),
             ),
           ),
         );
@@ -296,26 +297,24 @@ class TokenHeatmap extends StatelessWidget {
   }) {
     final isDark = brightness == Brightness.dark;
 
-    // 未来日期和无数据都显示相同的浅灰色
+    // 未来日期和无数据使用 Shadcn zinc 灰色
     if (isFuture || requests == 0) {
-      return isDark ? Colors.grey.shade800 : Colors.grey.shade200;
+      return isDark ? ShadcnColors.zinc800 : ShadcnColors.zinc200;
     }
 
     // 计算颜色强度（0-1）
     final intensity = (requests / maxRequests).clamp(0.0, 1.0);
 
-    // 使用绿色系，类似GitHub
-    final baseColor = isDark
-        ? const Color(0xFF39D353)
-        : const Color(0xFF216E39);
+    // 使用 Shadcn primary 蓝色作为基础色
+    const baseColor = ShadcnColors.primary;
 
-    // 4个等级的颜色
+    // 4个等级的颜色强度
     if (intensity <= 0.25) {
-      return baseColor.withValues(alpha: isDark ? 0.3 : 0.3);
+      return baseColor.withValues(alpha: 0.25);
     } else if (intensity <= 0.5) {
-      return baseColor.withValues(alpha: isDark ? 0.5 : 0.5);
+      return baseColor.withValues(alpha: 0.5);
     } else if (intensity <= 0.75) {
-      return baseColor.withValues(alpha: isDark ? 0.75 : 0.75);
+      return baseColor.withValues(alpha: 0.75);
     } else {
       return baseColor;
     }
