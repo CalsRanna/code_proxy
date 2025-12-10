@@ -21,7 +21,6 @@ class HomeViewModel extends BaseViewModel {
   final ClaudeCodeConfigManager _claudeCodeConfigManager;
   final DatabaseService _databaseService;
 
-  final isServerRunning = signal(false);
   final serverState = signal(const ProxyServerState());
   final dailyTokenStats = signal<Map<String, int>>({});
 
@@ -99,39 +98,32 @@ class HomeViewModel extends BaseViewModel {
   Future<void> _autoStartServer() async {
     ensureNotDisposed();
 
-    try {
-      // 获取代理配置
-      final config = await _configManager.loadProxyConfig();
+    // 获取代理配置
+    final config = await _configManager.loadProxyConfig();
 
-      // 检查当前配置是否已经指向代理服务器
-      final isAlreadyPointingToProxy = await _claudeCodeConfigManager
-          .isPointingToProxy(
-            proxyAddress: config.address,
-            proxyPort: config.port,
-          );
-
-      if (!isAlreadyPointingToProxy) {
-        // 如果当前配置不指向代理，切换配置
-        final configSwitched = await _claudeCodeConfigManager.switchToProxy(
+    // 检查当前配置是否已经指向代理服务器
+    final isAlreadyPointingToProxy = await _claudeCodeConfigManager
+        .isPointingToProxy(
           proxyAddress: config.address,
           proxyPort: config.port,
         );
 
-        if (!configSwitched) {
-          throw Exception('无法切换 Claude Code 配置到代理模式');
-        }
-      }
+    if (!isAlreadyPointingToProxy) {
+      // 如果当前配置不指向代理，切换配置
+      final configSwitched = await _claudeCodeConfigManager.switchToProxy(
+        proxyAddress: config.address,
+        proxyPort: config.port,
+      );
 
-      // 启动代理服务器
-      _proxyServer ??= ProxyServerService(config: config);
-      await _proxyServer?.start();
-      isServerRunning.value = true;
-      _updateServerState();
-    } catch (e) {
-      // 启动失败，确保服务器处于停止状态
-      isServerRunning.value = false;
-      rethrow;
+      if (!configSwitched) {
+        throw Exception('无法切换 Claude Code 配置到代理模式');
+      }
     }
+
+    // 启动代理服务器
+    _proxyServer ??= ProxyServerService(config: config);
+    await _proxyServer?.start();
+    _updateServerState();
   }
 
   // =========================
@@ -185,7 +177,6 @@ class HomeViewModel extends BaseViewModel {
     try {
       // 停止代理服务器
       await _proxyServer?.stop();
-      isServerRunning.value = false;
       _updateServerState();
 
       // 恢复 Claude Code 原始配置（如果有备份）
@@ -200,17 +191,14 @@ class HomeViewModel extends BaseViewModel {
   void _updateServerState() {
     if (isDisposed) return;
 
-    final running = _proxyServer?.isRunning ?? false;
-
     final totalRequests = _statsCollector.totalRequests;
     final successRequests = _statsCollector.successRequests;
     final failedRequests = _statsCollector.failedRequests;
     final successRate = _statsCollector.successRate;
 
     serverState.value = ProxyServerState(
-      running: running,
-      listenAddress: running ? '127.0.0.1' : null,
-      listenPort: running ? 7890 : null,
+      listenAddress: '127.0.0.1',
+      listenPort: 7890,
       totalRequests: totalRequests,
       successRequests: successRequests,
       failedRequests: failedRequests,
@@ -230,19 +218,32 @@ class HomeViewModel extends BaseViewModel {
       int? inputTokens;
       int? outputTokens;
 
-      // 尝试从响应中解析 token 信息（Claude API 格式）
+      // 检测是否是 SSE 响应
+      final contentType = response.headers['content-type'] ?? '';
+      final isSSE = contentType.contains('text/event-stream');
+
+      // 尝试从响应中解析 token 信息
       if (success && response.body.isNotEmpty) {
         try {
-          final responseJson = jsonDecode(response.body);
-          if (responseJson is Map<String, dynamic>) {
-            // 提取 model
-            model = responseJson['model'] as String?;
+          if (isSSE) {
+            // SSE 格式：解析多个 data: {...} 块
+            final tokens = _parseSSETokens(response.body);
+            model = tokens['model'];
+            inputTokens = tokens['input'];
+            outputTokens = tokens['output'];
+          } else {
+            // 普通 JSON 格式
+            final responseJson = jsonDecode(response.body);
+            if (responseJson is Map<String, dynamic>) {
+              // 提取 model
+              model = responseJson['model'] as String?;
 
-            // 提取 usage 信息
-            final usage = responseJson['usage'];
-            if (usage is Map<String, dynamic>) {
-              inputTokens = usage['input_tokens'] as int?;
-              outputTokens = usage['output_tokens'] as int?;
+              // 提取 usage 信息
+              final usage = responseJson['usage'];
+              if (usage is Map<String, dynamic>) {
+                inputTokens = usage['input_tokens'] as int?;
+                outputTokens = usage['output_tokens'] as int?;
+              }
             }
           }
         } catch (_) {
@@ -290,5 +291,54 @@ class HomeViewModel extends BaseViewModel {
     } catch (e) {
       // 记录失败，静默处理
     }
+  }
+
+  /// 解析 SSE 格式的响应，提取 Token 和 Model 信息
+  /// SSE 格式示例（Anthropic API）：
+  /// data: {"type":"content_block_delta","delta":{"text":"Hello"},"usage":{"input_tokens":10}}
+  /// data: {"type":"message_stop","usage":{"output_tokens":20}}
+  static Map<String, dynamic> _parseSSETokens(String sseBody) {
+    int totalInput = 0;
+    int totalOutput = 0;
+    String? lastModel;
+
+    // 解析 SSE 格式：data: {...}
+    final lines = sseBody.split('\n');
+    for (var line in lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          final jsonStr = line.substring(6).trim(); // 移除 "data: "
+
+          // 跳过特殊标记（如 [DONE]）
+          if (jsonStr.isEmpty || jsonStr == '[DONE]') {
+            continue;
+          }
+
+          final json = jsonDecode(jsonStr);
+
+          if (json is Map<String, dynamic>) {
+            // 提取 model
+            if (json['model'] != null) {
+              lastModel = json['model'];
+            }
+
+            // 提取并累加 tokens (Anthropic API 格式)
+            final usage = json['usage'];
+            if (usage is Map<String, dynamic>) {
+              totalInput += (usage['input_tokens'] as int? ?? 0);
+              totalOutput += (usage['output_tokens'] as int? ?? 0);
+            }
+          }
+        } catch (_) {
+          // 解析失败，跳过这一行
+        }
+      }
+    }
+
+    return {
+      'input': totalInput > 0 ? totalInput : null,
+      'output': totalOutput > 0 ? totalOutput : null,
+      'model': lastModel,
+    };
   }
 }

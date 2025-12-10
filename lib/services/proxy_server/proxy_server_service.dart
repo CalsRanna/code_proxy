@@ -13,20 +13,13 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 
 class ProxyServerService {
   final ProxyServerConfigEntity config;
-  final void Function(
-    EndpointEntity,
-    ProxyServerRequest,
-    ProxyServerResponse,
-  )? onRequestCompleted;
   final void Function(EndpointEntity)? onEndpointUnavailable;
+  final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
+  onRequestCompleted;
 
-  HttpServer? _server;
-  final http.Client _httpClient = http.Client();
-  final Map<String, int> _failureCount = {};
   List<EndpointEntity> _endpoints = [];
-
-  /// 最大连续失败次数
-  static const int _maxConsecutiveFailures = 3;
+  final http.Client _httpClient = http.Client();
+  HttpServer? _server;
 
   ProxyServerService({
     required this.config,
@@ -35,8 +28,6 @@ class ProxyServerService {
   });
 
   set endpoints(List<EndpointEntity> endpoints) => _endpoints = endpoints;
-
-  bool get isRunning => _server != null;
 
   Future<void> dispose() async {
     await stop();
@@ -60,7 +51,6 @@ class ProxyServerService {
     if (_server == null) return;
     await _server!.close(force: false);
     _server = null;
-    _failureCount.clear();
   }
 
   String _decodeBytes(List<List<int>> bytes) {
@@ -71,7 +61,7 @@ class ProxyServerService {
     }
   }
 
-  Future<shelf.Response> _forwardRequest(
+  Future<http.StreamedResponse> _forwardRequest(
     shelf.Request request,
     EndpointEntity endpoint,
     List<List<int>> bodyBytes,
@@ -87,25 +77,98 @@ class ProxyServerService {
       ..headers.addAll(headers)
       ..bodyBytes = bodyBytes.expand((x) => x).toList();
 
-    final response = await _httpClient.send(forwardRequest);
-    final responseBody = await response.stream.toBytes();
+    return await _httpClient.send(forwardRequest);
+  }
+
+  Future<shelf.Response> _handleNormalResponse(
+    http.StreamedResponse response,
+    EndpointEntity endpoint,
+    shelf.Request request,
+    List<List<int>> requestBodyBytes,
+    int startTime,
+  ) async {
+    final responseBodyBytes = await response.stream.toBytes();
+    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+
+    final proxyRequest = ProxyServerRequest(
+      path: request.url.path,
+      method: request.method,
+      body: _decodeBytes(requestBodyBytes),
+      headers: request.headers,
+    );
+    final proxyResponse = ProxyServerResponse(
+      statusCode: response.statusCode,
+      body: utf8.decode(responseBodyBytes, allowMalformed: true),
+      headers: response.headers,
+      responseTime: responseTime,
+    );
+    onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
 
     return shelf.Response(
       response.statusCode,
       headers: response.headers,
-      body: responseBody,
+      body: responseBodyBytes,
     );
   }
 
-  void _handleFailure(EndpointEntity endpoint) {
-    _failureCount[endpoint.id] = (_failureCount[endpoint.id] ?? 0) + 1;
+  shelf.Response _handleStreamResponse(
+    http.StreamedResponse response,
+    EndpointEntity endpoint,
+    shelf.Request request,
+    List<List<int>> requestBodyBytes,
+    int startTime,
+  ) {
+    final responseBodyBytes = <int>[];
+    int? firstByteTime;
 
-    if (_failureCount[endpoint.id]! >= _maxConsecutiveFailures) {
-      onEndpointUnavailable?.call(endpoint);
-      LoggerUtil.instance.e(
-        'Endpoint ${endpoint.name} reached $_maxConsecutiveFailures failures',
-      );
-    }
+    final transformedStream = response.stream.transform(
+      StreamTransformer.fromHandlers(
+        handleData: (List<int> chunk, EventSink<List<int>> sink) {
+          firstByteTime ??= DateTime.now().millisecondsSinceEpoch;
+          responseBodyBytes.addAll(chunk);
+          sink.add(chunk);
+        },
+        handleDone: (EventSink<List<int>> sink) {
+          final endTime = DateTime.now().millisecondsSinceEpoch;
+          _recordStreamComplete(
+            endpoint: endpoint,
+            request: request,
+            statusCode: response.statusCode,
+            startTime: startTime,
+            firstByteTime: firstByteTime ?? startTime,
+            endTime: endTime,
+            requestBytes: requestBodyBytes,
+            responseBytes: responseBodyBytes,
+            responseHeaders: response.headers,
+          );
+          sink.close();
+        },
+        handleError: (error, stackTrace, EventSink<List<int>> sink) {
+          // 记录错误
+          _recordException(
+            endpoint: endpoint,
+            request: request,
+            startTime: startTime,
+            bodyBytes: requestBodyBytes,
+            error: error,
+          );
+          sink.addError(error, stackTrace);
+        },
+      ),
+    );
+
+    return shelf.Response(
+      response.statusCode,
+      headers: response.headers,
+      body: transformedStream,
+    );
+  }
+
+  /// 检测是否是流式响应（SSE 或其他流式格式）
+  bool _isStreamResponse(Map<String, String> headers) {
+    final contentType = headers['content-type'] ?? '';
+    return contentType.contains('text/event-stream') ||
+        contentType.contains('application/stream+json');
   }
 
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
@@ -119,53 +182,41 @@ class ProxyServerService {
 
         try {
           final response = await _forwardRequest(request, endpoint, bodyBytes);
-          final responseTime =
-              DateTime.now().millisecondsSinceEpoch - startTime;
-          final responseBodyBytes = await response.read().toList();
-          final flattenedResponse = responseBodyBytes.expand((x) => x).toList();
           final statusCode = response.statusCode;
+          final isStreamResponse = _isStreamResponse(response.headers);
 
-          // 记录请求（异步，不阻塞响应）
-          _recordRequest(
-            endpoint: endpoint,
-            request: request,
-            statusCode: statusCode,
-            responseTime: responseTime,
-            requestBytes: bodyBytes,
-            responseBytes: flattenedResponse,
-            responseHeaders: response.headers,
-          );
-
-          // 根据状态码处理
-          if (statusCode >= 200 && statusCode < 300) {
-            // 2xx 成功
-            _failureCount[endpoint.id] = 0;
-            return shelf.Response(
-              statusCode,
-              body: flattenedResponse,
-              headers: response.headers,
-            );
-          } else if (statusCode >= 400 && statusCode < 500) {
-            // 4xx 客户端错误，不重试
-            _handleFailure(endpoint);
-            return shelf.Response(
-              statusCode,
-              body: flattenedResponse,
-              headers: response.headers,
+          if (isStreamResponse) {
+            return _handleStreamResponse(
+              response,
+              endpoint,
+              request,
+              bodyBytes,
+              startTime,
             );
           } else {
-            // 5xx 服务器错误，可重试
-            _handleFailure(endpoint);
-            if (attempt < config.maxRetries) {
-              continue;
-            }
-            return shelf.Response(
-              statusCode,
-              body: flattenedResponse,
-              headers: response.headers,
+            final shelfResponse = await _handleNormalResponse(
+              response,
+              endpoint,
+              request,
+              bodyBytes,
+              startTime,
             );
+
+            if (statusCode >= 200 && statusCode < 300) {
+              return shelfResponse;
+            } else if (statusCode >= 400 && statusCode < 500) {
+              return shelfResponse;
+            } else {
+              if (attempt < config.maxRetries) {
+                continue;
+              }
+              return shelfResponse;
+            }
           }
         } catch (e) {
+          if (attempt < config.maxRetries) {
+            continue;
+          }
           _recordException(
             endpoint: endpoint,
             request: request,
@@ -173,21 +224,14 @@ class ProxyServerService {
             bodyBytes: bodyBytes,
             error: e,
           );
-          _handleFailure(endpoint);
-
-          if (attempt < config.maxRetries) {
-            continue;
-          }
-
           return shelf.Response(
-            502,
-            body: 'Bad Gateway: $e',
+            500,
+            body: 'Internal Server Error',
             headers: {'content-type': 'text/plain'},
           );
         }
       }
     }
-
     return shelf.Response(
       500,
       body: 'Internal Server Error',
@@ -221,29 +265,42 @@ class ProxyServerService {
     onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
   }
 
-  void _recordRequest({
+  /// 记录流式响应完成
+  void _recordStreamComplete({
     required EndpointEntity endpoint,
     required shelf.Request request,
     required int statusCode,
-    required int responseTime,
+    required int startTime,
+    required int firstByteTime,
+    required int endTime,
     required List<List<int>> requestBytes,
     required List<int> responseBytes,
     required Map<String, String> responseHeaders,
   }) {
-    final proxyRequest = ProxyServerRequest(
-      path: request.url.path,
-      method: request.method,
-      body: _decodeBytes(requestBytes),
-      headers: request.headers,
-    );
+    Future(() {
+      try {
+        final totalTime = endTime - startTime;
+        final timeToFirstByte = firstByteTime - startTime;
 
-    final proxyResponse = ProxyServerResponse(
-      statusCode: statusCode,
-      body: utf8.decode(responseBytes, allowMalformed: true),
-      headers: responseHeaders,
-      responseTime: responseTime,
-    );
+        final proxyRequest = ProxyServerRequest(
+          path: request.url.path,
+          method: request.method,
+          body: _decodeBytes(requestBytes),
+          headers: request.headers,
+        );
 
-    onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
+        final proxyResponse = ProxyServerResponse(
+          statusCode: statusCode,
+          body: utf8.decode(responseBytes, allowMalformed: true),
+          headers: responseHeaders,
+          responseTime: totalTime,
+          timeToFirstByte: timeToFirstByte,
+        );
+
+        onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
+      } catch (e) {
+        LoggerUtil.instance.e('Failed to record stream completion: $e');
+      }
+    });
   }
 }

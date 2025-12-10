@@ -1,8 +1,5 @@
 /// 代理服务器状态模型
 class ProxyServerState {
-  /// 是否运行中
-  final bool running;
-
   /// 监听地址
   final String? listenAddress;
 
@@ -40,7 +37,6 @@ class ProxyServerState {
   final String? lastError;
 
   const ProxyServerState({
-    this.running = false,
     this.listenAddress,
     this.listenPort,
     this.startedAt,
@@ -58,7 +54,6 @@ class ProxyServerState {
   /// 从 JSON 反序列化
   factory ProxyServerState.fromJson(Map<String, dynamic> json) {
     return ProxyServerState(
-      running: json['running'] as bool? ?? false,
       listenAddress: json['listenAddress'] as String?,
       listenPort: json['listenPort'] as int?,
       startedAt: json['startedAt'] as int?,
@@ -77,7 +72,6 @@ class ProxyServerState {
   /// 序列化为 JSON
   Map<String, dynamic> toJson() {
     return {
-      'running': running,
       'listenAddress': listenAddress,
       'listenPort': listenPort,
       'startedAt': startedAt,
@@ -110,7 +104,6 @@ class ProxyServerState {
     String? lastError,
   }) {
     return ProxyServerState(
-      running: running ?? this.running,
       listenAddress: listenAddress ?? this.listenAddress,
       listenPort: listenPort ?? this.listenPort,
       startedAt: startedAt ?? this.startedAt,
@@ -128,6 +121,6 @@ class ProxyServerState {
 
   @override
   String toString() {
-    return 'ProxyServerState(running: $running, totalRequests: $totalRequests, successRate: ${successRate.toStringAsFixed(1)}%)';
+    return 'ProxyServerState(totalRequests: $totalRequests, successRate: ${successRate.toStringAsFixed(1)}%)';
   }
 }

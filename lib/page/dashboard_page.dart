@@ -22,12 +22,10 @@ class DashboardPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Watch((context) {
-            final isRunning = viewModel.isServerRunning.value;
             return PageHeader(
               title: '控制面板',
-              subtitle: isRunning && serverState.listenAddress != null
-                  ? '服务器运行中 - ${serverState.listenAddress}:${serverState.listenPort}'
-                  : '服务器启动中...',
+              subtitle:
+                  '服务器运行中 - ${serverState.listenAddress}:${serverState.listenPort}',
               icon: LucideIcons.layoutDashboard,
             );
           }),

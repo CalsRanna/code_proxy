@@ -9,13 +9,18 @@ class ProxyServerResponse {
   /// 响应体
   final String body;
 
-  /// 响应时间（毫秒）
+  /// 响应时间（毫秒）- 总时间
   final int responseTime;
+
+  /// 首字节时间（毫秒）- Time To First Byte
+  /// 对于流式响应（如 SSE），这个值表示接收到第一个数据块的时间
+  final int? timeToFirstByte;
 
   const ProxyServerResponse({
     required this.statusCode,
     required this.headers,
     required this.body,
     required this.responseTime,
+    this.timeToFirstByte,
   });
 }
