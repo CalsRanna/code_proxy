@@ -1,3 +1,4 @@
+import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -8,17 +9,13 @@ import 'view_model/settings_view_model.dart';
 import 'themes/app_theme.dart';
 
 void main() async {
-  // 确保 Flutter 绑定初始化
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 初始化依赖注入（包括初始化全局 theme signal）
+  await WindowUtil.ensureInitialized();
   await setupServiceLocator();
   SignalsObserver.instance = null;
   runApp(const CodeProxyApp());
 }
 
-/// 应用程序根组件
-/// 添加生命周期管理，确保应用退出时停止代理服务器
 class CodeProxyApp extends StatefulWidget {
   const CodeProxyApp({super.key});
 
