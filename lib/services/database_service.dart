@@ -157,7 +157,7 @@ class DatabaseService {
           health_check_interval, health_check_timeout, health_check_path,
           consecutive_failure_threshold, enable_logging, max_log_entries,
           response_time_window_size
-        ) VALUES (1, '127.0.0.1', 7890, 3, 300, 30, 10, '/health', 3, 1, 1000, 10)
+        ) VALUES (1, '127.0.0.1', 9000, 3, 300, 30, 10, '/health', 3, 1, 1000, 10)
       ''');
     }
   }

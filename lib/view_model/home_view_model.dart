@@ -103,10 +103,7 @@ class HomeViewModel extends BaseViewModel {
 
     // 检查当前配置是否已经指向代理服务器
     final isAlreadyPointingToProxy = await _claudeCodeConfigManager
-        .isPointingToProxy(
-          proxyAddress: config.address,
-          proxyPort: config.port,
-        );
+        .isPointingToProxy(proxyAddress: config.address, proxyPort: 9000);
 
     if (!isAlreadyPointingToProxy) {
       // 如果当前配置不指向代理，切换配置
@@ -198,7 +195,7 @@ class HomeViewModel extends BaseViewModel {
 
     serverState.value = ProxyServerState(
       listenAddress: '127.0.0.1',
-      listenPort: 7890,
+      listenPort: 9000,
       totalRequests: totalRequests,
       successRequests: successRequests,
       failedRequests: failedRequests,

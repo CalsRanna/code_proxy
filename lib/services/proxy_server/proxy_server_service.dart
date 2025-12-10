@@ -6,7 +6,6 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/proxy_server_config_entity.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
-import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -42,7 +41,7 @@ class ProxyServerService {
     _server = await shelf_io.serve(
       _proxyHandler,
       config.address,
-      config.port,
+      9000,
       poweredByHeader: null,
     );
   }
@@ -130,17 +129,25 @@ class ProxyServerService {
         },
         handleDone: (EventSink<List<int>> sink) {
           final endTime = DateTime.now().millisecondsSinceEpoch;
-          _recordStreamComplete(
-            endpoint: endpoint,
-            request: request,
-            statusCode: response.statusCode,
-            startTime: startTime,
-            firstByteTime: firstByteTime ?? startTime,
-            endTime: endTime,
-            requestBytes: requestBodyBytes,
-            responseBytes: responseBodyBytes,
-            responseHeaders: response.headers,
+          final totalTime = endTime - startTime;
+          final timeToFirstByte = firstByteTime ?? endTime - startTime;
+
+          final proxyRequest = ProxyServerRequest(
+            path: request.url.path,
+            method: request.method,
+            body: _decodeBytes(requestBodyBytes),
+            headers: request.headers,
           );
+
+          final proxyResponse = ProxyServerResponse(
+            statusCode: response.statusCode,
+            body: utf8.decode(responseBodyBytes, allowMalformed: true),
+            headers: response.headers,
+            responseTime: totalTime,
+            timeToFirstByte: timeToFirstByte,
+          );
+
+          onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
           sink.close();
         },
         handleError: (error, stackTrace, EventSink<List<int>> sink) {
@@ -263,44 +270,5 @@ class ProxyServerService {
     );
 
     onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
-  }
-
-  /// 记录流式响应完成
-  void _recordStreamComplete({
-    required EndpointEntity endpoint,
-    required shelf.Request request,
-    required int statusCode,
-    required int startTime,
-    required int firstByteTime,
-    required int endTime,
-    required List<List<int>> requestBytes,
-    required List<int> responseBytes,
-    required Map<String, String> responseHeaders,
-  }) {
-    Future(() {
-      try {
-        final totalTime = endTime - startTime;
-        final timeToFirstByte = firstByteTime - startTime;
-
-        final proxyRequest = ProxyServerRequest(
-          path: request.url.path,
-          method: request.method,
-          body: _decodeBytes(requestBytes),
-          headers: request.headers,
-        );
-
-        final proxyResponse = ProxyServerResponse(
-          statusCode: statusCode,
-          body: utf8.decode(responseBytes, allowMalformed: true),
-          headers: responseHeaders,
-          responseTime: totalTime,
-          timeToFirstByte: timeToFirstByte,
-        );
-
-        onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
-      } catch (e) {
-        LoggerUtil.instance.e('Failed to record stream completion: $e');
-      }
-    });
   }
 }

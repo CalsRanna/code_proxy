@@ -35,7 +35,7 @@ class ProxyServerConfigEntity {
 
   const ProxyServerConfigEntity({
     this.address = '127.0.0.1',
-    this.port = 7890,
+    this.port = 9000,
     this.maxRetries = 3,
     this.requestTimeout = 300,
     this.healthCheckInterval = 30,
@@ -51,7 +51,7 @@ class ProxyServerConfigEntity {
   factory ProxyServerConfigEntity.fromJson(Map<String, dynamic> json) {
     return ProxyServerConfigEntity(
       address: json['listenAddress'] as String? ?? '127.0.0.1',
-      port: json['listenPort'] as int? ?? 7890,
+      port: json['listenPort'] as int? ?? 9000,
       maxRetries: json['maxRetries'] as int? ?? 3,
       requestTimeout: json['requestTimeout'] as int? ?? 300,
       healthCheckInterval: json['healthCheckInterval'] as int? ?? 30,
