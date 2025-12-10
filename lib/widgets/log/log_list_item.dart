@@ -9,19 +9,16 @@ class LogListItem extends StatelessWidget {
   final RequestLog log;
   final VoidCallback onTap;
 
-  const LogListItem({
-    super.key,
-    required this.log,
-    required this.onTap,
-  });
+  const LogListItem({super.key, required this.log, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
 
     // 使用颜色辅助方法获取响应时间颜色
-    final responseTimeColor =
-        ShadcnColorHelpers.forResponseTime(log.responseTime ?? 0);
+    final responseTimeColor = ShadcnColorHelpers.forResponseTime(
+      log.responseTime ?? 0,
+    );
 
     return Card(
       margin: const EdgeInsets.only(bottom: ShadcnSpacing.spacing12),
@@ -36,11 +33,13 @@ class LogListItem extends StatelessWidget {
               SizedBox(
                 width: 160,
                 child: Text(
-                  _formatTime(DateTime.fromMillisecondsSinceEpoch(log.timestamp)),
+                  _formatTime(
+                    DateTime.fromMillisecondsSinceEpoch(log.timestamp),
+                  ),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: ShadcnColors.mutedForeground(brightness),
-                        fontFamily: 'monospace',
-                      ),
+                    color: ShadcnColors.mutedForeground(brightness),
+                    fontFamily: 'monospace',
+                  ),
                 ),
               ),
               // 端点名称
@@ -60,15 +59,32 @@ class LogListItem extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              // 状态码
+              Container(
+                decoration: ShapeDecoration(
+                  shape: StadiumBorder(),
+                  color: ShadcnColors.muted(brightness),
+                ),
+                margin: EdgeInsets.only(right: 16),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Text(
+                  '${log.statusCode}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: log.statusCode == 200
+                        ? ShadcnColors.success
+                        : ShadcnColors.error,
+                  ),
+                ),
+              ),
               // 响应时间
               SizedBox(
                 width: 80,
                 child: Text(
                   '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: responseTimeColor,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: responseTimeColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               // Token统计
@@ -77,8 +93,8 @@ class LogListItem extends StatelessWidget {
                 child: Text(
                   '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: ShadcnColors.mutedForeground(brightness),
-                      ),
+                    color: ShadcnColors.mutedForeground(brightness),
+                  ),
                 ),
               ),
             ],
@@ -89,8 +105,6 @@ class LogListItem extends StatelessWidget {
   }
 
   String _formatTime(DateTime timestamp) {
-    return '${timestamp.hour.toString().padLeft(2, '0')}:'
-        '${timestamp.minute.toString().padLeft(2, '0')}:'
-        '${timestamp.second.toString().padLeft(2, '0')}';
+    return timestamp.toString().substring(0, 19);
   }
 }

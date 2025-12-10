@@ -66,22 +66,14 @@ flutter build ios
 
 ### Key Services
 
-**ProxyServer** (`lib/services/proxy_server.dart`)
+**ProxyServerService** (`lib/services/proxy_server/proxy_server_service.dart`)
 - Implements HTTP proxy using `shelf` package
-- Handles request forwarding, retry logic, and error recovery
-- Routes requests through LoadBalancer and HealthChecker
-- Records statistics via StatsCollector
-- Special handling: Replaces Claude Code's temporary proxy token with real API keys from `~/.claude/settings.json.backup`
-
-**LoadBalancer** (`lib/services/load_balancer.dart`)
-- Response-time-based load balancing algorithm
-- Maintains sliding window of response times per endpoint
-- Selects fastest healthy endpoint for each request
-
-**HealthChecker** (`lib/services/health_checker.dart`)
-- Active health checks: Periodic pings to endpoints
-- Passive health checks: Request success/failure tracking
-- Maintains health status per endpoint with failure thresholds
+- Listens on port 9000 by default
+- Handles request forwarding with retry logic and automatic endpoint failover
+- Supports both streaming (SSE) and non-streaming responses
+- Uses `x-api-key` header for authentication with Claude API
+- Records statistics via callbacks to StatsCollector
+- Iterates through enabled endpoints until request succeeds or all endpoints exhausted
 
 **StatsCollector** (`lib/services/stats_collector.dart`)
 - Records request logs with detailed metrics
@@ -90,26 +82,31 @@ flutter build ios
 
 **ClaudeCodeConfigManager** (`lib/services/claude_code_config_manager.dart`)
 - Manages Claude Code CLI configuration at `~/.claude/settings.json`
-- Creates backups before modification
-- Generates proxy tokens that trigger real API key injection
-- Handles macOS sandbox path resolution
+- Creates backups before modification at `~/.claude/settings.json.backup`
+- Handles macOS sandbox path resolution for accessing user home directory
 
 **ConfigManager** (`lib/services/config_manager.dart`)
-- Manages proxy configuration and endpoint list
-- Persists settings to DatabaseService
-- Exposes reactive signals for UI updates
+- Manages proxy configuration and endpoint list via DatabaseService
+- Manages app preferences via SharedPreferences (theme, language, window state)
+- Provides config import/export functionality
 
 **DatabaseService** (`lib/services/database_service.dart`)
 - SQLite database wrapper using `sqlite3` package
-- Manages endpoints and request logs tables
-- Handles schema migrations
+- Manages endpoints, request_logs, and proxy_config tables
+- Handles schema migrations and daily statistics queries
+
+**ThemeService** (`lib/services/theme_service.dart`)
+- Manages application theme state (light/dark mode)
+- Persists theme preference via SharedPreferences
+- Independent singleton service
 
 ### Dependency Injection
 
 All service initialization occurs in `lib/di.dart`:
-- Services registered as lazy singletons
-- ViewModels registered as factories
-- Bootstrap sequence: DatabaseService → ConfigManager → other services
+- Services registered as lazy singletons via `getIt.registerLazySingleton`
+- ViewModels registered as factories via `getIt.registerFactory` (new instance per page)
+- Bootstrap sequence: DatabaseService → ConfigManager → load initial data → other services
+- Global state initialization: `EndpointsViewModel.endpoints` and `SettingsViewModel.theme` loaded during startup
 - Use `getIt<ServiceType>()` to access services
 
 ### State Management
@@ -124,24 +121,21 @@ Uses `signals` package (reactive programming):
 
 The proxy integrates with Claude Code CLI workflow:
 
-1. **Backup & Modify**: Backs up `~/.claude/settings.json` and modifies it to point API requests to local proxy
-2. **Token Injection**: Generates special proxy tokens that trigger real API key injection from backup
-3. **Request Routing**: Intercepts Claude Code requests, selects optimal endpoint, replaces proxy token with real API key
-4. **Restore**: Can restore original configuration when proxy is stopped
-
-**Authentication Modes**:
-- `standard`: Anthropic API format (uses `x-api-key` header)
-- `bearer_only`: Generic Bearer token format (for third-party services)
+1. **Configuration Check**: On startup, checks if `~/.claude/settings.json` is already pointing to proxy
+2. **Backup & Modify**: If not pointing to proxy, backs up `~/.claude/settings.json` and modifies it to route requests to localhost:9000
+3. **Request Routing**: Intercepts Claude Code requests, tries enabled endpoints sequentially with retry logic
+4. **Authentication**: Replaces authentication headers with endpoint's API key using `x-api-key` header format
+5. **Restore**: On shutdown, restores original configuration from backup
 
 ### Models
 
 Key data models in `lib/model/`:
-- `Endpoint`: API endpoint configuration including URL, API key, auth mode, and Claude-specific settings
-- `ClaudeConfig`: Claude Code-specific configuration (base URL, auth mode, API key, environment variables)
-- `ProxyConfig`: Proxy server settings (port, timeouts, health check intervals)
-- `RequestLog`: Detailed log entry with request/response data, tokens, cost
-- `HealthStatus`: Endpoint health tracking (status, consecutive failures, last check time)
+- `EndpointEntity`: API endpoint configuration with URL, API key, weight, enabled status, and Anthropic model settings (default models for Haiku/Sonnet/Opus, small fast model, etc.)
+- `ProxyServerConfigEntity`: Proxy server settings (address, port, timeouts, max retries, max log entries)
+- `ProxyServerState`: Runtime proxy server state (listen address/port, request counts, success rate)
+- `RequestLog`: Detailed log entry with request/response data, headers, tokens, cost, timing metrics
 - `EndpointStats`: Aggregated statistics per endpoint
+- `ClaudeConfig`: Claude Code-specific configuration (base URL, API key, environment variables)
 
 ### Router
 
@@ -155,8 +149,18 @@ Uses `auto_route` package for navigation:
 ### Service Communication
 Services use callbacks instead of direct dependencies to avoid circular references:
 ```dart
-// Instead of: final HealthChecker healthChecker;
-// Use: final bool Function(String endpointId) isHealthy;
+// Example from ProxyServerService
+final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)? onRequestCompleted;
+```
+
+### Global Reactive State
+ViewModels can share state via static signals:
+```dart
+// In EndpointsViewModel
+static final endpoints = listSignal<EndpointEntity>([]);
+
+// Accessed from other ViewModels
+ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
 ```
 
 ### Reactive UI Updates
@@ -169,7 +173,26 @@ Watch((context) => Text('${viewModel.counter.value}'))
 ```
 
 ### Resource Cleanup
-ViewModels have `dispose()` method - override to clean up timers, subscriptions, etc.
+ViewModels inherit from `BaseViewModel` which provides:
+- `dispose()` method - override to clean up timers, subscriptions, etc.
+- `isDisposed` flag - check before updating signals to avoid errors
+- `ensureNotDisposed()` - throws if ViewModel already disposed
+
+### SSE (Server-Sent Events) Support
+The proxy handles streaming responses from Claude API:
+- Detects SSE via `content-type: text/event-stream` header
+- Uses `StreamTransformer` to capture response data while streaming
+- Parses SSE format (`data: {...}` lines) to extract token usage from multiple chunks
+- Records metrics after stream completes (total time + time to first byte)
+
+### Request Routing & Failover
+ProxyServerService implements endpoint failover:
+- Iterates through all enabled endpoints in order
+- For each endpoint, retries up to `maxRetries` times on failure
+- 2xx responses: Returns immediately (success)
+- 4xx responses: Returns immediately (client error, no retry)
+- 5xx responses or exceptions: Retries or tries next endpoint
+- If all endpoints fail: Returns 500 Internal Server Error
 
 ## Testing
 
@@ -192,13 +215,23 @@ ViewModels have `dispose()` method - override to clean up timers, subscriptions,
 ## Database Schema
 
 ### endpoints Table
-Stores API endpoint configurations with columns for URL, authentication, health settings, and Claude Code integration parameters.
+Stores API endpoint configurations with these key fields:
+- Basic info: `id`, `name`, `note`, `enabled`, `weight`
+- API settings: `anthropicAuthToken`, `anthropicBaseUrl`, `apiTimeoutMs`
+- Model configuration: `anthropicModel`, `anthropicSmallFastModel`, `anthropicDefaultHaikuModel`, `anthropicDefaultSonnetModel`, `anthropicDefaultOpusModel`
+- Claude Code settings: `claudeCodeDisableNonessentialTraffic`
 
 ### request_logs Table
-Stores detailed request logs including headers, request/response bodies, token counts, costs, and timing information.
+Stores detailed request logs with fields for:
+- Request data: `method`, `path`, `rawRequest`, `rawHeader`
+- Response data: `statusCode`, `rawResponse`, `responseTime`, `timeToFirstByte`
+- Metrics: `model`, `inputTokens`, `outputTokens`, `cost`
+- Metadata: `timestamp`, `endpointId`, `endpointName`, `success`
 
 ### proxy_config Table
-Stores proxy server configuration (listen address/port, timeouts, retry settings).
+Stores proxy server configuration:
+- Network: `address` (default: 127.0.0.1), `port` (default: 9000)
+- Behavior: `requestTimeoutMs`, `maxRetries`, `maxLogEntries`
 
 ## Code Generation
 

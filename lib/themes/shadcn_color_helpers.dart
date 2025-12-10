@@ -46,13 +46,13 @@ extension ShadcnColorHelpers on ShadcnColors {
   /// 获取响应时间对应的颜色
   ///
   /// 根据响应时间毫秒数返回对应的颜色：
-  /// - < 500ms: 绿色（成功）
-  /// - 500-2000ms: 橙色（警告）
-  /// - >= 2000ms: 红色（错误）
+  /// - < 15000ms: 绿色（成功）
+  /// - 15000-30000ms: 橙色（警告）
+  /// - >= 30000ms: 红色（错误）
   static Color forResponseTime(int milliseconds) {
-    if (milliseconds < 500) {
+    if (milliseconds < 15000) {
       return ShadcnColors.success;
-    } else if (milliseconds < 2000) {
+    } else if (milliseconds < 30000) {
       return ShadcnColors.warning;
     } else {
       return ShadcnColors.error;
