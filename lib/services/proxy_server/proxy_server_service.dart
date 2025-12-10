@@ -6,6 +6,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/proxy_server_config_entity.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -202,8 +203,11 @@ class ProxyServerService {
         try {
           final response = await _forwardRequest(request, endpoint, bodyBytes);
           final statusCode = response.statusCode;
-          final isStreamResponse = _isStreamResponse(response.headers);
+          LoggerUtil.instance.d(
+            'Forward request to ${endpoint.name}, $statusCode',
+          );
 
+          final isStreamResponse = _isStreamResponse(response.headers);
           if (isStreamResponse) {
             return _handleStreamResponse(
               response,
