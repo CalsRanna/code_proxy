@@ -82,12 +82,12 @@ class LogsViewModel extends BaseViewModel {
     }
   }
 
-  /// 开始自动刷新（每 2 秒）
+  /// 开始自动刷新（每 10 秒）
   void startAutoRefresh() {
     if (!autoRefresh.value) return;
 
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) { // 从2秒改为10秒
       if (autoRefresh.value) {
         loadLogs();
       }

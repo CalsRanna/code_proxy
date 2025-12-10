@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/model/proxy_server_state.dart';
 import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/database_service.dart';
@@ -21,11 +20,7 @@ class HomeViewModel extends BaseViewModel {
   final ClaudeCodeConfigManager _claudeCodeConfigManager;
   final DatabaseService _databaseService;
 
-  final serverState = signal(const ProxyServerState());
   final dailyTokenStats = signal<Map<String, int>>({});
-
-  /// 状态更新定时器
-  Timer? _statusUpdateTimer;
 
   ProxyServerService? _proxyServer;
 
@@ -47,7 +42,6 @@ class HomeViewModel extends BaseViewModel {
 
   @override
   void dispose() {
-    _statusUpdateTimer?.cancel();
     // 停止代理服务器（异步操作，但 dispose 是同步的，所以不 await）
     _stopServer().catchError((error) {
       // 静默处理错误
@@ -62,7 +56,6 @@ class HomeViewModel extends BaseViewModel {
     // 自动启动代理服务器
     await _autoStartServer();
 
-    _startStatusUpdates();
     await _loadHeatmapData();
   }
 
@@ -116,7 +109,6 @@ class HomeViewModel extends BaseViewModel {
     );
     await _proxyServer?.start();
     _proxyServer?.endpoints = endpoints.value;
-    _updateServerState();
   }
 
   // =========================
@@ -147,22 +139,6 @@ class HomeViewModel extends BaseViewModel {
     }
   }
 
-  // =========================
-  // 状态更新
-  // =========================
-
-  /// 启动状态定时更新（每 2 秒）
-  void _startStatusUpdates() {
-    _statusUpdateTimer?.cancel();
-    _statusUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      _updateServerState();
-      // 每分钟更新一次热度图数据
-      if (DateTime.now().second == 0) {
-        _loadHeatmapData();
-      }
-    });
-  }
-
   /// 停止代理服务器
   Future<void> _stopServer() async {
     ensureNotDisposed();
@@ -170,7 +146,6 @@ class HomeViewModel extends BaseViewModel {
     try {
       // 停止代理服务器
       await _proxyServer?.stop();
-      _updateServerState();
 
       // 恢复 Claude Code 原始配置（如果有备份）
       await _claudeCodeConfigManager.switchFromProxy();
@@ -178,25 +153,6 @@ class HomeViewModel extends BaseViewModel {
       // 即使停止失败，也尝试恢复配置
       await _claudeCodeConfigManager.switchFromProxy();
     }
-  }
-
-  /// 更新服务器状态
-  void _updateServerState() {
-    if (isDisposed) return;
-
-    final totalRequests = _statsCollector.totalRequests;
-    final successRequests = _statsCollector.successRequests;
-    final failedRequests = _statsCollector.failedRequests;
-    final successRate = _statsCollector.successRate;
-
-    serverState.value = ProxyServerState(
-      listenAddress: '127.0.0.1',
-      listenPort: 9000,
-      totalRequests: totalRequests,
-      successRequests: successRequests,
-      failedRequests: failedRequests,
-      successRate: successRate,
-    );
   }
 
   static void handleRequestCompleted(

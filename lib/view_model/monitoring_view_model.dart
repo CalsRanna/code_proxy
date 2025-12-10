@@ -17,9 +17,6 @@ class MonitoringViewModel extends BaseViewModel {
   /// 端点列表（使用 EndpointsViewModel 的全局 static signal）
   ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
 
-  /// 监控定时器
-  Timer? _monitoringTimer;
-
   MonitoringViewModel({required StatsCollector statsCollector})
     : _statsCollector = statsCollector;
 
@@ -27,44 +24,14 @@ class MonitoringViewModel extends BaseViewModel {
   Future<void> init() async {
     ensureNotDisposed();
     // 端点已由 ConfigManager 加载
-    startMonitoring();
-  }
-
-  // =========================
-  // 监控控制
-  // =========================
-
-  /// 开始监控（每 2 秒更新一次）
-  void startMonitoring() {
-    ensureNotDisposed();
-
     // 立即更新一次
-    _updateStats();
-
-    // 启动定时器
-    _monitoringTimer?.cancel();
-    _monitoringTimer = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) => _updateStats(),
-    );
-  }
-
-  /// 停止监控
-  void stopMonitoring() {
-    _monitoringTimer?.cancel();
-    _monitoringTimer = null;
-  }
-
-  /// 更新统计信息
-  void _updateStats() {
-    if (isDisposed) return;
-
     endpointStats.value = _statsCollector.getAllEndpointStats();
   }
 
   /// 手动刷新统计信息（供 UI 调用）
   void refreshStats() {
-    _updateStats();
+    if (isDisposed) return;
+    endpointStats.value = _statsCollector.getAllEndpointStats();
   }
 
   // =========================
@@ -75,14 +42,14 @@ class MonitoringViewModel extends BaseViewModel {
   void clearEndpointStats(String endpointId) {
     ensureNotDisposed();
     _statsCollector.clearEndpointStats(endpointId);
-    _updateStats();
+    refreshStats();
   }
 
   /// 重置所有统计信息
   void resetAllStats() {
     ensureNotDisposed();
     _statsCollector.resetStats();
-    _updateStats();
+    refreshStats();
   }
 
   // =========================
@@ -118,10 +85,4 @@ class MonitoringViewModel extends BaseViewModel {
   // =========================
   // 清理资源
   // =========================
-
-  @override
-  void dispose() {
-    stopMonitoring();
-    super.dispose();
-  }
 }
