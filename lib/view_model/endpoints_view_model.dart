@@ -1,5 +1,6 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/services/config_manager.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
 import 'base_view_model.dart';
@@ -18,6 +19,8 @@ class EndpointsViewModel extends BaseViewModel {
   final isLoading = signal(false);
   final errorMessage = signal<String?>(null);
   final searchQuery = signal('');
+
+  final shadPopoverController = ShadPopoverController();
 
   /// 过滤后的端点列表（根据搜索查询）
   late final filteredEndpoints = computed(() {
@@ -91,7 +94,8 @@ class EndpointsViewModel extends BaseViewModel {
       anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
       anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
       anthropicDefaultOpusModel: anthropicDefaultOpusModel,
-      claudeCodeDisableNonessentialTraffic: claudeCodeDisableNonessentialTraffic,
+      claudeCodeDisableNonessentialTraffic:
+          claudeCodeDisableNonessentialTraffic,
     );
 
     try {
@@ -194,5 +198,11 @@ class EndpointsViewModel extends BaseViewModel {
   /// 更新搜索查询
   void updateSearchQuery(String query) {
     searchQuery.value = query;
+  }
+
+  @override
+  void dispose() {
+    shadPopoverController.dispose();
+    super.dispose();
   }
 }

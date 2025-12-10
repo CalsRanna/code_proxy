@@ -23,7 +23,7 @@ class SettingPage extends StatelessWidget {
           PageHeader(
             title: '应用设置',
             subtitle: '管理代理服务器配置和应用选项',
-            icon: LucideIcons.settings,
+            icon: LucideIcons.bolt,
           ),
           Expanded(
             child: ListView(

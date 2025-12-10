@@ -34,7 +34,7 @@ class LogPage extends StatelessWidget {
           PageHeader(
             title: '请求日志',
             subtitle: '$totalRecords 条记录',
-            icon: LucideIcons.fileText,
+            icon: LucideIcons.arrowUpDown,
             actions: [
               if (hasSearch)
                 OutlinedButton.icon(
@@ -59,7 +59,7 @@ class LogPage extends StatelessWidget {
                 ? EmptyState(
                     icon: hasSearch
                         ? LucideIcons.searchX
-                        : LucideIcons.fileText,
+                        : LucideIcons.arrowUpDown,
                     message: hasSearch ? '未找到匹配的日志' : '暂无日志记录',
                   )
                 : Column(

@@ -1,9 +1,9 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:code_proxy/page/dashboard_page.dart';
-import 'package:code_proxy/page/endpoint_page.dart';
+import 'package:code_proxy/page/endpoint/endpoint_page.dart';
 import 'package:code_proxy/page/log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
-import 'package:code_proxy/themes/shadcn_colors.dart';
+import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
@@ -12,7 +12,7 @@ import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:code_proxy/widgets/theme_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 @RoutePage()
 class HomePage extends StatefulWidget {
@@ -69,17 +69,16 @@ class _HomePageState extends State<HomePage> {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
             ),
             child: Column(
+              spacing: ShadcnSpacing.spacing16,
               children: [
-                const SizedBox(height: 16),
+                const SizedBox(height: ShadcnSpacing.spacing16),
                 ...List.generate(4, (index) {
                   return _buildNavItem(index);
                 }),
                 const Spacer(),
                 // 主题切换器
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 16),
-                  child: ThemeSwitcher(compact: true),
-                ),
+                ThemeSwitcher(compact: true),
+                const SizedBox(height: ShadcnSpacing.spacing16),
               ],
             ),
           ),
@@ -93,59 +92,31 @@ class _HomePageState extends State<HomePage> {
   Widget _buildNavItem(int index) {
     final isSelected = _selectedIndex == index;
     final icons = [
-      LucideIcons.layoutDashboard,
-      LucideIcons.server,
-      LucideIcons.fileText,
-      LucideIcons.settings,
-    ];
-    final selectedIcons = [
-      LucideIcons.layoutDashboard,
-      LucideIcons.server,
-      LucideIcons.fileText,
-      LucideIcons.settings,
+      LucideIcons.layoutGrid,
+      LucideIcons.shell,
+      LucideIcons.arrowUpDown,
+      LucideIcons.bolt,
     ];
     final labels = ['主页', '端点', '日志', '设置'];
 
-    return Tooltip(
-      message: labels[index],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              setState(() {
-                _selectedIndex = index;
-              });
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              curve: Curves.easeInOut,
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: isSelected
-                    ? ShadcnColors.muted(Theme.of(context).brightness)
-                    : Colors.transparent,
-                border: isSelected
-                    ? Border.all(
-                        color: Theme.of(context).colorScheme.primary,
-                        width: 1.0,
-                      )
-                    : null,
-              ),
-              child: Icon(
-                isSelected ? selectedIcons[index] : icons[index],
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                size: 24,
-              ),
-            ),
-          ),
+    return ShadTooltip(
+      anchor: ShadAnchor(
+        overlayAlignment: Alignment.centerRight,
+        childAlignment: Alignment.centerLeft,
+      ),
+      builder: (context) => Text(labels[index]),
+      child: ShadIconButton.ghost(
+        icon: Icon(
+          icons[index],
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
+        onPressed: () {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
       ),
     );
   }

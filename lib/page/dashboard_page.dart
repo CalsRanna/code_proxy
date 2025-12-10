@@ -26,7 +26,7 @@ class DashboardPage extends StatelessWidget {
               title: '控制面板',
               subtitle:
                   '服务器运行中 - ${serverState.listenAddress}:${serverState.listenPort}',
-              icon: LucideIcons.layoutDashboard,
+              icon: LucideIcons.layoutGrid,
             );
           }),
           Expanded(
