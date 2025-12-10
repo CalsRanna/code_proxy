@@ -120,6 +120,7 @@ class HomeViewModel extends BaseViewModel {
     // 启动代理服务器
     _proxyServer ??= ProxyServerService(config: config);
     await _proxyServer?.start();
+    _proxyServer?.endpoints = endpoints.value;
     _updateServerState();
   }
 

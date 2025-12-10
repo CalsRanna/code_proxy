@@ -4,7 +4,6 @@ import 'package:code_proxy/view_model/logs_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/log/log_detail_dialog.dart';
-import 'package:code_proxy/widgets/log/log_filter_bar.dart';
 import 'package:code_proxy/widgets/log/log_list_item.dart';
 import 'package:code_proxy/widgets/log/log_pagination.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +23,8 @@ class LogPage extends StatelessWidget {
       final totalPages = viewModel.totalPages.value;
       final totalRecords = viewModel.totalRecords.value;
       final pageSize = viewModel.pageSize.value;
-      final hasSearch = viewModel.searchQuery.value.isNotEmpty ||
+      final hasSearch =
+          viewModel.searchQuery.value.isNotEmpty ||
           viewModel.endpointFilter.value != null ||
           viewModel.successFilter.value != null;
 
@@ -54,15 +54,6 @@ class LogPage extends StatelessWidget {
               ),
             ],
           ),
-          LogFilterBar(
-            searchQuery: viewModel.searchQuery.value,
-            onSearchChanged: viewModel.updateSearchQuery,
-            endpointFilter: viewModel.endpointFilter.value,
-            availableEndpoints: viewModel.availableEndpoints.value,
-            onEndpointChanged: viewModel.updateEndpointFilter,
-            successFilter: viewModel.successFilter.value,
-            onSuccessChanged: viewModel.updateSuccessFilter,
-          ),
           Expanded(
             child: filteredLogs.isEmpty
                 ? EmptyState(
@@ -75,8 +66,9 @@ class LogPage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: ListView.builder(
-                          padding:
-                              const EdgeInsets.all(ShadcnSpacing.spacing24),
+                          padding: const EdgeInsets.all(
+                            ShadcnSpacing.spacing24,
+                          ),
                           itemCount: filteredLogs.length,
                           itemBuilder: (context, index) {
                             return LogListItem(

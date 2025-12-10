@@ -6,7 +6,6 @@ import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/endpoint_form/endpoint_form_dialog.dart';
-import 'package:code_proxy/widgets/modern_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -29,11 +28,6 @@ class EndpointPage extends StatelessWidget {
             title: '端点管理',
             subtitle: '${filteredEndpoints.length} 个端点',
             icon: LucideIcons.server,
-            searchField: ModernTextField(
-              hint: '搜索端点名称、URL或分类...',
-              prefixIcon: LucideIcons.search,
-              onChanged: viewModel.updateSearchQuery,
-            ),
             actions: [
               FilledButton.icon(
                 onPressed: () => _showAddEndpointDialog(context),

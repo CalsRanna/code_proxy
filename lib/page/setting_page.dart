@@ -51,29 +51,6 @@ class SettingPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: ShadcnSpacing.spacing24),
-                const SectionHeader(
-                  title: '健康检查',
-                  icon: LucideIcons.heartPulse,
-                ),
-                const SizedBox(height: ShadcnSpacing.spacing12),
-                Card(
-                  child: Column(
-                    children: [
-                      ListTile(
-                        title: const Text('检查间隔'),
-                        subtitle: Text('${config.healthCheckInterval} 秒'),
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        title: const Text('连续失败阈值'),
-                        subtitle: Text(
-                          '${config.consecutiveFailureThreshold} 次',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: ShadcnSpacing.spacing24),
                 const SectionHeader(title: '数据管理', icon: LucideIcons.database),
                 const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
