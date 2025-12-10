@@ -1,5 +1,5 @@
 import 'package:code_proxy/model/claude_config.dart';
-import 'package:code_proxy/model/endpoint.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:flutter/material.dart';
 import '../themes/shadcn_colors.dart';
@@ -9,7 +9,7 @@ import 'modern_text_field.dart';
 
 /// 端点编辑表单对话框（StatefulWidget 以支持表单状态）
 class EndpointFormDialog extends StatefulWidget {
-  final Endpoint? endpoint;
+  final EndpointEntity? endpoint;
   final EndpointsViewModel viewModel;
 
   const EndpointFormDialog({super.key, this.endpoint, required this.viewModel});
@@ -171,11 +171,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ===== 基本信息 =====
-                    _buildSectionHeader(
-                      context,
-                      '基本信息',
-                      Icons.info_outline_rounded,
-                    ),
+                    _buildSectionHeader('基本信息', Icons.info_outline_rounded),
                     const SizedBox(height: 20),
                     ModernTextField(
                       controller: nameController,
@@ -218,11 +214,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                     const SizedBox(height: 32),
 
                     // ===== Claude Code 配置 =====
-                    _buildSectionHeader(
-                      context,
-                      'Claude API 配置',
-                      Icons.api_rounded,
-                    ),
+                    _buildSectionHeader('Claude API 配置', Icons.api_rounded),
                     const SizedBox(height: 20),
 
                     ModernTextField(
@@ -286,11 +278,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                     ),
 
                     const SizedBox(height: 32),
-                    _buildSectionHeader(
-                      context,
-                      '模型配置',
-                      Icons.psychology_rounded,
-                    ),
+                    _buildSectionHeader('模型配置', Icons.psychology_rounded),
                     const SizedBox(height: 20),
 
                     ModernTextField(
@@ -332,7 +320,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                     ),
 
                     const SizedBox(height: 32),
-                    _buildSectionHeader(context, '高级选项', Icons.tune_rounded),
+                    _buildSectionHeader('高级选项', Icons.tune_rounded),
                     const SizedBox(height: 12),
 
                     Container(
@@ -385,10 +373,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                     child: const Text('取消'),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _handleSave,
-                    child: const Text('保存'),
-                  ),
+                  FilledButton(onPressed: _handleSave, child: const Text('保存')),
                 ],
               ),
             ),
@@ -398,11 +383,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     );
   }
 
-  Widget _buildSectionHeader(
-    BuildContext context,
-    String title,
-    IconData icon,
-  ) {
+  Widget _buildSectionHeader(String title, IconData icon) {
     final theme = Theme.of(context);
 
     return Row(
@@ -479,7 +460,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     } else {
       // 更新端点
       await widget.viewModel.updateEndpoint(
-        Endpoint(
+        EndpointEntity(
           id: widget.endpoint!.id,
           name: nameController.text,
           url: baseUrlController.text,
@@ -497,6 +478,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       );
     }
 
-    if (context.mounted) Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
   }
 }

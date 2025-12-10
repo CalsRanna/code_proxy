@@ -1,7 +1,7 @@
 import 'claude_config.dart';
 
 /// 端点配置模型
-class Endpoint {
+class EndpointEntity {
   /// 唯一标识符
   final String id;
 
@@ -50,7 +50,7 @@ class Endpoint {
   /// Complete settings configuration (env variables, etc.)
   final Map<String, dynamic>? settingsConfig;
 
-  const Endpoint({
+  const EndpointEntity({
     required this.id,
     required this.name,
     required this.url,
@@ -70,8 +70,8 @@ class Endpoint {
   });
 
   /// 从 JSON 反序列化
-  factory Endpoint.fromJson(Map<String, dynamic> json) {
-    return Endpoint(
+  factory EndpointEntity.fromJson(Map<String, dynamic> json) {
+    return EndpointEntity(
       id: json['id'] as String,
       name: json['name'] as String,
       url: json['url'] as String,
@@ -118,7 +118,7 @@ class Endpoint {
   }
 
   /// 复制并更新部分字段
-  Endpoint copyWith({
+  EndpointEntity copyWith({
     String? id,
     String? name,
     String? url,
@@ -136,7 +136,7 @@ class Endpoint {
     Map<String, String>? customHeaders,
     Map<String, dynamic>? settingsConfig,
   }) {
-    return Endpoint(
+    return EndpointEntity(
       id: id ?? this.id,
       name: name ?? this.name,
       url: url ?? this.url,
@@ -165,7 +165,7 @@ class Endpoint {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    return other is Endpoint && other.id == id;
+    return other is EndpointEntity && other.id == id;
   }
 
   @override
@@ -224,7 +224,7 @@ class Endpoint {
   }
 
   /// 从 ClaudeSettingsConfig 创建 Endpoint
-  static Endpoint fromClaudeConfig({
+  static EndpointEntity fromClaudeConfig({
     required String id,
     required String name,
     required ClaudeSettingsConfig claudeConfig,
@@ -239,7 +239,7 @@ class Endpoint {
     required int updatedAt,
     Map<String, String>? customHeaders,
   }) {
-    return Endpoint(
+    return EndpointEntity(
       id: id,
       name: name,
       url: claudeConfig.effectiveBaseUrl ?? '',

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:code_proxy/model/endpoint.dart';
-import 'package:code_proxy/model/proxy_config.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/model/proxy_server_config_entity.dart';
 import 'package:code_proxy/model/request_log.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -167,7 +167,7 @@ class DatabaseService {
   // =========================
 
   /// 获取所有端点
-  Future<List<Endpoint>> getAllEndpoints() async {
+  Future<List<EndpointEntity>> getAllEndpoints() async {
     _ensureInitialized();
 
     final results = _db.select(
@@ -177,7 +177,7 @@ class DatabaseService {
   }
 
   /// 根据 ID 获取端点
-  Future<Endpoint?> getEndpointById(String id) async {
+  Future<EndpointEntity?> getEndpointById(String id) async {
     _ensureInitialized();
 
     final results = _db.select('SELECT * FROM endpoints WHERE id = ?', [id]);
@@ -187,7 +187,7 @@ class DatabaseService {
   }
 
   /// 插入端点
-  Future<void> insertEndpoint(Endpoint endpoint) async {
+  Future<void> insertEndpoint(EndpointEntity endpoint) async {
     _ensureInitialized();
 
     // 将 Map 和 List 转换为 JSON 字符串
@@ -228,7 +228,7 @@ class DatabaseService {
   }
 
   /// 更新端点
-  Future<void> updateEndpoint(Endpoint endpoint) async {
+  Future<void> updateEndpoint(EndpointEntity endpoint) async {
     _ensureInitialized();
 
     // 将 Map 和 List 转换为 JSON 字符串
@@ -287,20 +287,20 @@ class DatabaseService {
   // =========================
 
   /// 获取代理配置
-  Future<ProxyConfig> getProxyConfig() async {
+  Future<ProxyServerConfigEntity> getProxyConfig() async {
     _ensureInitialized();
 
     final results = _db.select('SELECT * FROM proxy_config WHERE id = 1');
     if (results.isEmpty) {
       // 返回默认配置
-      return const ProxyConfig();
+      return const ProxyServerConfigEntity();
     }
 
     return _proxyConfigFromRow(results.first);
   }
 
   /// 保存代理配置
-  Future<void> saveProxyConfig(ProxyConfig config) async {
+  Future<void> saveProxyConfig(ProxyServerConfigEntity config) async {
     _ensureInitialized();
 
     _db.execute(
@@ -314,8 +314,8 @@ class DatabaseService {
       WHERE id = 1
       ''',
       [
-        config.listenAddress,
-        config.listenPort,
+        config.address,
+        config.port,
         config.maxRetries,
         config.requestTimeout,
         config.healthCheckInterval,
@@ -341,12 +341,12 @@ class DatabaseService {
   }
 
   /// 从数据库行创建 Endpoint 对象
-  Endpoint _endpointFromRow(Row row) {
+  EndpointEntity _endpointFromRow(Row row) {
     // 解析 JSON 字段
     final customHeadersStr = row['custom_headers'] as String?;
     final settingsConfigStr = row['settings_config'] as String?;
 
-    return Endpoint(
+    return EndpointEntity(
       id: row['id'] as String,
       name: row['name'] as String,
       url: row['url'] as String,
@@ -385,10 +385,10 @@ class DatabaseService {
   }
 
   /// 从数据库行创建 ProxyConfig 对象
-  ProxyConfig _proxyConfigFromRow(Row row) {
-    return ProxyConfig(
-      listenAddress: row['listen_address'] as String,
-      listenPort: row['listen_port'] as int,
+  ProxyServerConfigEntity _proxyConfigFromRow(Row row) {
+    return ProxyServerConfigEntity(
+      address: row['listen_address'] as String,
+      port: row['listen_port'] as int,
       maxRetries: row['max_retries'] as int,
       requestTimeout: row['request_timeout'] as int,
       healthCheckInterval: row['health_check_interval'] as int,

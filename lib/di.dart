@@ -1,7 +1,7 @@
 import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/database_service.dart';
-import 'package:code_proxy/services/proxy_server.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:code_proxy/services/theme_service.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
@@ -64,19 +64,8 @@ Future<void> setupServiceLocator() async {
       config: config,
       // 从 EndpointsViewModel 的 static signal 获取端点列表
       getEndpoints: () => EndpointsViewModel.endpoints.value,
-      // 更新端点 enabled 状态的回调
-      updateEndpointEnabled: (endpointId, enabled) async {
-        final configManager = getIt<ConfigManager>();
-        final endpoint = EndpointsViewModel.endpoints.value
-            .firstWhere((e) => e.id == endpointId);
-        final updatedEndpoint = endpoint.copyWith(enabled: enabled);
-        await configManager.saveEndpoint(updatedEndpoint);
-        // 重新加载端点到 signal
-        final updatedEndpoints = await configManager.loadEndpoints();
-        EndpointsViewModel.endpoints.value = updatedEndpoints;
-      },
-      statsCollector: getIt<StatsCollector>(),
       claudeCodeConfigManager: getIt<ClaudeCodeConfigManager>(),
+      // 回调会在 HomeViewModel 中设置
     ),
   );
 
@@ -102,9 +91,7 @@ Future<void> setupServiceLocator() async {
 
   // 注册 MonitoringViewModel（工厂模式）
   getIt.registerFactory<MonitoringViewModel>(
-    () => MonitoringViewModel(
-      statsCollector: getIt<StatsCollector>(),
-    ),
+    () => MonitoringViewModel(statsCollector: getIt<StatsCollector>()),
   );
 
   // 注册 LogsViewModel（工厂模式）

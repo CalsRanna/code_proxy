@@ -3,7 +3,7 @@ import 'package:signals/signals_flutter.dart';
 
 import 'di.dart';
 import 'router/router.dart';
-import 'services/proxy_server.dart';
+import 'services/proxy_server/proxy_server_service.dart';
 import 'view_model/settings_view_model.dart';
 import 'themes/app_theme.dart';
 

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:code_proxy/model/endpoint.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/endpoint_stats.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:signals/signals.dart';
@@ -15,14 +15,13 @@ class MonitoringViewModel extends BaseViewModel {
   final endpointStats = signal<Map<String, EndpointStats>>({});
 
   /// 端点列表（使用 EndpointsViewModel 的全局 static signal）
-  ListSignal<Endpoint> get endpoints => EndpointsViewModel.endpoints;
+  ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
 
   /// 监控定时器
   Timer? _monitoringTimer;
 
-  MonitoringViewModel({
-    required StatsCollector statsCollector,
-  }) : _statsCollector = statsCollector;
+  MonitoringViewModel({required StatsCollector statsCollector})
+    : _statsCollector = statsCollector;
 
   /// 初始化
   Future<void> init() async {

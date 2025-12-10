@@ -1,4 +1,4 @@
-import 'package:code_proxy/model/endpoint.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
@@ -12,7 +12,7 @@ class EndpointsViewModel extends BaseViewModel {
 
   /// 全局共享的端点列表 signal（所有 ViewModel 实例共享）
   /// 使用 static 确保跨实例共享状态
-  static final endpoints = listSignal<Endpoint>([]);
+  static final endpoints = listSignal<EndpointEntity>([]);
 
   /// 响应式状态
   final isLoading = signal(false);
@@ -75,7 +75,7 @@ class EndpointsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    final endpoint = Endpoint(
+    final endpoint = EndpointEntity(
       id: _uuid.v4(),
       name: name,
       url: url,
@@ -105,10 +105,10 @@ class EndpointsViewModel extends BaseViewModel {
   }
 
   /// 更新端点
-  Future<void> updateEndpoint(Endpoint endpoint) async {
+  Future<void> updateEndpoint(EndpointEntity endpoint) async {
     ensureNotDisposed();
 
-    final updated = Endpoint(
+    final updated = EndpointEntity(
       id: endpoint.id,
       name: endpoint.name,
       url: endpoint.url,
@@ -156,7 +156,7 @@ class EndpointsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
-    final updated = Endpoint(
+    final updated = EndpointEntity(
       id: endpoint.id,
       name: endpoint.name,
       url: endpoint.url,
@@ -189,7 +189,7 @@ class EndpointsViewModel extends BaseViewModel {
   Future<void> reorderEndpoints(int oldIndex, int newIndex) async {
     ensureNotDisposed();
 
-    final items = List<Endpoint>.from(endpoints.value);
+    final items = List<EndpointEntity>.from(endpoints.value);
 
     // 移除旧位置的项
     final item = items.removeAt(oldIndex);
@@ -205,7 +205,7 @@ class EndpointsViewModel extends BaseViewModel {
     try {
       for (var i = 0; i < items.length; i++) {
         final endpoint = items[i];
-        final updated = Endpoint(
+        final updated = EndpointEntity(
           id: endpoint.id,
           name: endpoint.name,
           url: endpoint.url,
@@ -252,7 +252,7 @@ class EndpointsViewModel extends BaseViewModel {
   // =========================
 
   /// 根据 ID 获取端点
-  Endpoint? getEndpointById(String id) {
+  EndpointEntity? getEndpointById(String id) {
     try {
       return endpoints.value.firstWhere((e) => e.id == id);
     } catch (e) {

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:code_proxy/model/endpoint.dart';
-import 'package:code_proxy/model/proxy_config.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/model/proxy_server_config_entity.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,25 +38,25 @@ class ConfigManager {
   // =========================
 
   /// 加载代理配置
-  Future<ProxyConfig> loadProxyConfig() async {
+  Future<ProxyServerConfigEntity> loadProxyConfig() async {
     _ensureInitialized();
     return await _databaseService.getProxyConfig();
   }
 
   /// 保存代理配置
-  Future<void> saveProxyConfig(ProxyConfig config) async {
+  Future<void> saveProxyConfig(ProxyServerConfigEntity config) async {
     _ensureInitialized();
     await _databaseService.saveProxyConfig(config);
   }
 
   /// 加载所有端点
-  Future<List<Endpoint>> loadEndpoints() async {
+  Future<List<EndpointEntity>> loadEndpoints() async {
     _ensureInitialized();
     return await _databaseService.getAllEndpoints();
   }
 
   /// 保存端点（插入或更新）
-  Future<void> saveEndpoint(Endpoint endpoint) async {
+  Future<void> saveEndpoint(EndpointEntity endpoint) async {
     _ensureInitialized();
 
     // 检查端点是否已存在
@@ -75,7 +75,7 @@ class ConfigManager {
   }
 
   /// 根据 ID 获取端点
-  Future<Endpoint?> getEndpointById(String id) async {
+  Future<EndpointEntity?> getEndpointById(String id) async {
     _ensureInitialized();
     return await _databaseService.getEndpointById(id);
   }
@@ -226,7 +226,7 @@ class ConfigManager {
 
     // 导入代理配置
     if (jsonData.containsKey('proxyConfig')) {
-      final proxyConfig = ProxyConfig.fromJson(
+      final proxyConfig = ProxyServerConfigEntity.fromJson(
         jsonData['proxyConfig'] as Map<String, dynamic>,
       );
       await saveProxyConfig(proxyConfig);
@@ -243,7 +243,7 @@ class ConfigManager {
 
       // 插入或更新端点
       for (final endpointJson in endpointsJson) {
-        final endpoint = Endpoint.fromJson(
+        final endpoint = EndpointEntity.fromJson(
           endpointJson as Map<String, dynamic>,
         );
         await saveEndpoint(endpoint);
@@ -259,7 +259,7 @@ class ConfigManager {
     await clearAllEndpoints();
 
     // 重置代理配置为默认值
-    await saveProxyConfig(const ProxyConfig());
+    await saveProxyConfig(const ProxyServerConfigEntity());
 
     // 清空 SharedPreferences
     await _prefs.clear();

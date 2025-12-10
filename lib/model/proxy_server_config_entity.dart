@@ -1,10 +1,10 @@
 /// 代理配置模型
-class ProxyConfig {
+class ProxyServerConfigEntity {
   /// 监听地址（127.0.0.1 或 0.0.0.0）
-  final String listenAddress;
+  final String address;
 
   /// 监听端口
-  final int listenPort;
+  final int port;
 
   /// 最大重试次数
   final int maxRetries;
@@ -33,9 +33,9 @@ class ProxyConfig {
   /// 响应时间统计窗口大小
   final int responseTimeWindowSize;
 
-  const ProxyConfig({
-    this.listenAddress = '127.0.0.1',
-    this.listenPort = 7890,
+  const ProxyServerConfigEntity({
+    this.address = '127.0.0.1',
+    this.port = 7890,
     this.maxRetries = 3,
     this.requestTimeout = 300,
     this.healthCheckInterval = 30,
@@ -48,10 +48,10 @@ class ProxyConfig {
   });
 
   /// 从 JSON 反序列化
-  factory ProxyConfig.fromJson(Map<String, dynamic> json) {
-    return ProxyConfig(
-      listenAddress: json['listenAddress'] as String? ?? '127.0.0.1',
-      listenPort: json['listenPort'] as int? ?? 7890,
+  factory ProxyServerConfigEntity.fromJson(Map<String, dynamic> json) {
+    return ProxyServerConfigEntity(
+      address: json['listenAddress'] as String? ?? '127.0.0.1',
+      port: json['listenPort'] as int? ?? 7890,
       maxRetries: json['maxRetries'] as int? ?? 3,
       requestTimeout: json['requestTimeout'] as int? ?? 300,
       healthCheckInterval: json['healthCheckInterval'] as int? ?? 30,
@@ -68,8 +68,8 @@ class ProxyConfig {
   /// 序列化为 JSON
   Map<String, dynamic> toJson() {
     return {
-      'listenAddress': listenAddress,
-      'listenPort': listenPort,
+      'listenAddress': address,
+      'listenPort': port,
       'maxRetries': maxRetries,
       'requestTimeout': requestTimeout,
       'healthCheckInterval': healthCheckInterval,
@@ -83,7 +83,7 @@ class ProxyConfig {
   }
 
   /// 复制并更新部分字段
-  ProxyConfig copyWith({
+  ProxyServerConfigEntity copyWith({
     String? listenAddress,
     int? listenPort,
     int? maxRetries,
@@ -96,9 +96,9 @@ class ProxyConfig {
     int? maxLogEntries,
     int? responseTimeWindowSize,
   }) {
-    return ProxyConfig(
-      listenAddress: listenAddress ?? this.listenAddress,
-      listenPort: listenPort ?? this.listenPort,
+    return ProxyServerConfigEntity(
+      address: listenAddress ?? address,
+      port: listenPort ?? port,
       maxRetries: maxRetries ?? this.maxRetries,
       requestTimeout: requestTimeout ?? this.requestTimeout,
       healthCheckInterval: healthCheckInterval ?? this.healthCheckInterval,
@@ -115,6 +115,6 @@ class ProxyConfig {
 
   @override
   String toString() {
-    return 'ProxyConfig(listenAddress: $listenAddress, listenPort: $listenPort)';
+    return 'ProxyConfig(listenAddress: $address, listenPort: $port)';
   }
 }

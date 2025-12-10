@@ -1,4 +1,4 @@
-import 'package:code_proxy/model/proxy_config.dart';
+import 'package:code_proxy/model/proxy_server_config_entity.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/theme_service.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +16,7 @@ class SettingsViewModel extends BaseViewModel {
   static final currentTheme = signal(ThemeMode.system);
 
   /// 响应式状态
-  final config = signal(const ProxyConfig());
+  final config = signal(const ProxyServerConfigEntity());
   final isSaving = signal(false);
   final isImporting = signal(false);
   final isExporting = signal(false);
@@ -59,7 +59,7 @@ class SettingsViewModel extends BaseViewModel {
   }
 
   /// 保存代理配置
-  Future<void> saveConfig(ProxyConfig newConfig) async {
+  Future<void> saveConfig(ProxyServerConfigEntity newConfig) async {
     ensureNotDisposed();
 
     isSaving.value = true;
@@ -76,9 +76,9 @@ class SettingsViewModel extends BaseViewModel {
 
   /// 更新监听地址
   Future<void> updateListenAddress(String address) async {
-    final updated = ProxyConfig(
-      listenAddress: address,
-      listenPort: config.value.listenPort,
+    final updated = ProxyServerConfigEntity(
+      address: address,
+      port: config.value.port,
       maxRetries: config.value.maxRetries,
       requestTimeout: config.value.requestTimeout,
       healthCheckInterval: config.value.healthCheckInterval,
@@ -95,9 +95,9 @@ class SettingsViewModel extends BaseViewModel {
 
   /// 更新监听端口
   Future<void> updateListenPort(int port) async {
-    final updated = ProxyConfig(
-      listenAddress: config.value.listenAddress,
-      listenPort: port,
+    final updated = ProxyServerConfigEntity(
+      address: config.value.address,
+      port: port,
       maxRetries: config.value.maxRetries,
       requestTimeout: config.value.requestTimeout,
       healthCheckInterval: config.value.healthCheckInterval,
@@ -115,7 +115,7 @@ class SettingsViewModel extends BaseViewModel {
   /// 重置为默认配置
   Future<void> resetToDefaults() async {
     ensureNotDisposed();
-    await saveConfig(const ProxyConfig());
+    await saveConfig(const ProxyServerConfigEntity());
   }
 
   // =========================

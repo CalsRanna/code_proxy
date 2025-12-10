@@ -1,4 +1,4 @@
-import 'package:code_proxy/model/endpoint.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_color_helpers.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
@@ -46,8 +46,8 @@ class EndpointPage extends StatelessWidget {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : filteredEndpoints.isEmpty
-                    ? _buildEmptyState(context)
-                    : _buildEndpointsList(context, filteredEndpoints),
+                ? _buildEmptyState(context)
+                : _buildEndpointsList(context, filteredEndpoints),
           ),
         ],
       );
@@ -64,7 +64,10 @@ class EndpointPage extends StatelessWidget {
     );
   }
 
-  Widget _buildEndpointsList(BuildContext context, List<Endpoint> endpoints) {
+  Widget _buildEndpointsList(
+    BuildContext context,
+    List<EndpointEntity> endpoints,
+  ) {
     return ListView.builder(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       itemCount: endpoints.length,
@@ -93,12 +96,8 @@ class EndpointPage extends StatelessWidget {
                         children: [
                           Text(
                             endpoint.name,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(width: ShadcnSpacing.spacing8),
                           StatusBadge(
@@ -111,11 +110,11 @@ class EndpointPage extends StatelessWidget {
                       Text(
                         endpoint.url,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: ShadcnColors.mutedForeground(
-                                Theme.of(context).brightness,
-                              ),
-                              fontFamily: 'monospace',
-                            ),
+                          color: ShadcnColors.mutedForeground(
+                            Theme.of(context).brightness,
+                          ),
+                          fontFamily: 'monospace',
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -155,8 +154,7 @@ class EndpointPage extends StatelessWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(LucideIcons.trash2,
-                              size: 20, color: Colors.red),
+                          Icon(LucideIcons.trash2, size: 20, color: Colors.red),
                           SizedBox(width: 8),
                           Text('删除', style: TextStyle(color: Colors.red)),
                         ],
@@ -183,11 +181,11 @@ class EndpointPage extends StatelessWidget {
     _showEndpointDialog(context, null);
   }
 
-  void _showEditEndpointDialog(BuildContext context, Endpoint endpoint) {
+  void _showEditEndpointDialog(BuildContext context, EndpointEntity endpoint) {
     _showEndpointDialog(context, endpoint);
   }
 
-  void _showEndpointDialog(BuildContext context, Endpoint? endpoint) {
+  void _showEndpointDialog(BuildContext context, EndpointEntity? endpoint) {
     showDialog(
       context: context,
       builder: (context) =>
@@ -195,7 +193,7 @@ class EndpointPage extends StatelessWidget {
     );
   }
 
-  void _showDeleteDialog(BuildContext context, Endpoint endpoint) {
+  void _showDeleteDialog(BuildContext context, EndpointEntity endpoint) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

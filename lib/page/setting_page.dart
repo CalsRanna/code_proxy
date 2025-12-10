@@ -1,4 +1,4 @@
-import 'package:code_proxy/model/proxy_config.dart';
+import 'package:code_proxy/model/proxy_server_config_entity.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
@@ -29,24 +29,21 @@ class SettingPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
               children: [
-                const SectionHeader(
-                  title: '代理服务器',
-                  icon: LucideIcons.router,
-                ),
+                const SectionHeader(title: '代理服务器', icon: LucideIcons.router),
                 const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
                   child: Column(
                     children: [
                       ListTile(
                         title: const Text('监听地址'),
-                        subtitle: Text(config.listenAddress),
+                        subtitle: Text(config.address),
                         trailing: const Icon(LucideIcons.chevronRight),
                         onTap: () => _editListenAddress(context, config),
                       ),
                       const Divider(height: 1),
                       ListTile(
                         title: const Text('监听端口'),
-                        subtitle: Text(config.listenPort.toString()),
+                        subtitle: Text(config.port.toString()),
                         trailing: const Icon(LucideIcons.chevronRight),
                         onTap: () => _editListenPort(context, config),
                       ),
@@ -77,10 +74,7 @@ class SettingPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: ShadcnSpacing.spacing24),
-                const SectionHeader(
-                  title: '数据管理',
-                  icon: LucideIcons.database,
-                ),
+                const SectionHeader(title: '数据管理', icon: LucideIcons.database),
                 const SizedBox(height: ShadcnSpacing.spacing12),
                 Card(
                   child: Column(
@@ -109,8 +103,11 @@ class SettingPage extends StatelessWidget {
     });
   }
 
-  void _editListenAddress(BuildContext context, ProxyConfig config) {
-    final controller = TextEditingController(text: config.listenAddress);
+  void _editListenAddress(
+    BuildContext context,
+    ProxyServerConfigEntity config,
+  ) {
+    final controller = TextEditingController(text: config.address);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -139,10 +136,8 @@ class SettingPage extends StatelessWidget {
     );
   }
 
-  void _editListenPort(BuildContext context, ProxyConfig config) {
-    final controller = TextEditingController(
-      text: config.listenPort.toString(),
-    );
+  void _editListenPort(BuildContext context, ProxyServerConfigEntity config) {
+    final controller = TextEditingController(text: config.port.toString());
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

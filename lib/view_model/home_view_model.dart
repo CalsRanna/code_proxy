@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'package:code_proxy/model/endpoint.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/proxy_server_state.dart';
 import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/database_service.dart';
-import 'package:code_proxy/services/proxy_server.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:signals/signals.dart';
 import 'base_view_model.dart';
@@ -25,7 +25,7 @@ class HomeViewModel extends BaseViewModel {
   final dailyTokenStats = signal<Map<String, int>>({});
 
   /// 端点列表（使用 EndpointsViewModel 的全局 static signal）
-  ListSignal<Endpoint> get endpoints => EndpointsViewModel.endpoints;
+  ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
 
   /// 状态更新定时器
   Timer? _statusUpdateTimer;
@@ -66,16 +66,17 @@ class HomeViewModel extends BaseViewModel {
       final config = await _configManager.loadProxyConfig();
 
       // 检查当前配置是否已经指向代理服务器
-      final isAlreadyPointingToProxy = await _claudeCodeConfigManager.isPointingToProxy(
-        proxyAddress: config.listenAddress,
-        proxyPort: config.listenPort,
-      );
+      final isAlreadyPointingToProxy = await _claudeCodeConfigManager
+          .isPointingToProxy(
+            proxyAddress: config.address,
+            proxyPort: config.port,
+          );
 
       if (!isAlreadyPointingToProxy) {
         // 如果当前配置不指向代理，切换配置
         final configSwitched = await _claudeCodeConfigManager.switchToProxy(
-          proxyAddress: config.listenAddress,
-          proxyPort: config.listenPort,
+          proxyAddress: config.address,
+          proxyPort: config.port,
         );
 
         if (!configSwitched) {
@@ -121,7 +122,7 @@ class HomeViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
-    final updated = Endpoint(
+    final updated = EndpointEntity(
       id: endpoint.id,
       name: endpoint.name,
       url: endpoint.url,
@@ -171,16 +172,13 @@ class HomeViewModel extends BaseViewModel {
   /// 启动状态定时更新（每 2 秒）
   void _startStatusUpdates() {
     _statusUpdateTimer?.cancel();
-    _statusUpdateTimer = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) {
-        _updateServerState();
-        // 每分钟更新一次热度图数据
-        if (DateTime.now().second == 0) {
-          _loadHeatmapData();
-        }
-      },
-    );
+    _statusUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _updateServerState();
+      // 每分钟更新一次热度图数据
+      if (DateTime.now().second == 0) {
+        _loadHeatmapData();
+      }
+    });
   }
 
   /// 更新服务器状态
@@ -188,10 +186,6 @@ class HomeViewModel extends BaseViewModel {
     if (isDisposed) return;
 
     final running = _proxyServer.isRunning;
-    final startedAt = _proxyServer.startedAt;
-    final uptimeSeconds = startedAt != null
-        ? ((DateTime.now().millisecondsSinceEpoch - startedAt) / 1000).floor()
-        : 0;
 
     final totalRequests = _statsCollector.totalRequests;
     final successRequests = _statsCollector.successRequests;
@@ -202,13 +196,10 @@ class HomeViewModel extends BaseViewModel {
       running: running,
       listenAddress: running ? '127.0.0.1' : null,
       listenPort: running ? 7890 : null,
-      startedAt: startedAt,
-      uptimeSeconds: uptimeSeconds,
       totalRequests: totalRequests,
       successRequests: successRequests,
       failedRequests: failedRequests,
       successRate: successRate,
-      activeConnections: _proxyServer.activeConnections,
     );
   }
 

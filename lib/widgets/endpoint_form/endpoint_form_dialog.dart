@@ -1,5 +1,5 @@
 import 'package:code_proxy/model/claude_config.dart';
-import 'package:code_proxy/model/endpoint.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
@@ -13,14 +13,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// 端点编辑表单对话框（重构后的主对话框）
 class EndpointFormDialog extends StatefulWidget {
-  final Endpoint? endpoint;
+  final EndpointEntity? endpoint;
   final EndpointsViewModel viewModel;
 
-  const EndpointFormDialog({
-    super.key,
-    this.endpoint,
-    required this.viewModel,
-  });
+  const EndpointFormDialog({super.key, this.endpoint, required this.viewModel});
 
   @override
   State<EndpointFormDialog> createState() => _EndpointFormDialogState();
@@ -48,7 +44,8 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     super.initState();
 
     // 解析现有配置
-    final claudeConfig = widget.endpoint?.claudeConfig ??
+    final claudeConfig =
+        widget.endpoint?.claudeConfig ??
         ClaudeSettingsConfig(env: const ClaudeEnvConfig());
 
     nameController = TextEditingController(text: widget.endpoint?.name);
@@ -198,9 +195,9 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           const SizedBox(width: ShadcnSpacing.spacing12),
           Text(
             widget.endpoint == null ? '添加端点' : '编辑端点',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const Spacer(),
           IconButton(
@@ -223,10 +220,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
             child: const Text('取消'),
           ),
           const SizedBox(width: ShadcnSpacing.spacing12),
-          FilledButton(
-            onPressed: _handleSave,
-            child: const Text('保存'),
-          ),
+          FilledButton(onPressed: _handleSave, child: const Text('保存')),
         ],
       ),
     );
@@ -250,8 +244,9 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         anthropicAuthToken: authTokenController.text,
         anthropicBaseUrl: baseUrlController.text,
         apiTimeoutMs: int.tryParse(timeoutController.text),
-        anthropicModel:
-            modelController.text.isEmpty ? null : modelController.text,
+        anthropicModel: modelController.text.isEmpty
+            ? null
+            : modelController.text,
         anthropicSmallFastModel: smallFastModelController.text.isEmpty
             ? null
             : smallFastModelController.text,
@@ -282,7 +277,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     } else {
       // 更新端点
       await widget.viewModel.updateEndpoint(
-        Endpoint(
+        EndpointEntity(
           id: widget.endpoint!.id,
           name: nameController.text,
           url: baseUrlController.text,
