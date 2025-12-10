@@ -100,7 +100,7 @@ class EndpointPage extends StatelessWidget {
         title: const Text('确认删除'),
         description: Padding(
           padding: const EdgeInsets.only(bottom: ShadcnSpacing.spacing8),
-          child: Text('确定要删除端点"${endpoint.name}"吗？'),
+          child: Text('确定要删除端点${endpoint.name}吗？此操作无法撤销。'),
         ),
         actions: [
           ShadButton.outline(

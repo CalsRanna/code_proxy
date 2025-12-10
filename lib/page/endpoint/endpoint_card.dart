@@ -33,6 +33,7 @@ class _EndpointCardState extends State<EndpointCard> {
   @override
   Widget build(BuildContext context) {
     return ShadCard(
+      padding: EdgeInsets.all(ShadcnSpacing.spacing16),
       child: Row(
         children: [
           Expanded(

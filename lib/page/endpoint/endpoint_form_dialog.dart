@@ -90,13 +90,14 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     return ShadDialog(
       actions: [ShadButton(onPressed: _handleSave, child: const Text('保存更改'))],
       title: Text(widget.endpoint == null ? '添加端点' : '编辑端点'),
-      description: Text('在这里配置端点信息。完成后点击保存。'),
+      description: Text('在这里配置端点信息，完成后点击保存。'),
       child: Padding(
         padding: EdgeInsetsGeometry.symmetric(
           vertical: ShadcnSpacing.spacing12,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: ShadcnSpacing.spacing16,
           children: [
             Row(
               spacing: ShadcnSpacing.spacing16,
@@ -115,7 +116,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: ShadcnSpacing.spacing24),
             Row(
               spacing: ShadcnSpacing.spacing16,
               children: [
@@ -133,12 +133,10 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: ShadcnSpacing.spacing16),
             ShadInput(
               controller: timeoutController,
               placeholder: const Text('超时时间（毫秒）'),
             ),
-            const SizedBox(height: ShadcnSpacing.spacing24),
             Row(
               spacing: ShadcnSpacing.spacing16,
               children: [
@@ -156,7 +154,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: ShadcnSpacing.spacing16),
             Row(
               spacing: ShadcnSpacing.spacing16,
               children: [
@@ -174,7 +171,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: ShadcnSpacing.spacing16),
             Row(
               spacing: ShadcnSpacing.spacing16,
               children: [
@@ -186,7 +182,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: ShadcnSpacing.spacing24),
             ShadCheckbox(
               label: const Text('禁用非必要流量'),
               sublabel: const Text('减少对该端点的健康检查和测试请求'),
@@ -197,14 +192,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 });
               },
             ),
-            // AdvancedSettingsSection(
-            //   disableNonessentialTraffic: disableNonessentialTraffic,
-            //   onDisableNonessentialTrafficChanged: (value) {
-            //     setState(() {
-            //       disableNonessentialTraffic = value;
-            //     });
-            //   },
-            // ),
           ],
         ),
       ),
