@@ -66,13 +66,16 @@ class ProxyServerService {
     EndpointEntity endpoint,
     List<List<int>> bodyBytes,
   ) async {
-    final uri = Uri.parse(endpoint.url).replace(
+    final uri = Uri.parse(endpoint.anthropicBaseUrl ?? '').replace(
       path: request.url.path,
       query: request.url.query.isEmpty ? null : request.url.query,
     );
     final headers = Map<String, String>.from(request.headers);
-    headers['authorization'] = 'Bearer ${endpoint.apiKey}';
-    LoggerUtil.instance.d(endpoint.toJson());
+    // headers['authorization'] = 'Bearer ${endpoint.anthropicAuthToken ?? ''}';
+    headers['x-api-key'] = endpoint.anthropicAuthToken ?? '';
+    headers.remove('authorization');
+    headers.remove('host');
+    headers.remove('content-length');
     final forwardRequest = http.Request(request.method, uri)
       ..headers.addAll(headers)
       ..bodyBytes = bodyBytes.expand((x) => x).toList();

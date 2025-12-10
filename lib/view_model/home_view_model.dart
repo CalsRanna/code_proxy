@@ -75,18 +75,8 @@ class HomeViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
-    final updated = EndpointEntity(
-      id: endpoint.id,
-      name: endpoint.name,
-      url: endpoint.url,
-      category: endpoint.category,
-      notes: endpoint.notes,
-      icon: endpoint.icon,
-      iconColor: endpoint.iconColor,
-      weight: endpoint.weight,
+    final updated = endpoint.copyWith(
       enabled: !endpoint.enabled,
-      sortIndex: endpoint.sortIndex,
-      createdAt: endpoint.createdAt,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
     );
 

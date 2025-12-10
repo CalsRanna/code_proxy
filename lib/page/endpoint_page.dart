@@ -75,8 +75,10 @@ class EndpointPage extends StatelessWidget {
               children: [
                 // 左侧：图标徽章
                 IconBadge(
-                  icon: _getCategoryIcon(endpoint.category),
-                  color: _getCategoryColor(endpoint.category),
+                  icon: LucideIcons.server,
+                  color: endpoint.enabled
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outline,
                   size: IconBadgeSize.large,
                 ),
                 const SizedBox(width: ShadcnSpacing.spacing16),
@@ -94,15 +96,16 @@ class EndpointPage extends StatelessWidget {
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(width: ShadcnSpacing.spacing8),
-                          StatusBadge(
-                            label: _getCategoryLabel(endpoint.category),
-                            type: _getCategoryStatusType(endpoint.category),
-                          ),
+                          if (endpoint.weight > 1)
+                            StatusBadge(
+                              label: '权重: ${endpoint.weight}',
+                              type: StatusType.info,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        endpoint.url,
+                        endpoint.anthropicBaseUrl ?? '未配置',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: ShadcnColors.mutedForeground(
                             Theme.of(context).brightness,
@@ -112,11 +115,11 @@ class EndpointPage extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (endpoint.notes != null &&
-                          endpoint.notes!.isNotEmpty) ...[
+                      if (endpoint.note != null &&
+                          endpoint.note!.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          endpoint.notes!,
+                          endpoint.note!,
                           style: Theme.of(context).textTheme.bodySmall,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -209,57 +212,5 @@ class EndpointPage extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _getCategoryLabel(String category) {
-    switch (category) {
-      case 'official':
-        return '官方';
-      case 'aggregator':
-        return '聚合器';
-      case 'custom':
-        return '自定义';
-      default:
-        return category;
-    }
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'official':
-        return LucideIcons.shieldCheck;
-      case 'aggregator':
-        return LucideIcons.network;
-      case 'custom':
-        return LucideIcons.pencil;
-      default:
-        return LucideIcons.server;
-    }
-  }
-
-  Color _getCategoryColor(String category) {
-    switch (category) {
-      case 'official':
-        return ShadcnColors.success;
-      case 'aggregator':
-        return ShadcnColors.info;
-      case 'custom':
-        return ShadcnColors.warning;
-      default:
-        return ShadcnColors.secondary;
-    }
-  }
-
-  StatusType _getCategoryStatusType(String category) {
-    switch (category) {
-      case 'official':
-        return StatusType.success;
-      case 'aggregator':
-        return StatusType.info;
-      case 'custom':
-        return StatusType.warning;
-      default:
-        return StatusType.neutral;
-    }
   }
 }

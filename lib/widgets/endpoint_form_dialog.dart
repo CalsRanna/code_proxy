@@ -1,10 +1,8 @@
-import 'package:code_proxy/model/claude_config.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:flutter/material.dart';
 import '../themes/shadcn_colors.dart';
 import '../themes/shadcn_spacing.dart';
-import 'modern_dropdown.dart';
 import 'modern_text_field.dart';
 
 /// 端点编辑表单对话框（StatefulWidget 以支持表单状态）
@@ -20,7 +18,7 @@ class EndpointFormDialog extends StatefulWidget {
 
 class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController nameController;
-  late final TextEditingController notesController;
+  late final TextEditingController noteController;
   late final TextEditingController authTokenController;
   late final TextEditingController baseUrlController;
   late final TextEditingController timeoutController;
@@ -29,59 +27,52 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController haikuModelController;
   late final TextEditingController sonnetModelController;
   late final TextEditingController opusModelController;
+  late final TextEditingController weightController;
 
-  late String category;
-  late String authMode;
   late bool disableNonessentialTraffic;
 
   @override
   void initState() {
     super.initState();
 
-    // 解析现有配置
-    final claudeConfig =
-        widget.endpoint?.claudeConfig ??
-        ClaudeSettingsConfig(env: const ClaudeEnvConfig());
-
     nameController = TextEditingController(text: widget.endpoint?.name);
-    notesController = TextEditingController(text: widget.endpoint?.notes);
-    category = widget.endpoint?.category ?? 'custom';
-
-    // Claude 环境变量配置
+    noteController = TextEditingController(text: widget.endpoint?.note);
     authTokenController = TextEditingController(
-      text: claudeConfig.env.anthropicAuthToken,
+      text: widget.endpoint?.anthropicAuthToken,
     );
     baseUrlController = TextEditingController(
-      text: claudeConfig.env.anthropicBaseUrl,
+      text: widget.endpoint?.anthropicBaseUrl,
     );
     timeoutController = TextEditingController(
-      text: claudeConfig.env.apiTimeoutMs?.toString() ?? '600000',
+      text: widget.endpoint?.apiTimeoutMs?.toString() ?? '600000',
     );
     modelController = TextEditingController(
-      text: claudeConfig.env.anthropicModel,
+      text: widget.endpoint?.anthropicModel,
     );
     smallFastModelController = TextEditingController(
-      text: claudeConfig.env.anthropicSmallFastModel,
+      text: widget.endpoint?.anthropicSmallFastModel,
     );
     haikuModelController = TextEditingController(
-      text: claudeConfig.env.anthropicDefaultHaikuModel,
+      text: widget.endpoint?.anthropicDefaultHaikuModel,
     );
     sonnetModelController = TextEditingController(
-      text: claudeConfig.env.anthropicDefaultSonnetModel,
+      text: widget.endpoint?.anthropicDefaultSonnetModel,
     );
     opusModelController = TextEditingController(
-      text: claudeConfig.env.anthropicDefaultOpusModel,
+      text: widget.endpoint?.anthropicDefaultOpusModel,
+    );
+    weightController = TextEditingController(
+      text: widget.endpoint?.weight.toString() ?? '1',
     );
 
-    authMode = claudeConfig.effectiveAuthMode;
     disableNonessentialTraffic =
-        claudeConfig.env.claudeCodeDisableNonessentialTraffic ?? false;
+        widget.endpoint?.claudeCodeDisableNonessentialTraffic ?? false;
   }
 
   @override
   void dispose() {
     nameController.dispose();
-    notesController.dispose();
+    noteController.dispose();
     authTokenController.dispose();
     baseUrlController.dispose();
     timeoutController.dispose();
@@ -90,6 +81,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     haikuModelController.dispose();
     sonnetModelController.dispose();
     opusModelController.dispose();
+    weightController.dispose();
     super.dispose();
   }
 
@@ -131,18 +123,15 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (widget.endpoint == null ||
-                            widget.endpoint != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.endpoint == null
-                                ? '配置新的 Claude API 端点'
-                                : '修改端点配置信息',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: ShadcnColors.mutedForeground(brightness),
-                            ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.endpoint == null
+                              ? '配置新的 Claude API 端点'
+                              : '修改端点配置信息',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: ShadcnColors.mutedForeground(brightness),
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
@@ -186,27 +175,21 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    ModernDropdown<String>(
-                      value: category,
-                      label: '分类',
-                      prefixIcon: Icons.category_outlined,
-                      items: const [
-                        DropdownMenuItem(value: 'official', child: Text('官方')),
-                        DropdownMenuItem(
-                          value: 'aggregator',
-                          child: Text('聚合器'),
-                        ),
-                        DropdownMenuItem(value: 'custom', child: Text('自定义')),
-                      ],
-                      onChanged: (value) => setState(() => category = value!),
-                    ),
-                    const SizedBox(height: 20),
                     ModernTextField(
-                      controller: notesController,
+                      controller: noteController,
                       label: '备注',
                       hint: '添加一些说明...',
                       prefixIcon: Icons.notes_rounded,
                       maxLines: 2,
+                    ),
+                    const SizedBox(height: 20),
+                    ModernTextField(
+                      controller: weightController,
+                      label: '权重',
+                      hint: '1',
+                      prefixIcon: Icons.balance_rounded,
+                      keyboardType: TextInputType.number,
+                      helperText: '用于负载均衡，数值越大优先级越高',
                     ),
 
                     const SizedBox(height: 32),
@@ -246,25 +229,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                         }
                         return null;
                       },
-                    ),
-                    const SizedBox(height: 20),
-
-                    ModernDropdown<String>(
-                      value: authMode,
-                      label: '认证模式',
-                      prefixIcon: Icons.security_rounded,
-                      helperText: '选择如何传递 API Key',
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'standard',
-                          child: Text('标准模式 (x-api-key)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'bearer_only',
-                          child: Text('Bearer Token'),
-                        ),
-                      ],
-                      onChanged: (value) => setState(() => authMode = value!),
                     ),
                     const SizedBox(height: 20),
 
@@ -421,9 +385,12 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       return;
     }
 
-    // 构建 Claude 配置
-    final newClaudeConfig = ClaudeSettingsConfig(
-      env: ClaudeEnvConfig(
+    if (widget.endpoint == null) {
+      // 添加新端点
+      await widget.viewModel.addEndpoint(
+        name: nameController.text,
+        note: noteController.text.isEmpty ? null : noteController.text,
+        weight: int.tryParse(weightController.text) ?? 1,
         anthropicAuthToken: authTokenController.text,
         anthropicBaseUrl: baseUrlController.text,
         apiTimeoutMs: int.tryParse(timeoutController.text),
@@ -443,37 +410,33 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
             ? null
             : opusModelController.text,
         claudeCodeDisableNonessentialTraffic: disableNonessentialTraffic,
-        authMode: authMode,
-      ),
-      authMode: authMode,
-    );
-
-    if (widget.endpoint == null) {
-      // 添加新端点
-      await widget.viewModel.addEndpoint(
-        name: nameController.text,
-        url: baseUrlController.text,
-        category: category,
-        notes: notesController.text.isEmpty ? null : notesController.text,
-        settingsConfig: newClaudeConfig.toJson(),
       );
     } else {
       // 更新端点
       await widget.viewModel.updateEndpoint(
-        EndpointEntity(
-          id: widget.endpoint!.id,
+        widget.endpoint!.copyWith(
           name: nameController.text,
-          url: baseUrlController.text,
-          category: category,
-          notes: notesController.text.isEmpty ? null : notesController.text,
-          icon: widget.endpoint!.icon,
-          iconColor: widget.endpoint!.iconColor,
-          weight: widget.endpoint!.weight,
-          enabled: widget.endpoint!.enabled,
-          sortIndex: widget.endpoint!.sortIndex,
-          createdAt: widget.endpoint!.createdAt,
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-          settingsConfig: newClaudeConfig.toJson(),
+          note: noteController.text.isEmpty ? null : noteController.text,
+          weight: int.tryParse(weightController.text) ?? widget.endpoint!.weight,
+          anthropicAuthToken: authTokenController.text,
+          anthropicBaseUrl: baseUrlController.text,
+          apiTimeoutMs: int.tryParse(timeoutController.text),
+          anthropicModel: modelController.text.isEmpty
+              ? null
+              : modelController.text,
+          anthropicSmallFastModel: smallFastModelController.text.isEmpty
+              ? null
+              : smallFastModelController.text,
+          anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
+              ? null
+              : haikuModelController.text,
+          anthropicDefaultSonnetModel: sonnetModelController.text.isEmpty
+              ? null
+              : sonnetModelController.text,
+          anthropicDefaultOpusModel: opusModelController.text.isEmpty
+              ? null
+              : opusModelController.text,
+          claudeCodeDisableNonessentialTraffic: disableNonessentialTraffic,
         ),
       );
     }

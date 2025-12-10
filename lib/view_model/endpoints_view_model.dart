@@ -26,9 +26,8 @@ class EndpointsViewModel extends BaseViewModel {
 
     return endpoints.value.where((endpoint) {
       return endpoint.name.toLowerCase().contains(query) ||
-          endpoint.url.toLowerCase().contains(query) ||
-          endpoint.category.toLowerCase().contains(query) ||
-          (endpoint.notes?.toLowerCase().contains(query) ?? false);
+          (endpoint.anthropicBaseUrl?.toLowerCase().contains(query) ?? false) ||
+          (endpoint.note?.toLowerCase().contains(query) ?? false);
     }).toList();
   });
 
@@ -61,16 +60,17 @@ class EndpointsViewModel extends BaseViewModel {
   /// 添加端点
   Future<void> addEndpoint({
     required String name,
-    required String url,
-    required String category,
-    String? notes,
-    String? icon,
-    String? iconColor,
+    String? note,
     int weight = 1,
-    String? apiKey,
-    String authMode = 'standard',
-    Map<String, String>? customHeaders,
-    Map<String, dynamic>? settingsConfig,
+    String? anthropicAuthToken,
+    String? anthropicBaseUrl,
+    int? apiTimeoutMs,
+    String? anthropicModel,
+    String? anthropicSmallFastModel,
+    String? anthropicDefaultHaikuModel,
+    String? anthropicDefaultSonnetModel,
+    String? anthropicDefaultOpusModel,
+    bool claudeCodeDisableNonessentialTraffic = false,
   }) async {
     ensureNotDisposed();
 
@@ -78,20 +78,20 @@ class EndpointsViewModel extends BaseViewModel {
     final endpoint = EndpointEntity(
       id: _uuid.v4(),
       name: name,
-      url: url,
-      category: category,
-      notes: notes,
-      icon: icon,
-      iconColor: iconColor,
+      note: note,
       weight: weight,
       enabled: true,
-      sortIndex: endpoints.value.length,
       createdAt: now,
       updatedAt: now,
-      apiKey: apiKey,
-      authMode: authMode,
-      customHeaders: customHeaders,
-      settingsConfig: settingsConfig,
+      anthropicAuthToken: anthropicAuthToken,
+      anthropicBaseUrl: anthropicBaseUrl,
+      apiTimeoutMs: apiTimeoutMs,
+      anthropicModel: anthropicModel,
+      anthropicSmallFastModel: anthropicSmallFastModel,
+      anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
+      anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
+      anthropicDefaultOpusModel: anthropicDefaultOpusModel,
+      claudeCodeDisableNonessentialTraffic: claudeCodeDisableNonessentialTraffic,
     );
 
     try {
@@ -108,23 +108,8 @@ class EndpointsViewModel extends BaseViewModel {
   Future<void> updateEndpoint(EndpointEntity endpoint) async {
     ensureNotDisposed();
 
-    final updated = EndpointEntity(
-      id: endpoint.id,
-      name: endpoint.name,
-      url: endpoint.url,
-      category: endpoint.category,
-      notes: endpoint.notes,
-      icon: endpoint.icon,
-      iconColor: endpoint.iconColor,
-      weight: endpoint.weight,
-      enabled: endpoint.enabled,
-      sortIndex: endpoint.sortIndex,
-      createdAt: endpoint.createdAt,
+    final updated = endpoint.copyWith(
       updatedAt: DateTime.now().millisecondsSinceEpoch,
-      apiKey: endpoint.apiKey,
-      authMode: endpoint.authMode,
-      customHeaders: endpoint.customHeaders,
-      settingsConfig: endpoint.settingsConfig,
     );
 
     try {
@@ -156,75 +141,13 @@ class EndpointsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
-    final updated = EndpointEntity(
-      id: endpoint.id,
-      name: endpoint.name,
-      url: endpoint.url,
-      category: endpoint.category,
-      notes: endpoint.notes,
-      icon: endpoint.icon,
-      iconColor: endpoint.iconColor,
-      weight: endpoint.weight,
+    final updated = endpoint.copyWith(
       enabled: !endpoint.enabled,
-      sortIndex: endpoint.sortIndex,
-      createdAt: endpoint.createdAt,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
-      apiKey: endpoint.apiKey,
-      authMode: endpoint.authMode,
-      customHeaders: endpoint.customHeaders,
-      settingsConfig: endpoint.settingsConfig,
     );
 
     try {
       await _configManager.saveEndpoint(updated);
-      // 重新加载端点列表以更新 signal
-      await _loadEndpoints();
-    } catch (e) {
-      errorMessage.value = e.toString();
-      rethrow;
-    }
-  }
-
-  /// 重新排序端点
-  Future<void> reorderEndpoints(int oldIndex, int newIndex) async {
-    ensureNotDisposed();
-
-    final items = List<EndpointEntity>.from(endpoints.value);
-
-    // 移除旧位置的项
-    final item = items.removeAt(oldIndex);
-
-    // 插入到新位置
-    if (newIndex > oldIndex) {
-      items.insert(newIndex - 1, item);
-    } else {
-      items.insert(newIndex, item);
-    }
-
-    // 更新所有端点的 sortIndex
-    try {
-      for (var i = 0; i < items.length; i++) {
-        final endpoint = items[i];
-        final updated = EndpointEntity(
-          id: endpoint.id,
-          name: endpoint.name,
-          url: endpoint.url,
-          category: endpoint.category,
-          notes: endpoint.notes,
-          icon: endpoint.icon,
-          iconColor: endpoint.iconColor,
-          weight: endpoint.weight,
-          enabled: endpoint.enabled,
-          sortIndex: i,
-          createdAt: endpoint.createdAt,
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-          apiKey: endpoint.apiKey,
-          authMode: endpoint.authMode,
-          customHeaders: endpoint.customHeaders,
-          settingsConfig: endpoint.settingsConfig,
-        );
-        await _configManager.saveEndpoint(updated);
-      }
       // 重新加载端点列表以更新 signal
       await _loadEndpoints();
     } catch (e) {

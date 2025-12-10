@@ -1,6 +1,5 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
-import 'package:code_proxy/widgets/modern_dropdown.dart';
 import 'package:code_proxy/widgets/modern_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -8,16 +7,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 /// 基本信息section
 class BasicInfoSection extends StatelessWidget {
   final TextEditingController nameController;
-  final String category;
-  final ValueChanged<String?> onCategoryChanged;
-  final TextEditingController notesController;
+  final TextEditingController noteController;
+  final TextEditingController weightController;
 
   const BasicInfoSection({
     super.key,
     required this.nameController,
-    required this.category,
-    required this.onCategoryChanged,
-    required this.notesController,
+    required this.noteController,
+    required this.weightController,
   });
 
   @override
@@ -25,42 +22,34 @@ class BasicInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(
-          title: '基本信息',
-          icon: LucideIcons.info,
-        ),
+        const SectionHeader(title: '基本信息', icon: LucideIcons.info),
         const SizedBox(height: ShadcnSpacing.spacing12),
-        ModernTextField(
-          controller: nameController,
-          label: '端点名称',
-          hint: '例如：Anthropic Official',
-          prefixIcon: LucideIcons.tag,
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return '请输入端点名称';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: ShadcnSpacing.spacing16),
-        ModernDropdown<String>(
-          value: category,
-          label: '分类',
-          items: const [
-            DropdownMenuItem(value: 'official', child: Text('官方API')),
-            DropdownMenuItem(value: 'aggregator', child: Text('第三方聚合')),
-            DropdownMenuItem(value: 'custom', child: Text('自定义')),
+        Row(
+          spacing: ShadcnSpacing.spacing16,
+          children: [
+            Expanded(
+              child: ModernTextField(
+                controller: nameController,
+                label: '端点名称',
+                hint: '例如：Anthropic Official',
+                prefixIcon: LucideIcons.tag,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return '请输入端点名称';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            Expanded(
+              child: ModernTextField(
+                controller: noteController,
+                label: '备注',
+                hint: '可选的备注信息',
+                prefixIcon: LucideIcons.fileText,
+              ),
+            ),
           ],
-          onChanged: onCategoryChanged,
-          prefixIcon: LucideIcons.layers,
-        ),
-        const SizedBox(height: ShadcnSpacing.spacing16),
-        ModernTextField(
-          controller: notesController,
-          label: '备注',
-          hint: '可选的备注信息',
-          prefixIcon: LucideIcons.fileText,
-          maxLines: 2,
         ),
       ],
     );

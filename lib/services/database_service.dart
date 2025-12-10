@@ -39,39 +39,55 @@ class DatabaseService {
       CREATE TABLE IF NOT EXISTS endpoints (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        url TEXT NOT NULL,
-        category TEXT NOT NULL,
-        notes TEXT,
-        icon TEXT,
-        icon_color TEXT,
-        weight INTEGER DEFAULT 1,
+        note TEXT,
         enabled INTEGER DEFAULT 1,
-        sort_index INTEGER DEFAULT 0,
+        weight INTEGER DEFAULT 1,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        api_key TEXT,
-        auth_mode TEXT DEFAULT 'standard',
-        custom_headers TEXT,
-        settings_config TEXT
+        anthropic_auth_token TEXT,
+        anthropic_base_url TEXT,
+        api_timeout_ms INTEGER,
+        anthropic_model TEXT,
+        anthropic_small_fast_model TEXT,
+        anthropic_default_haiku_model TEXT,
+        anthropic_default_sonnet_model TEXT,
+        anthropic_default_opus_model TEXT,
+        claude_code_disable_nonessential_traffic INTEGER DEFAULT 0
       )
     ''');
 
     // 为已存在的表添加新列（如果缺失）
     try {
-      _db.execute('ALTER TABLE endpoints ADD COLUMN api_key TEXT');
+      _db.execute('ALTER TABLE endpoints ADD COLUMN note TEXT');
     } catch (_) {
       // 列已存在，忽略错误
     }
     try {
-      _db.execute(
-        'ALTER TABLE endpoints ADD COLUMN auth_mode TEXT DEFAULT \'standard\'',
-      );
+      _db.execute('ALTER TABLE endpoints ADD COLUMN anthropic_auth_token TEXT');
     } catch (_) {}
     try {
-      _db.execute('ALTER TABLE endpoints ADD COLUMN custom_headers TEXT');
+      _db.execute('ALTER TABLE endpoints ADD COLUMN anthropic_base_url TEXT');
     } catch (_) {}
     try {
-      _db.execute('ALTER TABLE endpoints ADD COLUMN settings_config TEXT');
+      _db.execute('ALTER TABLE endpoints ADD COLUMN api_timeout_ms INTEGER');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE endpoints ADD COLUMN anthropic_model TEXT');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE endpoints ADD COLUMN anthropic_small_fast_model TEXT');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE endpoints ADD COLUMN anthropic_default_haiku_model TEXT');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE endpoints ADD COLUMN anthropic_default_sonnet_model TEXT');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE endpoints ADD COLUMN anthropic_default_opus_model TEXT');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE endpoints ADD COLUMN claude_code_disable_nonessential_traffic INTEGER DEFAULT 0');
     } catch (_) {}
 
     // 创建代理配置表
@@ -171,7 +187,7 @@ class DatabaseService {
     _ensureInitialized();
 
     final results = _db.select(
-      'SELECT * FROM endpoints ORDER BY sort_index ASC',
+      'SELECT * FROM endpoints ORDER BY created_at ASC',
     );
     return results.map((row) => _endpointFromRow(row)).toList();
   }
@@ -190,39 +206,33 @@ class DatabaseService {
   Future<void> insertEndpoint(EndpointEntity endpoint) async {
     _ensureInitialized();
 
-    // 将 Map 和 List 转换为 JSON 字符串
-    final customHeadersJson = endpoint.customHeaders != null
-        ? _encodeJson(endpoint.customHeaders!)
-        : null;
-    final settingsConfigJson = endpoint.settingsConfig != null
-        ? _encodeJson(endpoint.settingsConfig!)
-        : null;
-
     _db.execute(
       '''
       INSERT INTO endpoints (
-        id, name, url, category, notes, icon, icon_color,
-        weight, enabled, sort_index, created_at, updated_at,
-        api_key, auth_mode, custom_headers, settings_config
+        id, name, note, enabled, weight, created_at, updated_at,
+        anthropic_auth_token, anthropic_base_url, api_timeout_ms,
+        anthropic_model, anthropic_small_fast_model, anthropic_default_haiku_model,
+        anthropic_default_sonnet_model, anthropic_default_opus_model,
+        claude_code_disable_nonessential_traffic
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''',
       [
         endpoint.id,
         endpoint.name,
-        endpoint.url,
-        endpoint.category,
-        endpoint.notes,
-        endpoint.icon,
-        endpoint.iconColor,
-        endpoint.weight,
+        endpoint.note,
         endpoint.enabled ? 1 : 0,
-        endpoint.sortIndex,
+        endpoint.weight,
         endpoint.createdAt,
         endpoint.updatedAt,
-        endpoint.apiKey,
-        endpoint.authMode,
-        customHeadersJson,
-        settingsConfigJson,
+        endpoint.anthropicAuthToken,
+        endpoint.anthropicBaseUrl,
+        endpoint.apiTimeoutMs,
+        endpoint.anthropicModel,
+        endpoint.anthropicSmallFastModel,
+        endpoint.anthropicDefaultHaikuModel,
+        endpoint.anthropicDefaultSonnetModel,
+        endpoint.anthropicDefaultOpusModel,
+        endpoint.claudeCodeDisableNonessentialTraffic ? 1 : 0,
       ],
     );
   }
@@ -231,38 +241,31 @@ class DatabaseService {
   Future<void> updateEndpoint(EndpointEntity endpoint) async {
     _ensureInitialized();
 
-    // 将 Map 和 List 转换为 JSON 字符串
-    final customHeadersJson = endpoint.customHeaders != null
-        ? _encodeJson(endpoint.customHeaders!)
-        : null;
-    final settingsConfigJson = endpoint.settingsConfig != null
-        ? _encodeJson(endpoint.settingsConfig!)
-        : null;
-
     _db.execute(
       '''
       UPDATE endpoints SET
-        name = ?, url = ?, category = ?, notes = ?, icon = ?,
-        icon_color = ?, weight = ?, enabled = ?, sort_index = ?,
-        updated_at = ?, api_key = ?, auth_mode = ?, custom_headers = ?,
-        settings_config = ?
+        name = ?, note = ?, enabled = ?, weight = ?, updated_at = ?,
+        anthropic_auth_token = ?, anthropic_base_url = ?, api_timeout_ms = ?,
+        anthropic_model = ?, anthropic_small_fast_model = ?,
+        anthropic_default_haiku_model = ?, anthropic_default_sonnet_model = ?,
+        anthropic_default_opus_model = ?, claude_code_disable_nonessential_traffic = ?
       WHERE id = ?
       ''',
       [
         endpoint.name,
-        endpoint.url,
-        endpoint.category,
-        endpoint.notes,
-        endpoint.icon,
-        endpoint.iconColor,
-        endpoint.weight,
+        endpoint.note,
         endpoint.enabled ? 1 : 0,
-        endpoint.sortIndex,
+        endpoint.weight,
         endpoint.updatedAt,
-        endpoint.apiKey,
-        endpoint.authMode,
-        customHeadersJson,
-        settingsConfigJson,
+        endpoint.anthropicAuthToken,
+        endpoint.anthropicBaseUrl,
+        endpoint.apiTimeoutMs,
+        endpoint.anthropicModel,
+        endpoint.anthropicSmallFastModel,
+        endpoint.anthropicDefaultHaikuModel,
+        endpoint.anthropicDefaultSonnetModel,
+        endpoint.anthropicDefaultOpusModel,
+        endpoint.claudeCodeDisableNonessentialTraffic ? 1 : 0,
         endpoint.id,
       ],
     );
@@ -342,31 +345,26 @@ class DatabaseService {
 
   /// 从数据库行创建 Endpoint 对象
   EndpointEntity _endpointFromRow(Row row) {
-    // 解析 JSON 字段
-    final customHeadersStr = row['custom_headers'] as String?;
-    final settingsConfigStr = row['settings_config'] as String?;
-
     return EndpointEntity(
       id: row['id'] as String,
       name: row['name'] as String,
-      url: row['url'] as String,
-      category: row['category'] as String,
-      notes: row['notes'] as String?,
-      icon: row['icon'] as String?,
-      iconColor: row['icon_color'] as String?,
-      weight: row['weight'] as int,
+      note: row['note'] as String?,
       enabled: (row['enabled'] as int) == 1,
-      sortIndex: row['sort_index'] as int,
+      weight: row['weight'] as int,
       createdAt: row['created_at'] as int,
       updatedAt: row['updated_at'] as int,
-      apiKey: row['api_key'] as String?,
-      authMode: row['auth_mode'] as String? ?? 'standard',
-      customHeaders: customHeadersStr != null
-          ? Map<String, String>.from(_decodeJson(customHeadersStr))
-          : null,
-      settingsConfig: settingsConfigStr != null
-          ? Map<String, dynamic>.from(_decodeJson(settingsConfigStr))
-          : null,
+      anthropicAuthToken: row['anthropic_auth_token'] as String?,
+      anthropicBaseUrl: row['anthropic_base_url'] as String?,
+      apiTimeoutMs: row['api_timeout_ms'] as int?,
+      anthropicModel: row['anthropic_model'] as String?,
+      anthropicSmallFastModel: row['anthropic_small_fast_model'] as String?,
+      anthropicDefaultHaikuModel:
+          row['anthropic_default_haiku_model'] as String?,
+      anthropicDefaultSonnetModel:
+          row['anthropic_default_sonnet_model'] as String?,
+      anthropicDefaultOpusModel: row['anthropic_default_opus_model'] as String?,
+      claudeCodeDisableNonessentialTraffic:
+          (row['claude_code_disable_nonessential_traffic'] as int?) == 1,
     );
   }
 

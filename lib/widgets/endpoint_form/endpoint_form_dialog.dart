@@ -1,4 +1,3 @@
-import 'package:code_proxy/model/claude_config.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
@@ -25,7 +24,7 @@ class EndpointFormDialog extends StatefulWidget {
 class _EndpointFormDialogState extends State<EndpointFormDialog> {
   // 所有controllers集中管理
   late final TextEditingController nameController;
-  late final TextEditingController notesController;
+  late final TextEditingController noteController;
   late final TextEditingController authTokenController;
   late final TextEditingController baseUrlController;
   late final TextEditingController timeoutController;
@@ -34,59 +33,52 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController haikuModelController;
   late final TextEditingController sonnetModelController;
   late final TextEditingController opusModelController;
+  late final TextEditingController weightController;
 
-  late String category;
-  late String authMode;
   late bool disableNonessentialTraffic;
 
   @override
   void initState() {
     super.initState();
 
-    // 解析现有配置
-    final claudeConfig =
-        widget.endpoint?.claudeConfig ??
-        ClaudeSettingsConfig(env: const ClaudeEnvConfig());
-
     nameController = TextEditingController(text: widget.endpoint?.name);
-    notesController = TextEditingController(text: widget.endpoint?.notes);
-    category = widget.endpoint?.category ?? 'custom';
-
-    // Claude 环境变量配置
+    noteController = TextEditingController(text: widget.endpoint?.note);
     authTokenController = TextEditingController(
-      text: claudeConfig.env.anthropicAuthToken,
+      text: widget.endpoint?.anthropicAuthToken,
     );
     baseUrlController = TextEditingController(
-      text: claudeConfig.env.anthropicBaseUrl,
+      text: widget.endpoint?.anthropicBaseUrl,
     );
     timeoutController = TextEditingController(
-      text: claudeConfig.env.apiTimeoutMs?.toString() ?? '600000',
+      text: widget.endpoint?.apiTimeoutMs?.toString() ?? '600000',
     );
     modelController = TextEditingController(
-      text: claudeConfig.env.anthropicModel,
+      text: widget.endpoint?.anthropicModel,
     );
     smallFastModelController = TextEditingController(
-      text: claudeConfig.env.anthropicSmallFastModel,
+      text: widget.endpoint?.anthropicSmallFastModel,
     );
     haikuModelController = TextEditingController(
-      text: claudeConfig.env.anthropicDefaultHaikuModel,
+      text: widget.endpoint?.anthropicDefaultHaikuModel,
     );
     sonnetModelController = TextEditingController(
-      text: claudeConfig.env.anthropicDefaultSonnetModel,
+      text: widget.endpoint?.anthropicDefaultSonnetModel,
     );
     opusModelController = TextEditingController(
-      text: claudeConfig.env.anthropicDefaultOpusModel,
+      text: widget.endpoint?.anthropicDefaultOpusModel,
+    );
+    weightController = TextEditingController(
+      text: widget.endpoint?.weight.toString() ?? '1',
     );
 
-    authMode = claudeConfig.effectiveAuthMode;
     disableNonessentialTraffic =
-        claudeConfig.env.claudeCodeDisableNonessentialTraffic ?? false;
+        widget.endpoint?.claudeCodeDisableNonessentialTraffic ?? false;
   }
 
   @override
   void dispose() {
     nameController.dispose();
-    notesController.dispose();
+    noteController.dispose();
     authTokenController.dispose();
     baseUrlController.dispose();
     timeoutController.dispose();
@@ -95,6 +87,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     haikuModelController.dispose();
     sonnetModelController.dispose();
     opusModelController.dispose();
+    weightController.dispose();
     super.dispose();
   }
 
@@ -122,28 +115,13 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                   children: [
                     BasicInfoSection(
                       nameController: nameController,
-                      category: category,
-                      onCategoryChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            category = value;
-                          });
-                        }
-                      },
-                      notesController: notesController,
+                      noteController: noteController,
+                      weightController: weightController,
                     ),
                     const SizedBox(height: ShadcnSpacing.spacing24),
                     ApiConfigSection(
                       authTokenController: authTokenController,
                       baseUrlController: baseUrlController,
-                      authMode: authMode,
-                      onAuthModeChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            authMode = value;
-                          });
-                        }
-                      },
                       timeoutController: timeoutController,
                     ),
                     const SizedBox(height: ShadcnSpacing.spacing24),
@@ -238,9 +216,12 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       return;
     }
 
-    // 构建 Claude 配置
-    final newClaudeConfig = ClaudeSettingsConfig(
-      env: ClaudeEnvConfig(
+    if (widget.endpoint == null) {
+      // 添加新端点
+      await widget.viewModel.addEndpoint(
+        name: nameController.text,
+        note: noteController.text.isEmpty ? null : noteController.text,
+        weight: int.tryParse(weightController.text) ?? 1,
         anthropicAuthToken: authTokenController.text,
         anthropicBaseUrl: baseUrlController.text,
         apiTimeoutMs: int.tryParse(timeoutController.text),
@@ -260,36 +241,33 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
             ? null
             : opusModelController.text,
         claudeCodeDisableNonessentialTraffic: disableNonessentialTraffic,
-        authMode: authMode,
-      ),
-      authMode: authMode,
-    );
-
-    if (widget.endpoint == null) {
-      // 添加新端点
-      await widget.viewModel.addEndpoint(
-        name: nameController.text,
-        url: baseUrlController.text,
-        category: category,
-        notes: notesController.text.isEmpty ? null : notesController.text,
-        settingsConfig: newClaudeConfig.toJson(),
       );
     } else {
       // 更新端点
       await widget.viewModel.updateEndpoint(
-        EndpointEntity(
-          id: widget.endpoint!.id,
+        widget.endpoint!.copyWith(
           name: nameController.text,
-          url: baseUrlController.text,
-          category: category,
-          notes: notesController.text.isEmpty ? null : notesController.text,
-          icon: widget.endpoint!.icon,
-          iconColor: widget.endpoint!.iconColor,
-          weight: widget.endpoint!.weight,
-          enabled: widget.endpoint!.enabled,
-          createdAt: widget.endpoint!.createdAt,
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-          settingsConfig: newClaudeConfig.toJson(),
+          note: noteController.text.isEmpty ? null : noteController.text,
+          weight: int.tryParse(weightController.text) ?? widget.endpoint!.weight,
+          anthropicAuthToken: authTokenController.text,
+          anthropicBaseUrl: baseUrlController.text,
+          apiTimeoutMs: int.tryParse(timeoutController.text),
+          anthropicModel: modelController.text.isEmpty
+              ? null
+              : modelController.text,
+          anthropicSmallFastModel: smallFastModelController.text.isEmpty
+              ? null
+              : smallFastModelController.text,
+          anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
+              ? null
+              : haikuModelController.text,
+          anthropicDefaultSonnetModel: sonnetModelController.text.isEmpty
+              ? null
+              : sonnetModelController.text,
+          anthropicDefaultOpusModel: opusModelController.text.isEmpty
+              ? null
+              : opusModelController.text,
+          claudeCodeDisableNonessentialTraffic: disableNonessentialTraffic,
         ),
       );
     }
