@@ -7,8 +7,8 @@ import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/widgets/endpoint_form/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class EndpointPage extends StatelessWidget {
   final EndpointsViewModel viewModel;
@@ -29,10 +29,10 @@ class EndpointPage extends StatelessWidget {
             subtitle: '${filteredEndpoints.length} 个端点',
             icon: LucideIcons.server,
             actions: [
-              FilledButton.icon(
+              ShadButton(
                 onPressed: () => _showAddEndpointDialog(context),
-                icon: const Icon(LucideIcons.plus),
-                label: const Text('添加端点'),
+                leading: const Icon(LucideIcons.plus),
+                child: const Text('添加端点'),
               ),
             ],
           ),
@@ -67,107 +67,102 @@ class EndpointPage extends StatelessWidget {
       itemCount: endpoints.length,
       itemBuilder: (context, index) {
         final endpoint = endpoints[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: ShadcnSpacing.spacing12),
-          child: Padding(
-            padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
-            child: Row(
-              children: [
-                // 左侧：图标徽章
-                IconBadge(
-                  icon: LucideIcons.server,
-                  color: endpoint.enabled
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outline,
-                  size: IconBadgeSize.large,
-                ),
-                const SizedBox(width: ShadcnSpacing.spacing16),
+        return ShadCard(
+          child: Row(
+            children: [
+              // 左侧：图标徽章
+              IconBadge(
+                icon: LucideIcons.server,
+                color: endpoint.enabled
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.outline,
+                size: IconBadgeSize.large,
+              ),
+              const SizedBox(width: ShadcnSpacing.spacing16),
 
-                // 中间：信息列
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            endpoint.name,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
+              // 中间：信息列
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          endpoint.name,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: ShadcnSpacing.spacing8),
+                        if (endpoint.weight > 1)
+                          StatusBadge(
+                            label: '权重: ${endpoint.weight}',
+                            type: StatusType.info,
                           ),
-                          const SizedBox(width: ShadcnSpacing.spacing8),
-                          if (endpoint.weight > 1)
-                            StatusBadge(
-                              label: '权重: ${endpoint.weight}',
-                              type: StatusType.info,
-                            ),
-                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      endpoint.anthropicBaseUrl ?? '未配置',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: ShadcnColors.mutedForeground(
+                          Theme.of(context).brightness,
+                        ),
+                        fontFamily: 'monospace',
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (endpoint.note != null && endpoint.note!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
-                        endpoint.anthropicBaseUrl ?? '未配置',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: ShadcnColors.mutedForeground(
-                            Theme.of(context).brightness,
-                          ),
-                          fontFamily: 'monospace',
-                        ),
+                        endpoint.note!,
+                        style: Theme.of(context).textTheme.bodySmall,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (endpoint.note != null &&
-                          endpoint.note!.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          endpoint.note!,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
                     ],
-                  ),
-                ),
-
-                // 右侧：开关和菜单
-                const SizedBox(width: ShadcnSpacing.spacing16),
-                Switch(
-                  value: endpoint.enabled,
-                  onChanged: (_) => viewModel.toggleEnabled(endpoint.id),
-                ),
-                PopupMenuButton(
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.pencil, size: 20),
-                          SizedBox(width: 8),
-                          Text('编辑'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.trash2, size: 20, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('删除', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
                   ],
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _showEditEndpointDialog(context, endpoint);
-                    } else if (value == 'delete') {
-                      _showDeleteDialog(context, endpoint);
-                    }
-                  },
                 ),
-              ],
-            ),
+              ),
+
+              // 右侧：开关和菜单
+              const SizedBox(width: ShadcnSpacing.spacing16),
+              ShadSwitch(
+                value: endpoint.enabled,
+                onChanged: (_) => viewModel.toggleEnabled(endpoint.id),
+              ),
+              PopupMenuButton(
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.pencil, size: 20),
+                        SizedBox(width: 8),
+                        Text('编辑'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.trash2, size: 20, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('删除', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                ],
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    _showEditEndpointDialog(context, endpoint);
+                  } else if (value == 'delete') {
+                    _showDeleteDialog(context, endpoint);
+                  }
+                },
+              ),
+            ],
           ),
         );
       },
@@ -183,7 +178,7 @@ class EndpointPage extends StatelessWidget {
   }
 
   void _showEndpointDialog(BuildContext context, EndpointEntity? endpoint) {
-    showDialog(
+    showShadDialog(
       context: context,
       builder: (context) =>
           EndpointFormDialog(endpoint: endpoint, viewModel: viewModel),

@@ -1,14 +1,8 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
-import 'package:code_proxy/widgets/common/shadcn_components.dart';
-import 'package:code_proxy/widgets/endpoint_form/advanced_settings_section.dart';
-import 'package:code_proxy/widgets/endpoint_form/api_config_section.dart';
-import 'package:code_proxy/widgets/endpoint_form/basic_info_section.dart';
-import 'package:code_proxy/widgets/endpoint_form/model_config_section.dart';
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 端点编辑表单对话框（重构后的主对话框）
 class EndpointFormDialog extends StatefulWidget {
@@ -93,113 +87,126 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusLarge),
-      ),
-      child: Container(
-        width: 680,
-        constraints: const BoxConstraints(maxHeight: 700),
+    return ShadDialog(
+      actions: [ShadButton(onPressed: _handleSave, child: const Text('保存更改'))],
+      title: Text(widget.endpoint == null ? '添加端点' : '编辑端点'),
+      description: Text('在这里配置端点信息。完成后点击保存。'),
+      child: Padding(
+        padding: EdgeInsetsGeometry.symmetric(
+          vertical: ShadcnSpacing.spacing12,
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(context, brightness),
-            const Divider(height: 1),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(ShadcnSpacing.spacing20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    BasicInfoSection(
-                      nameController: nameController,
-                      noteController: noteController,
-                      weightController: weightController,
-                    ),
-                    const SizedBox(height: ShadcnSpacing.spacing24),
-                    ApiConfigSection(
-                      authTokenController: authTokenController,
-                      baseUrlController: baseUrlController,
-                      timeoutController: timeoutController,
-                    ),
-                    const SizedBox(height: ShadcnSpacing.spacing24),
-                    ModelConfigSection(
-                      modelController: modelController,
-                      smallFastModelController: smallFastModelController,
-                      haikuModelController: haikuModelController,
-                      sonnetModelController: sonnetModelController,
-                      opusModelController: opusModelController,
-                    ),
-                    const SizedBox(height: ShadcnSpacing.spacing24),
-                    AdvancedSettingsSection(
-                      disableNonessentialTraffic: disableNonessentialTraffic,
-                      onDisableNonessentialTrafficChanged: (value) {
-                        setState(() {
-                          disableNonessentialTraffic = value;
-                        });
-                      },
-                    ),
-                  ],
+            Row(
+              spacing: ShadcnSpacing.spacing16,
+              children: [
+                Expanded(
+                  child: ShadInput(
+                    controller: nameController,
+                    placeholder: const Text('端点名称'),
+                  ),
                 ),
-              ),
+                Expanded(
+                  child: ShadInput(
+                    controller: noteController,
+                    placeholder: const Text('备注'),
+                  ),
+                ),
+              ],
             ),
-            const Divider(height: 1),
-            _buildFooter(context),
+            const SizedBox(height: ShadcnSpacing.spacing24),
+            Row(
+              spacing: ShadcnSpacing.spacing16,
+              children: [
+                Expanded(
+                  child: ShadInput(
+                    controller: authTokenController,
+                    placeholder: const Text('API Key'),
+                  ),
+                ),
+                Expanded(
+                  child: ShadInput(
+                    controller: baseUrlController,
+                    placeholder: const Text('Base URL'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ShadcnSpacing.spacing16),
+            ShadInput(
+              controller: timeoutController,
+              placeholder: const Text('超时时间（毫秒）'),
+            ),
+            const SizedBox(height: ShadcnSpacing.spacing24),
+            Row(
+              spacing: ShadcnSpacing.spacing16,
+              children: [
+                Expanded(
+                  child: ShadInput(
+                    controller: modelController,
+                    placeholder: const Text('主模型'),
+                  ),
+                ),
+                Expanded(
+                  child: ShadInput(
+                    controller: smallFastModelController,
+                    placeholder: const Text('快速模型'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ShadcnSpacing.spacing16),
+            Row(
+              spacing: ShadcnSpacing.spacing16,
+              children: [
+                Expanded(
+                  child: ShadInput(
+                    controller: haikuModelController,
+                    placeholder: const Text('Haiku模型'),
+                  ),
+                ),
+                Expanded(
+                  child: ShadInput(
+                    controller: sonnetModelController,
+                    placeholder: const Text('Sonnet模型'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ShadcnSpacing.spacing16),
+            Row(
+              spacing: ShadcnSpacing.spacing16,
+              children: [
+                Expanded(
+                  child: ShadInput(
+                    controller: opusModelController,
+                    placeholder: const Text('Opus模型'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ShadcnSpacing.spacing24),
+            ShadCheckbox(
+              label: const Text('禁用非必要流量'),
+              sublabel: const Text('减少对该端点的健康检查和测试请求'),
+              value: disableNonessentialTraffic,
+              onChanged: (value) {
+                setState(() {
+                  disableNonessentialTraffic = value;
+                });
+              },
+            ),
+            // AdvancedSettingsSection(
+            //   disableNonessentialTraffic: disableNonessentialTraffic,
+            //   onDisableNonessentialTrafficChanged: (value) {
+            //     setState(() {
+            //       disableNonessentialTraffic = value;
+            //     });
+            //   },
+            // ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, Brightness brightness) {
-    return Container(
-      padding: const EdgeInsets.all(ShadcnSpacing.spacing20),
-      decoration: BoxDecoration(
-        color: ShadcnColors.muted(brightness),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(ShadcnSpacing.radiusLarge),
-          topRight: Radius.circular(ShadcnSpacing.radiusLarge),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconBadge(
-            icon: LucideIcons.server,
-            color: Theme.of(context).colorScheme.primary,
-            size: IconBadgeSize.medium,
-          ),
-          const SizedBox(width: ShadcnSpacing.spacing12),
-          Text(
-            widget.endpoint == null ? '添加端点' : '编辑端点',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(LucideIcons.x),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFooter(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(ShadcnSpacing.spacing20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          const SizedBox(width: ShadcnSpacing.spacing12),
-          FilledButton(onPressed: _handleSave, child: const Text('保存')),
-        ],
       ),
     );
   }
@@ -248,7 +255,8 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         widget.endpoint!.copyWith(
           name: nameController.text,
           note: noteController.text.isEmpty ? null : noteController.text,
-          weight: int.tryParse(weightController.text) ?? widget.endpoint!.weight,
+          weight:
+              int.tryParse(weightController.text) ?? widget.endpoint!.weight,
           anthropicAuthToken: authTokenController.text,
           anthropicBaseUrl: baseUrlController.text,
           apiTimeoutMs: int.tryParse(timeoutController.text),

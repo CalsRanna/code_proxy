@@ -8,6 +8,197 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 /// 包含符合Shadcn设计规范的基础组件
 
 // ============================================================================
+// 0. ShadcnDialog - 通用对话框
+// ============================================================================
+
+/// 通用对话框组件
+///
+/// 提供统一的对话框样式，符合 Shadcn UI 设计规范
+class ShadcnDialog extends StatelessWidget {
+  /// 对话框标题
+  final String? title;
+
+  /// 对话框副标题/描述
+  final String? subtitle;
+
+  /// 自定义标题区域（如果提供，会覆盖 title 和 subtitle）
+  final Widget? header;
+
+  /// 对话框内容
+  final Widget content;
+
+  /// 对话框底部操作区域
+  final Widget? footer;
+
+  /// 对话框宽度
+  final double? width;
+
+  /// 对话框最大高度
+  final double? maxHeight;
+
+  /// 是否显示关闭按钮
+  final bool showCloseButton;
+
+  /// 关闭按钮回调（如果为 null，默认执行 Navigator.pop）
+  final VoidCallback? onClose;
+
+  const ShadcnDialog({
+    super.key,
+    this.title,
+    this.subtitle,
+    this.header,
+    required this.content,
+    this.footer,
+    this.width = 600,
+    this.maxHeight = 700,
+    this.showCloseButton = true,
+    this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+
+    return Dialog(
+      elevation: 0,
+      backgroundColor: ShadcnColors.card(brightness),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+      ),
+      child: Container(
+        width: width,
+        constraints: BoxConstraints(maxHeight: maxHeight ?? 700),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
+          border: Border.all(
+            color: ShadcnColors.border(brightness),
+            width: ShadcnSpacing.borderWidth,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: brightness == Brightness.dark ? 0.3 : 0.1,
+              ),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 标题区域
+            if (header != null)
+              header!
+            else if (title != null)
+              _buildDefaultHeader(context, brightness),
+
+            // 分隔线
+            if (header != null || title != null)
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: ShadcnColors.border(brightness),
+              ),
+
+            // 内容区域
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
+                child: content,
+              ),
+            ),
+
+            // 底部操作区域
+            if (footer != null) ...[
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: ShadcnColors.border(brightness),
+              ),
+              footer!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultHeader(BuildContext context, Brightness brightness) {
+    return Padding(
+      padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title!,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+              if (showCloseButton)
+                IconButton(
+                  icon: const Icon(LucideIcons.x, size: 20),
+                  onPressed: onClose ?? () => Navigator.of(context).pop(),
+                  style: IconButton.styleFrom(
+                    foregroundColor: ShadcnColors.mutedForeground(brightness),
+                  ),
+                ),
+            ],
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: ShadcnSpacing.spacing8),
+            Text(
+              subtitle!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: ShadcnColors.mutedForeground(brightness),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 便捷方法：显示对话框
+  static Future<T?> show<T>({
+    required BuildContext context,
+    String? title,
+    String? subtitle,
+    Widget? header,
+    required Widget content,
+    Widget? footer,
+    double? width,
+    double? maxHeight,
+    bool showCloseButton = true,
+    VoidCallback? onClose,
+    bool barrierDismissible = true,
+  }) {
+    return showDialog<T>(
+      context: context,
+      barrierDismissible: barrierDismissible,
+      builder: (context) => ShadcnDialog(
+        title: title,
+        subtitle: subtitle,
+        header: header,
+        content: content,
+        footer: footer,
+        width: width,
+        maxHeight: maxHeight,
+        showCloseButton: showCloseButton,
+        onClose: onClose,
+      ),
+    );
+  }
+}
+
+// ============================================================================
 // 1. SectionHeader - 统一的段落标题
 // ============================================================================
 
@@ -40,7 +231,9 @@ class SectionHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(ShadcnSpacing.spacing8),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
               ),
               child: Icon(
@@ -57,17 +250,17 @@ class SectionHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 if (subtitle != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     subtitle!,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: ShadcnColors.mutedForeground(brightness),
-                        ),
+                      color: ShadcnColors.mutedForeground(brightness),
+                    ),
                   ),
                 ],
               ],
@@ -142,11 +335,7 @@ class IconBadge extends StatelessWidget {
         color: effectiveColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(ShadcnSpacing.radiusMedium),
       ),
-      child: Icon(
-        icon,
-        size: size.iconSize,
-        color: effectiveColor,
-      ),
+      child: Icon(icon, size: size.iconSize, color: effectiveColor),
     );
   }
 }
@@ -191,11 +380,11 @@ class StatusBadge extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: colors.foreground,
-              fontWeight: FontWeight.w600,
-              fontSize: compact ? 11 : 12,
-              fontFamily: label.contains(':') ? 'monospace' : null,
-            ),
+          color: colors.foreground,
+          fontWeight: FontWeight.w600,
+          fontSize: compact ? 11 : 12,
+          fontFamily: label.contains(':') ? 'monospace' : null,
+        ),
       ),
     );
   }
@@ -212,53 +401,40 @@ class InfoRow extends StatelessWidget {
   final String label;
   final String value;
   final IconData? icon;
-  final bool selectable;
 
   const InfoRow({
     super.key,
     required this.label,
     required this.value,
     this.icon,
-    this.selectable = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: ShadcnSpacing.spacing8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: ShadcnSpacing.spacing16,
         children: [
-          if (icon != null) ...[
-            Icon(
-              icon,
-              size: 16,
-              color: ShadcnColors.mutedForeground(brightness),
-            ),
-            const SizedBox(width: ShadcnSpacing.spacing8),
-          ],
           SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: ShadcnColors.mutedForeground(brightness),
-                    fontWeight: FontWeight.w500,
+            width: 100,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              spacing: ShadcnSpacing.spacing4,
+              children: [
+                if (icon != null)
+                  Icon(
+                    icon,
+                    color: ShadcnColors.lightMutedForeground,
+                    size: 16,
                   ),
+                Text(label),
+              ],
             ),
           ),
           Expanded(
-            child: selectable
-                ? SelectableText(
-                    value,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  )
-                : Text(
-                    value,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
+            child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ],
       ),
@@ -300,14 +476,16 @@ class EmptyState extends StatelessWidget {
             Icon(
               icon,
               size: 64,
-              color: ShadcnColors.mutedForeground(brightness).withValues(alpha: 0.5),
+              color: ShadcnColors.mutedForeground(
+                brightness,
+              ).withValues(alpha: 0.5),
             ),
             const SizedBox(height: ShadcnSpacing.spacing16),
             Text(
               message,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: ShadcnColors.mutedForeground(brightness),
-                  ),
+                color: ShadcnColors.mutedForeground(brightness),
+              ),
               textAlign: TextAlign.center,
             ),
             if (actionLabel != null && onAction != null) ...[
@@ -387,9 +565,9 @@ class StatCard extends StatelessWidget {
                 Text(
                   value,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: effectiveColor,
-                      ),
+                    fontWeight: FontWeight.bold,
+                    color: effectiveColor,
+                  ),
                 ),
               ],
             ),
@@ -397,9 +575,9 @@ class StatCard extends StatelessWidget {
             Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: ShadcnColors.mutedForeground(brightness),
-                  ),
+                fontWeight: FontWeight.w600,
+                color: ShadcnColors.mutedForeground(brightness),
+              ),
             ),
           ],
         ),

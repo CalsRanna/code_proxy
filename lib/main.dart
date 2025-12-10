@@ -1,5 +1,6 @@
 import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
 import 'di.dart';
@@ -29,12 +30,14 @@ class CodeProxyRouter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Watch(
-      (context) => MaterialApp.router(
-        title: 'Code Proxy',
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: SettingsViewModel.currentTheme.value,
-        routerConfig: router.config(),
+      (context) => ShadApp.custom(
+        appBuilder: (context) => MaterialApp.router(
+          title: 'Code Proxy',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: SettingsViewModel.currentTheme.value,
+          routerConfig: router.config(),
+        ),
       ),
     );
   }
