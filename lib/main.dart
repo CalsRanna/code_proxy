@@ -59,7 +59,7 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
   /// 停止代理服务器
   void _stopProxyServer() {
     try {
-      final proxyServer = getIt<ProxyServer>();
+      final proxyServer = getIt<ProxyServerService>();
       proxyServer.stop().catchError((error) {
         // 静默处理错误
       });

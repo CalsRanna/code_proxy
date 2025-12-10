@@ -1,46 +1,60 @@
 import 'dart:async';
+import 'dart:convert';
+
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/proxy_server_state.dart';
 import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/database_service.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:signals/signals.dart';
+
 import 'base_view_model.dart';
 import 'endpoints_view_model.dart';
 
-/// 主页 ViewModel
-/// 管理代理服务器状态和端点列表
 class HomeViewModel extends BaseViewModel {
-  final ProxyServer _proxyServer;
   final StatsCollector _statsCollector;
   final ConfigManager _configManager;
   final ClaudeCodeConfigManager _claudeCodeConfigManager;
   final DatabaseService _databaseService;
 
-  /// 响应式状态
   final isServerRunning = signal(false);
   final serverState = signal(const ProxyServerState());
   final dailyTokenStats = signal<Map<String, int>>({});
 
-  /// 端点列表（使用 EndpointsViewModel 的全局 static signal）
-  ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
-
   /// 状态更新定时器
   Timer? _statusUpdateTimer;
 
+  ProxyServerService? _proxyServer;
+
   HomeViewModel({
-    required ProxyServer proxyServer,
     required StatsCollector statsCollector,
     required ConfigManager configManager,
     required ClaudeCodeConfigManager claudeCodeConfigManager,
     required DatabaseService databaseService,
-  }) : _proxyServer = proxyServer,
-       _statsCollector = statsCollector,
+  }) : _statsCollector = statsCollector,
        _configManager = configManager,
        _claudeCodeConfigManager = claudeCodeConfigManager,
        _databaseService = databaseService;
+
+  ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
+
+  // =========================
+  // 清理资源
+  // =========================
+
+  @override
+  void dispose() {
+    _statusUpdateTimer?.cancel();
+    // 停止代理服务器（异步操作，但 dispose 是同步的，所以不 await）
+    _stopServer().catchError((error) {
+      // 静默处理错误
+    });
+    super.dispose();
+  }
 
   /// 初始化
   Future<void> init() async {
@@ -56,6 +70,30 @@ class HomeViewModel extends BaseViewModel {
   // =========================
   // 服务器控制
   // =========================
+
+  /// 切换端点启用状态
+  Future<void> toggleEndpointEnabled(String id) async {
+    ensureNotDisposed();
+
+    final endpoint = endpoints.value.firstWhere((e) => e.id == id);
+    final updated = EndpointEntity(
+      id: endpoint.id,
+      name: endpoint.name,
+      url: endpoint.url,
+      category: endpoint.category,
+      notes: endpoint.notes,
+      icon: endpoint.icon,
+      iconColor: endpoint.iconColor,
+      weight: endpoint.weight,
+      enabled: !endpoint.enabled,
+      sortIndex: endpoint.sortIndex,
+      createdAt: endpoint.createdAt,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    // 使用 ConfigManager 保存，它会自动更新全局 signal
+    await _configManager.saveEndpoint(updated);
+  }
 
   /// 自动启动代理服务器
   Future<void> _autoStartServer() async {
@@ -85,7 +123,8 @@ class HomeViewModel extends BaseViewModel {
       }
 
       // 启动代理服务器
-      await _proxyServer.start();
+      _proxyServer ??= ProxyServerService(config: config);
+      await _proxyServer?.start();
       isServerRunning.value = true;
       _updateServerState();
     } catch (e) {
@@ -95,54 +134,8 @@ class HomeViewModel extends BaseViewModel {
     }
   }
 
-  /// 停止代理服务器
-  Future<void> _stopServer() async {
-    ensureNotDisposed();
-
-    try {
-      // 停止代理服务器
-      await _proxyServer.stop();
-      isServerRunning.value = false;
-      _updateServerState();
-
-      // 恢复 Claude Code 原始配置（如果有备份）
-      await _claudeCodeConfigManager.switchFromProxy();
-    } catch (e) {
-      // 即使停止失败，也尝试恢复配置
-      await _claudeCodeConfigManager.switchFromProxy();
-    }
-  }
-
   // =========================
   // 端点管理
-  // =========================
-
-  /// 切换端点启用状态
-  Future<void> toggleEndpointEnabled(String id) async {
-    ensureNotDisposed();
-
-    final endpoint = endpoints.value.firstWhere((e) => e.id == id);
-    final updated = EndpointEntity(
-      id: endpoint.id,
-      name: endpoint.name,
-      url: endpoint.url,
-      category: endpoint.category,
-      notes: endpoint.notes,
-      icon: endpoint.icon,
-      iconColor: endpoint.iconColor,
-      weight: endpoint.weight,
-      enabled: !endpoint.enabled,
-      sortIndex: endpoint.sortIndex,
-      createdAt: endpoint.createdAt,
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-    );
-
-    // 使用 ConfigManager 保存，它会自动更新全局 signal
-    await _configManager.saveEndpoint(updated);
-  }
-
-  // =========================
-  // 状态更新
   // =========================
 
   /// 加载热度图数据（全年数据：从今年1月1日到12月31日）
@@ -169,6 +162,10 @@ class HomeViewModel extends BaseViewModel {
     }
   }
 
+  // =========================
+  // 状态更新
+  // =========================
+
   /// 启动状态定时更新（每 2 秒）
   void _startStatusUpdates() {
     _statusUpdateTimer?.cancel();
@@ -181,11 +178,29 @@ class HomeViewModel extends BaseViewModel {
     });
   }
 
+  /// 停止代理服务器
+  Future<void> _stopServer() async {
+    ensureNotDisposed();
+
+    try {
+      // 停止代理服务器
+      await _proxyServer?.stop();
+      isServerRunning.value = false;
+      _updateServerState();
+
+      // 恢复 Claude Code 原始配置（如果有备份）
+      await _claudeCodeConfigManager.switchFromProxy();
+    } catch (e) {
+      // 即使停止失败，也尝试恢复配置
+      await _claudeCodeConfigManager.switchFromProxy();
+    }
+  }
+
   /// 更新服务器状态
   void _updateServerState() {
     if (isDisposed) return;
 
-    final running = _proxyServer.isRunning;
+    final running = _proxyServer?.isRunning ?? false;
 
     final totalRequests = _statsCollector.totalRequests;
     final successRequests = _statsCollector.successRequests;
@@ -203,17 +218,77 @@ class HomeViewModel extends BaseViewModel {
     );
   }
 
-  // =========================
-  // 清理资源
-  // =========================
+  static void handleRequestCompleted(
+    StatsCollector statsCollector,
+    EndpointEntity endpoint,
+    ProxyServerRequest request,
+    ProxyServerResponse response,
+  ) {
+    try {
+      final success = response.statusCode >= 200 && response.statusCode < 300;
+      String? model;
+      int? inputTokens;
+      int? outputTokens;
 
-  @override
-  void dispose() {
-    _statusUpdateTimer?.cancel();
-    // 停止代理服务器（异步操作，但 dispose 是同步的，所以不 await）
-    _stopServer().catchError((error) {
-      // 静默处理错误
-    });
-    super.dispose();
+      // 尝试从响应中解析 token 信息（Claude API 格式）
+      if (success && response.body.isNotEmpty) {
+        try {
+          final responseJson = jsonDecode(response.body);
+          if (responseJson is Map<String, dynamic>) {
+            // 提取 model
+            model = responseJson['model'] as String?;
+
+            // 提取 usage 信息
+            final usage = responseJson['usage'];
+            if (usage is Map<String, dynamic>) {
+              inputTokens = usage['input_tokens'] as int?;
+              outputTokens = usage['output_tokens'] as int?;
+            }
+          }
+        } catch (_) {
+          // 解析失败，忽略
+        }
+      }
+
+      // 记录请求到 StatsCollector
+      if (success) {
+        statsCollector.recordSuccess(
+          endpointId: endpoint.id,
+          endpointName: endpoint.name,
+          path: request.path,
+          method: request.method,
+          statusCode: response.statusCode,
+          responseTime: response.responseTime,
+          header: Map<String, dynamic>.from(response.headers),
+          model: model,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          rawHeader: response.headers.toString(),
+          rawRequest: request.body,
+          rawResponse: response.body,
+        );
+      } else {
+        statsCollector.recordFailure(
+          endpointId: endpoint.id,
+          endpointName: endpoint.name,
+          path: request.path,
+          method: request.method,
+          statusCode: response.statusCode,
+          responseTime: response.responseTime,
+          error: response.statusCode > 0
+              ? 'HTTP ${response.statusCode}'
+              : response.body,
+          header: Map<String, dynamic>.from(response.headers),
+          model: model,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          rawHeader: response.headers.toString(),
+          rawRequest: request.body,
+          rawResponse: response.body,
+        );
+      }
+    } catch (e) {
+      // 记录失败，静默处理
+    }
   }
 }

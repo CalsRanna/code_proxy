@@ -1,7 +1,6 @@
 import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/config_manager.dart';
 import 'package:code_proxy/services/database_service.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/services/stats_collector.dart';
 import 'package:code_proxy/services/theme_service.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
@@ -58,17 +57,6 @@ Future<void> setupServiceLocator() async {
     () => ClaudeCodeConfigManager(),
   );
 
-  // 注册 ProxyServer（单例）
-  getIt.registerLazySingleton<ProxyServer>(
-    () => ProxyServer(
-      config: config,
-      // 从 EndpointsViewModel 的 static signal 获取端点列表
-      getEndpoints: () => EndpointsViewModel.endpoints.value,
-      claudeCodeConfigManager: getIt<ClaudeCodeConfigManager>(),
-      // 回调会在 HomeViewModel 中设置
-    ),
-  );
-
   // =============================
   // ViewModel 层
   // =============================
@@ -76,7 +64,6 @@ Future<void> setupServiceLocator() async {
   // 注册 HomeViewModel（工厂模式，每次获取创建新实例）
   getIt.registerFactory<HomeViewModel>(
     () => HomeViewModel(
-      proxyServer: getIt<ProxyServer>(),
       statsCollector: getIt<StatsCollector>(),
       configManager: getIt<ConfigManager>(),
       claudeCodeConfigManager: getIt<ClaudeCodeConfigManager>(),
