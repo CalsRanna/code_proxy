@@ -10,8 +10,7 @@ import 'package:shelf/shelf.dart' as shelf;
 class ProxyServerRequestHandler {
   final http.Client _httpClient;
 
-  ProxyServerRequestHandler({http.Client? httpClient})
-    : _httpClient = httpClient ?? http.Client();
+  ProxyServerRequestHandler() : _httpClient = http.Client();
 
   void close() {
     _httpClient.close();

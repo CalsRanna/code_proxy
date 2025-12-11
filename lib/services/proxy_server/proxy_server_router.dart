@@ -5,6 +5,50 @@ import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 
+/// 客户端错误处理器 - 处理4xx响应（无需重试）
+class ClientErrorHandler implements ResponseHandlerStrategy {
+  @override
+  RouteResult? handle(
+    dynamic responseOrError,
+    EndpointEntity endpoint,
+    int attempt,
+    int maxRetries,
+    void Function(EndpointEntity)? onEndpointUnavailable,
+  ) {
+    final response = responseOrError as http.StreamedResponse;
+    // 4xx错误是客户端问题，无需重试，直接返回
+    return RouteResult.success(response, endpoint);
+  }
+}
+
+/// 异常处理器 - 处理网络异常等
+class ExceptionHandler implements ResponseHandlerStrategy {
+  @override
+  RouteResult? handle(
+    dynamic responseOrError,
+    EndpointEntity endpoint,
+    int attempt,
+    int maxRetries,
+    void Function(EndpointEntity)? onEndpointUnavailable,
+  ) {
+    final error = responseOrError;
+
+    if (attempt < maxRetries) {
+      LoggerUtil.instance.w(
+        'Endpoint ${endpoint.name} threw exception, retrying: $error',
+      );
+      // 返回null表示需要重试
+      return null;
+    } else {
+      LoggerUtil.instance.e(
+        'Endpoint ${endpoint.name} exhausted retries due to exception: $error',
+      );
+      onEndpointUnavailable?.call(endpoint);
+      return RouteResult.failed(endpoint, error: error.toString());
+    }
+  }
+}
+
 /// 端点路由器 - 负责端点选择、重试和故障转移
 class ProxyServerRouter {
   final ProxyServerConfig _config;
@@ -33,6 +77,20 @@ class ProxyServerRouter {
 
     // 所有端点都失败
     return const RouteResult.failed(null, error: 'All endpoints failed');
+  }
+
+  /// 根据状态码获取对应的响应处理器
+  ResponseHandlerStrategy _getResponseHandler(int statusCode) {
+    if (statusCode >= 200 && statusCode < 300) {
+      return SuccessHandler();
+    } else if (statusCode >= 400 && statusCode < 500) {
+      return ClientErrorHandler();
+    } else if (statusCode >= 500) {
+      return ServerErrorHandler();
+    } else {
+      // 1xx 或其他未知状态码，按成功处理
+      return SuccessHandler();
+    }
   }
 
   Future<RouteResult> _tryEndpoint(
@@ -77,38 +135,6 @@ class ProxyServerRouter {
     // 理论上不会到达这里，但为了类型安全
     return const RouteResult.failed(null, error: 'Unexpected error');
   }
-
-  /// 根据状态码获取对应的响应处理器
-  ResponseHandlerStrategy _getResponseHandler(int statusCode) {
-    if (statusCode >= 200 && statusCode < 300) {
-      return SuccessHandler();
-    } else if (statusCode >= 400 && statusCode < 500) {
-      return ClientErrorHandler();
-    } else if (statusCode >= 500) {
-      return ServerErrorHandler();
-    } else {
-      // 1xx 或其他未知状态码，按成功处理
-      return SuccessHandler();
-    }
-  }
-}
-
-/// 路由结果 - 简化版结果封装
-class RouteResult {
-  final bool success;
-  final http.StreamedResponse? response;
-  final EndpointEntity? endpoint;
-  final EndpointEntity? failedEndpoint;
-  final String? error;
-
-  const RouteResult.success(this.response, this.endpoint)
-    : success = true,
-      failedEndpoint = null,
-      error = null;
-
-  const RouteResult.failed(this.failedEndpoint, {this.endpoint, this.error})
-    : success = false,
-      response = null;
 }
 
 /// 响应处理器策略 - 用于处理不同类型的HTTP响应
@@ -123,35 +149,22 @@ abstract class ResponseHandlerStrategy {
   );
 }
 
-/// 成功处理器 - 处理2xx响应
-class SuccessHandler implements ResponseHandlerStrategy {
-  @override
-  RouteResult? handle(
-    dynamic responseOrError,
-    EndpointEntity endpoint,
-    int attempt,
-    int maxRetries,
-    void Function(EndpointEntity)? onEndpointUnavailable,
-  ) {
-    final response = responseOrError as http.StreamedResponse;
-    return RouteResult.success(response, endpoint);
-  }
-}
+/// 路由结果 - 简化版结果封装
+class RouteResult {
+  final bool success;
+  final http.StreamedResponse? response;
+  final EndpointEntity? endpoint;
+  final EndpointEntity? failedEndpoint;
+  final String? error;
 
-/// 客户端错误处理器 - 处理4xx响应（无需重试）
-class ClientErrorHandler implements ResponseHandlerStrategy {
-  @override
-  RouteResult? handle(
-    dynamic responseOrError,
-    EndpointEntity endpoint,
-    int attempt,
-    int maxRetries,
-    void Function(EndpointEntity)? onEndpointUnavailable,
-  ) {
-    final response = responseOrError as http.StreamedResponse;
-    // 4xx错误是客户端问题，无需重试，直接返回
-    return RouteResult.success(response, endpoint);
-  }
+  const RouteResult.failed(this.failedEndpoint, {this.endpoint, this.error})
+    : success = false,
+      response = null;
+
+  const RouteResult.success(this.response, this.endpoint)
+    : success = true,
+      failedEndpoint = null,
+      error = null;
 }
 
 /// 服务器错误处理器 - 处理5xx响应（需要重试）
@@ -183,8 +196,8 @@ class ServerErrorHandler implements ResponseHandlerStrategy {
   }
 }
 
-/// 异常处理器 - 处理网络异常等
-class ExceptionHandler implements ResponseHandlerStrategy {
+/// 成功处理器 - 处理2xx响应
+class SuccessHandler implements ResponseHandlerStrategy {
   @override
   RouteResult? handle(
     dynamic responseOrError,
@@ -193,20 +206,7 @@ class ExceptionHandler implements ResponseHandlerStrategy {
     int maxRetries,
     void Function(EndpointEntity)? onEndpointUnavailable,
   ) {
-    final error = responseOrError;
-
-    if (attempt < maxRetries) {
-      LoggerUtil.instance.w(
-        'Endpoint ${endpoint.name} threw exception, retrying: $error',
-      );
-      // 返回null表示需要重试
-      return null;
-    } else {
-      LoggerUtil.instance.e(
-        'Endpoint ${endpoint.name} exhausted retries due to exception: $error',
-      );
-      onEndpointUnavailable?.call(endpoint);
-      return RouteResult.failed(endpoint, error: error.toString());
-    }
+    final response = responseOrError as http.StreamedResponse;
+    return RouteResult.success(response, endpoint);
   }
 }

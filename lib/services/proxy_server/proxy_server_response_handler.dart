@@ -7,15 +7,18 @@ import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
-/// 响应处理器 - 负责处理流式和非流式响应
+/// 响应处理器 - 协调者
 class ProxyServerResponseHandler {
-  final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
-  _onRequestCompleted;
+  final ResponseProcessor _processor;
+  final HeaderCleaner _headerCleaner;
+  final StatsRecorder _statsRecorder;
 
   ProxyServerResponseHandler({
     void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
     onRequestCompleted,
-  }) : _onRequestCompleted = onRequestCompleted;
+  }) : _processor = const ResponseProcessor(),
+       _headerCleaner = const HeaderCleaner(),
+       _statsRecorder = StatsRecorder(onRequestCompleted: onRequestCompleted);
 
   /// 处理HTTP响应
   Future<shelf.Response> handleResponse(
@@ -26,55 +29,63 @@ class ProxyServerResponseHandler {
     int startTime, {
     List<int>? mappedRequestBodyBytes,
   }) async {
-    final isStreamResponse = _isStreamResponse(response.headers);
+    final isStream = _processor.isStream(response.headers);
+    final cleanHeaders = _headerCleaner.clean(response.headers);
 
-    if (isStreamResponse) {
-      return _handleStreamResponse(
-        response,
-        endpoint,
-        request,
-        requestBodyBytes,
-        startTime,
-        mappedRequestBodyBytes: mappedRequestBodyBytes,
-      );
-    } else {
-      return await _handleNormalResponse(
-        response,
-        endpoint,
-        request,
-        requestBodyBytes,
-        startTime,
-        mappedRequestBodyBytes: mappedRequestBodyBytes,
-      );
-    }
-  }
-
-  /// 处理非流式响应
-  Future<shelf.Response> _handleNormalResponse(
-    http.StreamedResponse response,
-    EndpointEntity endpoint,
-    shelf.Request request,
-    List<int> requestBodyBytes,
-    int startTime, {
-    List<int>? mappedRequestBodyBytes,
-  }) async {
-    final responseBodyBytes = await response.stream.toBytes();
-    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
-
-    _recordRequest(
+    void recordStats() => _statsRecorder.record(
       endpoint: endpoint,
       request: request,
       requestBodyBytes: mappedRequestBodyBytes ?? requestBodyBytes,
       response: response,
-      responseBodyBytes: responseBodyBytes,
-      responseTime: responseTime,
+      responseBodyBytes: null,
+      responseTime: DateTime.now().millisecondsSinceEpoch - startTime,
       timeToFirstByte: null,
     );
 
-    // 清理响应头
-    final cleanHeaders = ProxyServerResponseHandler.cleanResponseHeaders(
-      response.headers,
+    void recordException(Object error) => _statsRecorder.recordException(
+      endpoint: endpoint,
+      request: request,
+      requestBodyBytes: requestBodyBytes,
+      startTime: startTime,
+      error: error,
     );
+
+    if (isStream) {
+      return _processor.processStreamResponse(
+        response,
+        cleanHeaders,
+        recordStats,
+        recordException,
+      );
+    } else {
+      return await _processor.processNormalResponse(
+        response,
+        cleanHeaders,
+        recordStats,
+      );
+    }
+  }
+}
+
+/// 响应处理器 - 专注流式/非流式转换
+class ResponseProcessor {
+  const ResponseProcessor();
+
+  /// 检测是否是流式响应（SSE 或其他流式格式）
+  bool isStream(Map<String, String> headers) {
+    final contentType = headers['content-type'] ?? '';
+    return contentType.contains('text/event-stream') ||
+        contentType.contains('application/stream+json');
+  }
+
+  /// 处理非流式响应
+  Future<shelf.Response> processNormalResponse(
+    http.StreamedResponse response,
+    Map<String, String> cleanHeaders,
+    void Function() recordStats,
+  ) async {
+    final responseBodyBytes = await response.stream.toBytes();
+    recordStats();
 
     return shelf.Response(
       response.statusCode,
@@ -84,58 +95,26 @@ class ProxyServerResponseHandler {
   }
 
   /// 处理流式响应（SSE）
-  shelf.Response _handleStreamResponse(
+  shelf.Response processStreamResponse(
     http.StreamedResponse response,
-    EndpointEntity endpoint,
-    shelf.Request request,
-    List<int> requestBodyBytes,
-    int startTime, {
-    List<int>? mappedRequestBodyBytes,
-  }) {
-    final responseBodyBytes = <int>[];
-    int? firstByteTime;
-
+    Map<String, String> cleanHeaders,
+    void Function() recordStats,
+    void Function(Object error) recordException,
+  ) {
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
         handleData: (List<int> chunk, EventSink<List<int>> sink) {
-          firstByteTime ??= DateTime.now().millisecondsSinceEpoch;
-          responseBodyBytes.addAll(chunk);
           sink.add(chunk);
         },
         handleDone: (EventSink<List<int>> sink) {
-          final endTime = DateTime.now().millisecondsSinceEpoch;
-          final totalTime = endTime - startTime;
-          final timeToFirstByte = firstByteTime ?? endTime - startTime;
-
-          _recordRequest(
-            endpoint: endpoint,
-            request: request,
-            requestBodyBytes: mappedRequestBodyBytes ?? requestBodyBytes,
-            response: response,
-            responseBodyBytes: responseBodyBytes,
-            responseTime: totalTime,
-            timeToFirstByte: timeToFirstByte,
-          );
-
+          recordStats();
           sink.close();
         },
         handleError: (error, stackTrace, EventSink<List<int>> sink) {
-          // 记录错误统计
-          _recordException(
-            endpoint: endpoint,
-            request: request,
-            requestBodyBytes: requestBodyBytes,
-            startTime: startTime,
-            error: error,
-          );
+          recordException(error);
           sink.addError(error, stackTrace);
         },
       ),
-    );
-
-    // 清理响应头
-    final cleanHeaders = ProxyServerResponseHandler.cleanResponseHeaders(
-      response.headers,
     );
 
     return shelf.Response(
@@ -144,30 +123,46 @@ class ProxyServerResponseHandler {
       body: transformedStream,
     );
   }
+}
+
+/// 头部清理器 - 专注头部处理
+class HeaderCleaner {
+  static const Set<String> _headersToRemove = {
+    'transfer-encoding',
+    'content-encoding',
+    'content-length',
+  };
+
+  const HeaderCleaner();
 
   /// 清理响应头，移除可能导致问题的头部
-  static Map<String, String> cleanResponseHeaders(Map<String, String> headers) {
-    final cleanHeaders = Map<String, String>.from(headers);
-    cleanHeaders.remove('transfer-encoding');
-    cleanHeaders.remove('content-encoding');
-    cleanHeaders.remove('content-length');
-    return cleanHeaders;
+  Map<String, String> clean(Map<String, String> headers) {
+    return Map.from(headers)
+      ..removeWhere((key, _) => _headersToRemove.contains(key));
   }
+}
 
-  /// 检测是否是流式响应（SSE 或其他流式格式）
-  bool _isStreamResponse(Map<String, String> headers) {
-    final contentType = headers['content-type'] ?? '';
-    return contentType.contains('text/event-stream') ||
-        contentType.contains('application/stream+json');
-  }
+/// 统计记录器 - 专注数据记录
+class StatsRecorder {
+  final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
+  _onRequestCompleted;
+
+  StatsRecorder({
+    required void Function(
+      EndpointEntity,
+      ProxyServerRequest,
+      ProxyServerResponse,
+    )?
+    onRequestCompleted,
+  }) : _onRequestCompleted = onRequestCompleted;
 
   /// 记录请求统计
-  void _recordRequest({
+  void record({
     required EndpointEntity endpoint,
     required shelf.Request request,
     required List<int> requestBodyBytes,
     required http.StreamedResponse response,
-    required List<int> responseBodyBytes,
+    required List<int>? responseBodyBytes,
     required int responseTime,
     required int? timeToFirstByte,
   }) {
@@ -180,7 +175,9 @@ class ProxyServerResponseHandler {
 
     final proxyResponse = ProxyServerResponse(
       statusCode: response.statusCode,
-      body: utf8.decode(responseBodyBytes, allowMalformed: true),
+      body: responseBodyBytes != null
+          ? utf8.decode(responseBodyBytes, allowMalformed: true)
+          : '',
       headers: response.headers,
       responseTime: responseTime,
       timeToFirstByte: timeToFirstByte,
@@ -190,7 +187,7 @@ class ProxyServerResponseHandler {
   }
 
   /// 记录异常
-  void _recordException({
+  void recordException({
     required EndpointEntity endpoint,
     required shelf.Request request,
     required List<int> requestBodyBytes,

@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request_handler.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response_handler.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -20,10 +20,8 @@ class ProxyServerService {
   onRequestCompleted;
 
   List<EndpointEntity> _endpoints = [];
-
-  final http.Client _httpClient = http.Client();
   late final ProxyServerRouter _router;
-  late final ProxyServerRequestHandler _requestProcessor;
+  late final ProxyServerRequestHandler _requestHandler;
   late final ProxyServerResponseHandler _responseHandler;
   HttpServer? _server;
 
@@ -39,7 +37,7 @@ class ProxyServerService {
       config: config,
       onEndpointUnavailable: onEndpointUnavailable,
     );
-    _requestProcessor = ProxyServerRequestHandler(httpClient: _httpClient);
+    _requestHandler = ProxyServerRequestHandler();
     _responseHandler = ProxyServerResponseHandler(
       onRequestCompleted: onRequestCompleted,
     );
@@ -49,7 +47,7 @@ class ProxyServerService {
 
   Future<void> dispose() async {
     await stop();
-    _httpClient.close();
+    _requestHandler.close();
   }
 
   Future<void> start() async {
@@ -77,7 +75,7 @@ class ProxyServerService {
     shelf.Request request,
     List<int> rawBody,
   ) async {
-    final preparedRequest = _requestProcessor.prepareRequest(
+    final preparedRequest = _requestHandler.prepareRequest(
       request,
       endpoint,
       rawBody,
@@ -86,7 +84,7 @@ class ProxyServerService {
     // 存储映射后的请求体，用于日志记录
     _lastMappedRequestBody = preparedRequest.bodyBytes;
 
-    return _requestProcessor.forwardRequest(preparedRequest);
+    return _requestHandler.forwardRequest(preparedRequest);
   }
 
   /// 代理处理器 - 协调路由、请求处理和响应处理
