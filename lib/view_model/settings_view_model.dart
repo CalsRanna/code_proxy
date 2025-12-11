@@ -16,9 +16,7 @@ class SettingsViewModel extends BaseViewModel {
   final EndpointRepository _endpointRepository;
   late final SharedPreferences _prefs;
 
-  /// 全局共享的主题模式 signal（所有 ViewModel 实例共享）
-  /// 使用 static 确保跨实例共享状态，并在应用启动时可访问
-  static final currentTheme = signal(ThemeMode.system);
+  final currentTheme = signal(ThemeMode.system);
 
   /// 响应式状态
   final config = signal(const ProxyServerConfig());
@@ -50,7 +48,7 @@ class SettingsViewModel extends BaseViewModel {
   }
 
   /// 静态方法：初始化全局主题（在应用启动时调用）
-  static Future<void> initGlobalTheme(SharedPreferences prefs) async {
+  Future<void> initGlobalTheme(SharedPreferences prefs) async {
     try {
       final themeIndex = prefs.getInt(_themeKey);
       if (themeIndex != null &&

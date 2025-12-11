@@ -64,9 +64,6 @@ Future<void> setupServiceLocator() async {
   final endpoints = await getIt<EndpointRepository>().getAll();
   EndpointsViewModel.endpoints.value = endpoints;
 
-  // 初始化全局主题 signal（从 SharedPreferences 加载）
-  await SettingsViewModel.initGlobalTheme(getIt<SharedPreferences>());
-
   // =============================
   // ViewModel 层
   // =============================
@@ -80,8 +77,8 @@ Future<void> setupServiceLocator() async {
     ),
   );
 
-  // 注册 EndpointsViewModel（工厂模式，依赖 EndpointRepository）
-  getIt.registerFactory<EndpointsViewModel>(
+  // 注册 EndpointsViewModel（单例模式，依赖 EndpointRepository）
+  getIt.registerLazySingleton<EndpointsViewModel>(
     () => EndpointsViewModel(endpointRepository: getIt<EndpointRepository>()),
   );
 
@@ -90,8 +87,8 @@ Future<void> setupServiceLocator() async {
     () => LogsViewModel(requestLogRepository: getIt<RequestLogRepository>()),
   );
 
-  // 注册 SettingsViewModel（工厂模式，依赖 Repository 和 SharedPreferences）
-  getIt.registerFactory<SettingsViewModel>(
+  // 注册 SettingsViewModel（单例模式，依赖 Repository 和 SharedPreferences）
+  getIt.registerLazySingleton<SettingsViewModel>(
     () => SettingsViewModel(
       endpointRepository: getIt<EndpointRepository>(),
       prefs: getIt<SharedPreferences>(),

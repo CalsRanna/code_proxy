@@ -19,9 +19,6 @@ class ProxyServerRequestHandler {
   /// 转发HTTP请求
   Future<http.StreamedResponse> forwardRequest(http.Request request) async {
     final response = await _httpClient.send(request);
-    LoggerUtil.instance.d(
-      'Forward request to ${request.url}, status: ${response.statusCode}',
-    );
     return response;
   }
 
@@ -82,9 +79,6 @@ class ProxyServerRequestHandler {
 
         if (mappedModel != null && mappedModel.isNotEmpty) {
           bodyJson['model'] = mappedModel;
-          LoggerUtil.instance.d(
-            'Model mapping: $originalModel → $mappedModel (${endpoint.name})',
-          );
         }
       }
 

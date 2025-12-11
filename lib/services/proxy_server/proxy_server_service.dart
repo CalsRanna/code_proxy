@@ -8,6 +8,7 @@ import 'package:code_proxy/services/proxy_server/proxy_server_request_handler.da
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response_handler.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -60,6 +61,9 @@ class ProxyServerService {
       config.address,
       config.port,
       poweredByHeader: null,
+    );
+    LoggerUtil.instance.d(
+      'Proxy server started on ${config.address}:${config.port}',
     );
   }
 

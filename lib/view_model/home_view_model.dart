@@ -10,7 +10,6 @@ import 'package:code_proxy/services/claude_code_config_manager.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
-import 'package:code_proxy/util/logger_util.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
@@ -289,7 +288,9 @@ class HomeViewModel extends BaseViewModel {
                   : response.body),
         level: success ? LogLevel.info : LogLevel.error,
         // 修复：使用请求头而不是响应头
-        header: request.headers.map((key, value) => MapEntry(key, value as dynamic)),
+        header: request.headers.map(
+          (key, value) => MapEntry(key, value as dynamic),
+        ),
         // 修复：添加消息字段
         message: success
             ? 'Request completed successfully'
@@ -302,7 +303,6 @@ class HomeViewModel extends BaseViewModel {
         rawResponse: response.body,
       );
 
-      LoggerUtil.instance.d('Store request log: $log');
       // 异步保存到数据库，成功后触发刷新信号
       requestLogRepository
           .insert(log)

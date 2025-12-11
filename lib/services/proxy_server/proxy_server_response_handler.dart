@@ -32,12 +32,12 @@ class ProxyServerResponseHandler {
     final isStream = _processor.isStream(response.headers);
     final cleanHeaders = _headerCleaner.clean(response.headers);
 
-    void recordStats() => _statsRecorder.record(
+    void recordStats(List<int>? responseBodyBytes) => _statsRecorder.record(
       endpoint: endpoint,
       request: request,
       requestBodyBytes: mappedRequestBodyBytes ?? requestBodyBytes,
       response: response,
-      responseBodyBytes: null,
+      responseBodyBytes: responseBodyBytes,
       responseTime: DateTime.now().millisecondsSinceEpoch - startTime,
       timeToFirstByte: null,
     );
@@ -82,10 +82,10 @@ class ResponseProcessor {
   Future<shelf.Response> processNormalResponse(
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
-    void Function() recordStats,
+    void Function(List<int>? responseBodyBytes) recordStats,
   ) async {
     final responseBodyBytes = await response.stream.toBytes();
-    recordStats();
+    recordStats(responseBodyBytes);
 
     return shelf.Response(
       response.statusCode,
@@ -98,16 +98,19 @@ class ResponseProcessor {
   shelf.Response processStreamResponse(
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
-    void Function() recordStats,
+    void Function(List<int>? responseBodyBytes) recordStats,
     void Function(Object error) recordException,
   ) {
+    final buffer = <int>[];
+
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
         handleData: (List<int> chunk, EventSink<List<int>> sink) {
+          buffer.addAll(chunk);
           sink.add(chunk);
         },
         handleDone: (EventSink<List<int>> sink) {
-          recordStats();
+          recordStats(buffer);
           sink.close();
         },
         handleError: (error, stackTrace, EventSink<List<int>> sink) {

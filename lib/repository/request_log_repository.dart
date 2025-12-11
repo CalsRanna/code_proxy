@@ -59,9 +59,9 @@ class RequestLogRepository {
 
   /// Get total count of request logs
   Future<int> getTotalCount() async {
-    final result = await _database.laconic
-        .table('request_logs')
-        .count();
+    final result = await _database.laconic.table('request_logs').select([
+      'id',
+    ]).count();
     return result;
   }
 
@@ -245,10 +245,7 @@ class RequestLogRepository {
   }
 
   /// Get logs by level
-  Future<List<RequestLog>> getByLevel(
-    LogLevel level, {
-    int? limit,
-  }) async {
+  Future<List<RequestLog>> getByLevel(LogLevel level, {int? limit}) async {
     var query = _database.laconic
         .table('request_logs')
         .where('level', level.name)

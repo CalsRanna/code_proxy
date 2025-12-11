@@ -1,13 +1,13 @@
+import 'package:code_proxy/di.dart';
+import 'package:code_proxy/router/router.dart';
+import 'package:code_proxy/themes/app_theme.dart';
 import 'package:code_proxy/util/window_util.dart';
+import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals_flutter.dart';
-
-import 'di.dart';
-import 'router/router.dart';
-import 'services/proxy_server/proxy_server_service.dart';
-import 'view_model/settings_view_model.dart';
-import 'themes/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,8 +24,15 @@ class CodeProxyApp extends StatefulWidget {
   State<CodeProxyApp> createState() => _CodeProxyAppState();
 }
 
-class CodeProxyRouter extends StatelessWidget {
-  const CodeProxyRouter({super.key});
+class _CodeProxyAppState extends State<CodeProxyApp> {
+  final settingViewModel = GetIt.instance.get<SettingsViewModel>();
+  final sharedPreferences = GetIt.instance.get<SharedPreferences>();
+
+  @override
+  void initState() {
+    settingViewModel.initGlobalTheme(sharedPreferences);
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,36 +42,10 @@ class CodeProxyRouter extends StatelessWidget {
           title: 'Code Proxy',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: SettingsViewModel.currentTheme.value,
+          themeMode: settingViewModel.currentTheme.value,
           routerConfig: router.config(),
         ),
       ),
     );
-  }
-}
-
-class _CodeProxyAppState extends State<CodeProxyApp> {
-  @override
-  Widget build(BuildContext context) {
-    return const CodeProxyRouter();
-  }
-
-  @override
-  void dispose() {
-    // 应用退出时停止代理服务器
-    _stopProxyServer();
-    super.dispose();
-  }
-
-  /// 停止代理服务器
-  void _stopProxyServer() {
-    try {
-      final proxyServer = getIt<ProxyServerService>();
-      proxyServer.stop().catchError((error) {
-        // 静默处理错误
-      });
-    } catch (e) {
-      // 如果服务未注册，忽略错误
-    }
   }
 }
