@@ -3,11 +3,11 @@ import 'package:code_proxy/page/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
 import 'package:code_proxy/page/log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
+import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
-import 'package:code_proxy/view_model/monitoring_view_model.dart';
 import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:code_proxy/widgets/theme_switcher.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +25,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeViewModel _viewModel;
   late final EndpointsViewModel _endpointsViewModel;
-  late final MonitoringViewModel _monitoringViewModel;
   late final LogsViewModel _logsViewModel;
   late final SettingsViewModel _settingsViewModel;
 
@@ -36,13 +35,11 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _viewModel = GetIt.instance.get<HomeViewModel>();
     _endpointsViewModel = GetIt.instance.get<EndpointsViewModel>();
-    _monitoringViewModel = GetIt.instance.get<MonitoringViewModel>();
     _logsViewModel = GetIt.instance.get<LogsViewModel>();
     _settingsViewModel = GetIt.instance.get<SettingsViewModel>();
 
     _viewModel.init();
     _endpointsViewModel.init();
-    _monitoringViewModel.init();
     _logsViewModel.init();
     _settingsViewModel.init();
   }
@@ -51,7 +48,6 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _viewModel.dispose();
     _endpointsViewModel.dispose();
-    _monitoringViewModel.dispose();
     _logsViewModel.dispose();
     _settingsViewModel.dispose();
     super.dispose();
@@ -66,7 +62,12 @@ class _HomePageState extends State<HomePage> {
           Container(
             width: 72,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              border: Border(
+                right: BorderSide(
+                  color: ShadcnColors.border(Theme.of(context).brightness),
+                  width: ShadcnSpacing.borderWidth,
+                ),
+              ),
             ),
             child: Column(
               spacing: ShadcnSpacing.spacing16,
@@ -77,7 +78,7 @@ class _HomePageState extends State<HomePage> {
                 }),
                 const Spacer(),
                 // 主题切换器
-                ThemeSwitcher(compact: true),
+                ThemeSwitcher(),
                 const SizedBox(height: ShadcnSpacing.spacing16),
               ],
             ),

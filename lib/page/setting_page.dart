@@ -1,4 +1,4 @@
-import 'package:code_proxy/model/proxy_server_config_entity.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
@@ -80,10 +80,7 @@ class SettingPage extends StatelessWidget {
     });
   }
 
-  void _editListenAddress(
-    BuildContext context,
-    ProxyServerConfigEntity config,
-  ) {
+  void _editListenAddress(BuildContext context, ProxyServerConfig config) {
     final controller = TextEditingController(text: config.address);
     showDialog(
       context: context,
@@ -113,7 +110,7 @@ class SettingPage extends StatelessWidget {
     );
   }
 
-  void _editListenPort(BuildContext context, ProxyServerConfigEntity config) {
+  void _editListenPort(BuildContext context, ProxyServerConfig config) {
     final controller = TextEditingController(text: config.port.toString());
     showDialog(
       context: context,

@@ -1,8 +1,8 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
-import 'package:code_proxy/widgets/charts/charts.dart';
+import 'package:code_proxy/page/dashboard/charts.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
-import 'package:code_proxy/widgets/token_heatmap.dart';
+import 'package:code_proxy/page/dashboard/token_heatmap.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';

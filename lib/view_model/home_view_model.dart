@@ -3,38 +3,43 @@ import 'dart:convert';
 
 import 'package:code_proxy/model/chart_data.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/model/request_log.dart';
+import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/services/claude_code_config_manager.dart';
-import 'package:code_proxy/services/config_manager.dart';
-import 'package:code_proxy/services/database_service.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
-import 'package:code_proxy/services/stats_collector.dart';
+import 'package:code_proxy/util/logger_util.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 
 import 'base_view_model.dart';
 import 'endpoints_view_model.dart';
+import 'logs_view_model.dart';
 
 class HomeViewModel extends BaseViewModel {
-  final StatsCollector _statsCollector;
-  final ConfigManager _configManager;
   final ClaudeCodeConfigManager _claudeCodeConfigManager;
-  final DatabaseService _databaseService;
+  final RequestLogRepository _requestLogRepository;
+  final SharedPreferences _prefs;
 
   final dailyTokenStats = signal<Map<String, int>>({});
   final chartData = signal<ChartData?>(null);
 
   ProxyServerService? _proxyServer;
 
+  // SharedPreferences keys
+  static const String _keyProxyAddress = 'proxy_address';
+  static const String _keyProxyPort = 'proxy_port';
+  static const String _keyMaxRetries = 'max_retries';
+
   HomeViewModel({
-    required StatsCollector statsCollector,
-    required ConfigManager configManager,
     required ClaudeCodeConfigManager claudeCodeConfigManager,
-    required DatabaseService databaseService,
-  }) : _statsCollector = statsCollector,
-       _configManager = configManager,
-       _claudeCodeConfigManager = claudeCodeConfigManager,
-       _databaseService = databaseService;
+    required RequestLogRepository requestLogRepository,
+    required SharedPreferences prefs,
+  }) : _claudeCodeConfigManager = claudeCodeConfigManager,
+       _requestLogRepository = requestLogRepository,
+       _prefs = prefs;
 
   ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
 
@@ -81,16 +86,27 @@ class HomeViewModel extends BaseViewModel {
       updatedAt: DateTime.now().millisecondsSinceEpoch,
     );
 
-    // 使用 ConfigManager 保存，它会自动更新全局 signal
-    await _configManager.saveEndpoint(updated);
+    // 注意：这里应该通过 EndpointsViewModel 来更新，但为了简单直接操作
+    // 在实际应用中，应该调用 EndpointsViewModel.toggleEnabled(id)
+    endpoints.value = endpoints.value.map((e) {
+      return e.id == id ? updated : e;
+    }).toList();
   }
 
   /// 自动启动代理服务器
   Future<void> _autoStartServer() async {
     ensureNotDisposed();
 
-    // 获取代理配置
-    final config = await _configManager.loadProxyConfig();
+    // 从 SharedPreferences 获取代理配置
+    final address = _prefs.getString(_keyProxyAddress) ?? '127.0.0.1';
+    final port = _prefs.getInt(_keyProxyPort) ?? 9000;
+    final maxRetries = _prefs.getInt(_keyMaxRetries) ?? 3;
+
+    final config = ProxyServerConfig(
+      address: address,
+      port: port,
+      maxRetries: maxRetries,
+    );
 
     // 检查当前配置是否已经指向代理服务器
     final isAlreadyPointingToProxy = await _claudeCodeConfigManager
@@ -112,7 +128,12 @@ class HomeViewModel extends BaseViewModel {
     _proxyServer ??= ProxyServerService(
       config: config,
       onRequestCompleted: (endpoint, request, response) {
-        handleRequestCompleted(_statsCollector, endpoint, request, response);
+        handleRequestCompleted(
+          _requestLogRepository,
+          endpoint,
+          request,
+          response,
+        );
       },
     );
     await _proxyServer?.start();
@@ -134,7 +155,7 @@ class HomeViewModel extends BaseViewModel {
       // 到今年12月31日结束
       final endDate = DateTime(now.year, 12, 31);
 
-      final stats = await _databaseService.getDailySuccessRequestStats(
+      final stats = await _requestLogRepository.getDailySuccessRequestStats(
         startTimestamp: startDate.millisecondsSinceEpoch,
         endTimestamp: endDate.millisecondsSinceEpoch,
       );
@@ -159,15 +180,15 @@ class HomeViewModel extends BaseViewModel {
 
       // 并行加载所有数据
       final results = await Future.wait([
-        _databaseService.getDailyRequestStats(
+        _requestLogRepository.getDailyRequestStats(
           startTimestamp: startDate.millisecondsSinceEpoch,
           endTimestamp: endDate.millisecondsSinceEpoch,
         ),
-        _databaseService.getEndpointTokenStats(
+        _requestLogRepository.getEndpointTokenStats(
           startTimestamp: startDate.millisecondsSinceEpoch,
           endTimestamp: endDate.millisecondsSinceEpoch,
         ),
-        _databaseService.getModelDateTokenStats(
+        _requestLogRepository.getModelDateTokenStats(
           startTimestamp: startDate.millisecondsSinceEpoch,
           endTimestamp: endDate.millisecondsSinceEpoch,
         ),
@@ -202,7 +223,7 @@ class HomeViewModel extends BaseViewModel {
   }
 
   static void handleRequestCompleted(
-    StatsCollector statsCollector,
+    RequestLogRepository requestLogRepository,
     EndpointEntity endpoint,
     ProxyServerRequest request,
     ProxyServerResponse response,
@@ -254,37 +275,40 @@ class HomeViewModel extends BaseViewModel {
         }
       }
 
-      // 记录请求到 StatsCollector
-      if (success) {
-        statsCollector.recordSuccess(
-          endpointId: endpoint.id,
-          endpointName: endpoint.name,
-          path: request.path,
-          method: request.method,
-          statusCode: response.statusCode,
-          responseTime: response.responseTime,
-          header: Map<String, dynamic>.from(response.headers),
-          model: model,
-          inputTokens: inputTokens,
-          outputTokens: outputTokens,
-        );
-      } else {
-        statsCollector.recordFailure(
-          endpointId: endpoint.id,
-          endpointName: endpoint.name,
-          path: request.path,
-          method: request.method,
-          statusCode: response.statusCode,
-          responseTime: response.responseTime,
-          error: response.statusCode > 0
-              ? 'HTTP ${response.statusCode}'
-              : response.body,
-          header: Map<String, dynamic>.from(response.headers),
-          model: model,
-          inputTokens: inputTokens,
-          outputTokens: outputTokens,
-        );
-      }
+      // 创建并保存日志到数据库（异步，不等待）
+      final log = RequestLog(
+        id: '', // 由数据库生成
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        endpointId: endpoint.id,
+        endpointName: endpoint.name,
+        path: request.path,
+        method: request.method,
+        statusCode: response.statusCode,
+        responseTime: response.responseTime,
+        success: success,
+        error: success
+            ? null
+            : (response.statusCode > 0
+                  ? 'HTTP ${response.statusCode}'
+                  : response.body),
+        level: success ? LogLevel.info : LogLevel.error,
+        header: Map<String, dynamic>.from(response.headers),
+        model: model,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        rawHeader: null,
+        rawRequest: null,
+        rawResponse: null,
+      );
+
+      LoggerUtil.instance.d('Store request log: $log');
+      // 异步保存到数据库，成功后触发刷新信号
+      requestLogRepository.insert(log).then((_) {
+        // 插入成功后，通知 LogsViewModel 刷新
+        LogsViewModel.newLogInserted.value++;
+      }).catchError((error) {
+        // 静默处理错误
+      });
     } catch (e) {
       // 记录失败，静默处理
     }

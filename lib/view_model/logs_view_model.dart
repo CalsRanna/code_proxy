@@ -1,17 +1,19 @@
-import 'dart:async';
 import 'package:code_proxy/model/request_log.dart';
-import 'package:code_proxy/services/database_service.dart';
+import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:signals/signals.dart';
 import 'base_view_model.dart';
 
 /// 日志 ViewModel
 /// 负责日志管理和过滤
 class LogsViewModel extends BaseViewModel {
-  final DatabaseService _databaseService;
+  final RequestLogRepository _requestLogRepository;
+
+  /// 全局信号：通知有新日志插入（用于跨 ViewModel 通信）
+  /// 使用 static 确保跨实例共享
+  static final newLogInserted = signal(0);
 
   /// 响应式状态
   final logs = listSignal<RequestLog>([]);
-  final autoRefresh = signal(true);
 
   /// 分页状态
   final currentPage = signal(1);
@@ -19,95 +21,72 @@ class LogsViewModel extends BaseViewModel {
   final totalPages = signal(1);
   final totalRecords = signal(0);
 
-  /// 自动刷新定时器
-  Timer? _refreshTimer;
+  /// Signal 监听器
+  EffectCleanup? _logInsertedEffect;
 
   LogsViewModel({
-    required DatabaseService databaseService,
-  })  : _databaseService = databaseService;
+    required RequestLogRepository requestLogRepository,
+  })  : _requestLogRepository = requestLogRepository;
 
   /// 初始化
   void init() {
     ensureNotDisposed();
     loadLogs();
-    startAutoRefresh();
+    _listenToNewLogs();
   }
 
   // =========================
   // 日志加载
   // =========================
 
+  /// 监听新日志插入信号
+  void _listenToNewLogs() {
+    _logInsertedEffect = effect(() {
+      // 监听 newLogInserted 的变化
+      final _ = newLogInserted.value;
+
+      // 当有新日志插入时，如果当前在第一页，则刷新数据
+      if (currentPage.value == 1) {
+        loadLogs();
+      }
+    });
+  }
+
   /// 加载日志（真正的分页加载）
   void loadLogs() async {
     if (isDisposed) return;
 
     try {
-      // 优先从数据库分页加载
-      if (_databaseService.isInitialized) {
-        final startIndex = (currentPage.value - 1) * pageSize.value;
-        final dbLogs = await _databaseService.getAllRequestLogs(
+      // 从数据库分页加载
+      final startIndex = (currentPage.value - 1) * pageSize.value;
+      final dbLogs = await _requestLogRepository.getAll(
+        limit: pageSize.value,
+        offset: startIndex,
+      );
+      logs.value = dbLogs;
+
+      // 获取总记录数并计算总页数
+      final total = await _requestLogRepository.getTotalCount();
+      totalRecords.value = total;
+      totalPages.value = (total / pageSize.value).ceil();
+      if (totalPages.value == 0) totalPages.value = 1;
+
+      // 确保当前页在有效范围内
+      if (currentPage.value > totalPages.value) {
+        currentPage.value = totalPages.value;
+        // 重新加载当前页数据
+        final newStartIndex = (currentPage.value - 1) * pageSize.value;
+        final newDbLogs = await _requestLogRepository.getAll(
           limit: pageSize.value,
-          offset: startIndex,
+          offset: newStartIndex,
         );
-        logs.value = dbLogs;
-
-        // 获取总记录数并计算总页数
-        final total = await _databaseService.getRequestLogTotalCount();
-        totalRecords.value = total;
-        totalPages.value = (total / pageSize.value).ceil();
-        if (totalPages.value == 0) totalPages.value = 1;
-
-        // 确保当前页在有效范围内
-        if (currentPage.value > totalPages.value) {
-          currentPage.value = totalPages.value;
-          // 重新加载当前页数据
-          final newStartIndex = (currentPage.value - 1) * pageSize.value;
-          final newDbLogs = await _databaseService.getAllRequestLogs(
-            limit: pageSize.value,
-            offset: newStartIndex,
-          );
-          logs.value = newDbLogs;
-        }
-      } else {
-        // 如果数据库未初始化，返回空列表
-        logs.value = [];
-        totalRecords.value = 0;
-        totalPages.value = 1;
+        logs.value = newDbLogs;
       }
     } catch (e) {
       // 出错时返回空列表
       logs.value = [];
       totalRecords.value = 0;
       totalPages.value = 1;
-    }
-  }
-
-  /// 开始自动刷新（每 10 秒）
-  void startAutoRefresh() {
-    if (!autoRefresh.value) return;
-
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) { // 从2秒改为10秒
-      if (autoRefresh.value) {
-        loadLogs();
-      }
-    });
-  }
-
-  /// 停止自动刷新
-  void stopAutoRefresh() {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
-  }
-
-  /// 切换自动刷新
-  void toggleAutoRefresh() {
-    autoRefresh.value = !autoRefresh.value;
-
-    if (autoRefresh.value) {
-      startAutoRefresh();
-    } else {
-      stopAutoRefresh();
     }
   }
 
@@ -156,10 +135,8 @@ class LogsViewModel extends BaseViewModel {
   /// 清空日志（仅清空数据库）
   Future<void> clearLogs() async {
     ensureNotDisposed();
-    if (_databaseService.isInitialized) {
-      await _databaseService.clearAllRequestLogs();
-      loadLogs(); // 重新加载（当前页）
-    }
+    await _requestLogRepository.clearAll();
+    loadLogs(); // 重新加载（当前页）
   }
 
   // =========================
@@ -168,12 +145,11 @@ class LogsViewModel extends BaseViewModel {
 
   @override
   void dispose() {
-    // 停止自动刷新并清理定时器
-    stopAutoRefresh();
+    // 清理 effect 监听器
+    _logInsertedEffect?.call();
 
     // 清理所有信号
     logs.dispose();
-    autoRefresh.dispose();
     currentPage.dispose();
     pageSize.dispose();
     totalPages.dispose();

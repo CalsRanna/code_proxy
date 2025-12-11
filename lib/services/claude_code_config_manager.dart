@@ -154,9 +154,15 @@ class ClaudeCodeConfigManager {
 
       final proxyConfig = {
         'env': {
-          'ANTHROPIC_BASE_URL': 'http://$proxyAddress:$proxyPort',
-          // 使用临时 token，代理服务器会识别并替换为真实 token
           'ANTHROPIC_AUTH_TOKEN': generateProxyToken(),
+          'ANTHROPIC_BASE_URL': 'http://$proxyAddress:$proxyPort',
+          'ANTHROPIC_DEFAULT_HAIKU_MODEL': 'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+          'ANTHROPIC_DEFAULT_OPUS_MODEL': 'ANTHROPIC_DEFAULT_OPUS_MODEL',
+          'ANTHROPIC_DEFAULT_SONNET_MODEL': 'ANTHROPIC_DEFAULT_SONNET_MODEL',
+          'ANTHROPIC_MODEL': 'ANTHROPIC_MODEL',
+          'ANTHROPIC_SMALL_FAST_MODEL': 'ANTHROPIC_SMALL_FAST_MODEL',
+          'API_TIMEOUT_MS': 'API_TIMEOUT_MS',
+          'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': 1,
         },
       };
 
@@ -247,4 +253,18 @@ class ClaudeCodeConfigManager {
 
     return null;
   }
+
+  final claudeCodeSettingTemplate = {
+    'env': {
+      'ANTHROPIC_AUTH_TOKEN': '{ANTHROPIC_AUTH_TOKEN}',
+      'ANTHROPIC_BASE_URL': '{ANTHROPIC_BASE_URL}',
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL': '{ANTHROPIC_DEFAULT_HAIKU_MODEL}',
+      'ANTHROPIC_DEFAULT_OPUS_MODEL': '{ANTHROPIC_DEFAULT_OPUS_MODEL}',
+      'ANTHROPIC_DEFAULT_SONNET_MODEL': '{ANTHROPIC_DEFAULT_SONNET_MODEL}',
+      'ANTHROPIC_MODEL': '{ANTHROPIC_MODEL}',
+      'ANTHROPIC_SMALL_FAST_MODEL': '{ANTHROPIC_SMALL_FAST_MODEL}',
+      'API_TIMEOUT_MS': 3000000,
+      'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': 1,
+    },
+  };
 }

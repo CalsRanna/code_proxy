@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/model/proxy_server_config_entity.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -12,7 +12,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 class ProxyServerService {
-  final ProxyServerConfigEntity config;
+  final ProxyServerConfig config;
   final void Function(EndpointEntity)? onEndpointUnavailable;
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   onRequestCompleted;
@@ -42,7 +42,7 @@ class ProxyServerService {
     _server = await shelf_io.serve(
       _proxyHandler,
       config.address,
-      9000,
+      config.port,
       poweredByHeader: null,
     );
   }

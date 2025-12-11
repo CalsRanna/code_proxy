@@ -1,22 +1,27 @@
-import 'package:code_proxy/model/proxy_server_config_entity.dart';
-import 'package:code_proxy/services/config_manager.dart';
-import 'package:code_proxy/services/theme_service.dart';
+import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
+import 'dart:convert';
+import 'dart:io';
 import 'base_view_model.dart';
 
 /// 设置 ViewModel
 /// 负责应用设置和配置管理
 class SettingsViewModel extends BaseViewModel {
-  final ConfigManager _configManager;
-  final ThemeService _themeService;
+  final EndpointRepository _endpointRepository;
+  late final SharedPreferences _prefs;
 
   /// 全局共享的主题模式 signal（所有 ViewModel 实例共享）
   /// 使用 static 确保跨实例共享状态，并在应用启动时可访问
   static final currentTheme = signal(ThemeMode.system);
 
   /// 响应式状态
-  final config = signal(const ProxyServerConfigEntity());
+  final config = signal(const ProxyServerConfig());
   final isSaving = signal(false);
   final isImporting = signal(false);
   final isExporting = signal(false);
@@ -24,11 +29,18 @@ class SettingsViewModel extends BaseViewModel {
   // 应用设置
   final language = signal('auto'); // 'zh', 'en', 'auto'
 
+  // 常量
+  static const String _themeKey = 'app_theme_mode';
+  static const String _keyLanguage = 'language';
+  static const String _keyProxyAddress = 'proxy_address';
+  static const String _keyProxyPort = 'proxy_port';
+  static const String _keyMaxRetries = 'max_retries';
+
   SettingsViewModel({
-    required ConfigManager configManager,
-    required ThemeService themeService,
-  }) : _configManager = configManager,
-       _themeService = themeService;
+    required EndpointRepository endpointRepository,
+    required SharedPreferences prefs,
+  }) : _endpointRepository = endpointRepository,
+       _prefs = prefs;
 
   /// 初始化
   Future<void> init() async {
@@ -38,9 +50,19 @@ class SettingsViewModel extends BaseViewModel {
   }
 
   /// 静态方法：初始化全局主题（在应用启动时调用）
-  static Future<void> initGlobalTheme(ThemeService themeService) async {
-    final theme = await themeService.loadTheme();
-    currentTheme.value = theme;
+  static Future<void> initGlobalTheme(SharedPreferences prefs) async {
+    try {
+      final themeIndex = prefs.getInt(_themeKey);
+      if (themeIndex != null &&
+          themeIndex >= 0 &&
+          themeIndex < ThemeMode.values.length) {
+        currentTheme.value = ThemeMode.values[themeIndex];
+      } else {
+        currentTheme.value = ThemeMode.system;
+      }
+    } catch (e) {
+      currentTheme.value = ThemeMode.system;
+    }
   }
 
   // =========================
@@ -52,20 +74,30 @@ class SettingsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     try {
-      config.value = await _configManager.loadProxyConfig();
+      final address = _prefs.getString(_keyProxyAddress) ?? '127.0.0.1';
+      final port = _prefs.getInt(_keyProxyPort) ?? 9000;
+      final maxRetries = _prefs.getInt(_keyMaxRetries) ?? 3;
+
+      config.value = ProxyServerConfig(
+        address: address,
+        port: port,
+        maxRetries: maxRetries,
+      );
     } catch (e) {
       rethrow;
     }
   }
 
   /// 保存代理配置
-  Future<void> saveConfig(ProxyServerConfigEntity newConfig) async {
+  Future<void> saveConfig(ProxyServerConfig newConfig) async {
     ensureNotDisposed();
 
     isSaving.value = true;
 
     try {
-      await _configManager.saveProxyConfig(newConfig);
+      await _prefs.setString(_keyProxyAddress, newConfig.address);
+      await _prefs.setInt(_keyProxyPort, newConfig.port);
+      await _prefs.setInt(_keyMaxRetries, newConfig.maxRetries);
       config.value = newConfig;
     } catch (e) {
       rethrow;
@@ -76,18 +108,10 @@ class SettingsViewModel extends BaseViewModel {
 
   /// 更新监听地址
   Future<void> updateListenAddress(String address) async {
-    final updated = ProxyServerConfigEntity(
+    final updated = ProxyServerConfig(
       address: address,
       port: config.value.port,
       maxRetries: config.value.maxRetries,
-      requestTimeout: config.value.requestTimeout,
-      healthCheckInterval: config.value.healthCheckInterval,
-      healthCheckTimeout: config.value.healthCheckTimeout,
-      healthCheckPath: config.value.healthCheckPath,
-      consecutiveFailureThreshold: config.value.consecutiveFailureThreshold,
-      enableLogging: config.value.enableLogging,
-      maxLogEntries: config.value.maxLogEntries,
-      responseTimeWindowSize: config.value.responseTimeWindowSize,
     );
 
     await saveConfig(updated);
@@ -95,18 +119,21 @@ class SettingsViewModel extends BaseViewModel {
 
   /// 更新监听端口
   Future<void> updateListenPort(int port) async {
-    final updated = ProxyServerConfigEntity(
+    final updated = ProxyServerConfig(
       address: config.value.address,
       port: port,
       maxRetries: config.value.maxRetries,
-      requestTimeout: config.value.requestTimeout,
-      healthCheckInterval: config.value.healthCheckInterval,
-      healthCheckTimeout: config.value.healthCheckTimeout,
-      healthCheckPath: config.value.healthCheckPath,
-      consecutiveFailureThreshold: config.value.consecutiveFailureThreshold,
-      enableLogging: config.value.enableLogging,
-      maxLogEntries: config.value.maxLogEntries,
-      responseTimeWindowSize: config.value.responseTimeWindowSize,
+    );
+
+    await saveConfig(updated);
+  }
+
+  /// 更新最大重试次数
+  Future<void> updateMaxRetries(int maxRetries) async {
+    final updated = ProxyServerConfig(
+      address: config.value.address,
+      port: config.value.port,
+      maxRetries: maxRetries,
     );
 
     await saveConfig(updated);
@@ -115,7 +142,7 @@ class SettingsViewModel extends BaseViewModel {
   /// 重置为默认配置
   Future<void> resetToDefaults() async {
     ensureNotDisposed();
-    await saveConfig(const ProxyServerConfigEntity());
+    await saveConfig(const ProxyServerConfig());
   }
 
   // =========================
@@ -127,7 +154,7 @@ class SettingsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     // 主题已在 initGlobalTheme 中加载，这里只加载其他设置
-    language.value = _configManager.getLanguage();
+    language.value = _prefs.getString(_keyLanguage) ?? 'auto';
   }
 
   // =========================
@@ -149,7 +176,7 @@ class SettingsViewModel extends BaseViewModel {
 
     if (currentTheme.value != mode) {
       currentTheme.value = mode;
-      await _themeService.saveTheme(mode);
+      await _prefs.setInt(_themeKey, mode.index);
     }
   }
 
@@ -205,7 +232,7 @@ class SettingsViewModel extends BaseViewModel {
   Future<void> setLanguage(String lang) async {
     ensureNotDisposed();
 
-    await _configManager.setLanguage(lang);
+    await _prefs.setString(_keyLanguage, lang);
     language.value = lang;
   }
 
@@ -213,15 +240,43 @@ class SettingsViewModel extends BaseViewModel {
   // 导入导出
   // =========================
 
-  /// 导出配置到文件
+  /// 导出配置到 JSON 文件
   Future<String> exportConfig() async {
     ensureNotDisposed();
 
     isExporting.value = true;
 
     try {
-      final filePath = await _configManager.exportConfig();
-      return filePath;
+      // 获取导出数据
+      final endpoints = await _endpointRepository.getAll();
+
+      // 构建导出对象
+      final exportData = {
+        'version': '1.0',
+        'exportedAt': DateTime.now().toIso8601String(),
+        'proxyConfig': {
+          'address': config.value.address,
+          'port': config.value.port,
+          'maxRetries': config.value.maxRetries,
+        },
+        'endpoints': endpoints.map((e) => e.toJson()).toList(),
+      };
+
+      // 获取文档目录
+      final docDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final exportPath = path.join(
+        docDir.path,
+        'code_proxy_export_$timestamp.json',
+      );
+
+      // 写入文件
+      final file = File(exportPath);
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(exportData),
+      );
+
+      return exportPath;
     } catch (e) {
       rethrow;
     } finally {
@@ -229,14 +284,64 @@ class SettingsViewModel extends BaseViewModel {
     }
   }
 
-  /// 从文件导入配置
+  /// 从 JSON 文件导入配置
   Future<void> importConfig(String filePath, {bool merge = false}) async {
     ensureNotDisposed();
 
     isImporting.value = true;
 
     try {
-      await _configManager.importConfig(filePath, merge: merge);
+      // 读取文件
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('配置文件不存在: $filePath');
+      }
+
+      final content = await file.readAsString();
+      final jsonData = jsonDecode(content) as Map<String, dynamic>;
+
+      // 验证版本
+      final version = jsonData['version'] as String?;
+      if (version != '1.0') {
+        throw Exception('不支持的配置文件版本: $version');
+      }
+
+      // 导入代理配置
+      if (jsonData.containsKey('proxyConfig')) {
+        final proxyConfigJson = jsonData['proxyConfig'] as Map<String, dynamic>;
+        final proxyConfig = ProxyServerConfig(
+          address: proxyConfigJson['address'] as String? ?? '127.0.0.1',
+          port: proxyConfigJson['port'] as int? ?? 9000,
+          maxRetries: proxyConfigJson['maxRetries'] as int? ?? 3,
+        );
+        await saveConfig(proxyConfig);
+      }
+
+      // 导入端点
+      if (jsonData.containsKey('endpoints')) {
+        final endpointsJson = jsonData['endpoints'] as List;
+
+        // 如果不是合并模式，先清空现有端点
+        if (!merge) {
+          await _endpointRepository.clearAll();
+        }
+
+        // 插入或更新端点
+        for (final endpointJson in endpointsJson) {
+          final endpoint = EndpointEntity.fromJson(
+            endpointJson as Map<String, dynamic>,
+          );
+
+          // 检查端点是否已存在
+          final existing = await _endpointRepository.getById(endpoint.id);
+          if (existing == null) {
+            await _endpointRepository.insert(endpoint);
+          } else {
+            await _endpointRepository.update(endpoint);
+          }
+        }
+      }
+
       await loadConfig();
     } catch (e) {
       rethrow;
@@ -254,7 +359,15 @@ class SettingsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     try {
-      await _configManager.clearAll();
+      // 清空端点
+      await _endpointRepository.clearAll();
+
+      // 重置代理配置为默认值
+      await saveConfig(const ProxyServerConfig());
+
+      // 清空 SharedPreferences
+      await _prefs.clear();
+
       await loadConfig();
       await loadAppSettings();
     } catch (e) {

@@ -1,5 +1,5 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/services/config_manager.dart';
+import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
@@ -8,7 +8,7 @@ import 'base_view_model.dart';
 /// 端点管理 ViewModel
 /// 负责端点的 CRUD 操作
 class EndpointsViewModel extends BaseViewModel {
-  final ConfigManager _configManager;
+  final EndpointRepository _endpointRepository;
   final Uuid _uuid = const Uuid();
 
   /// 全局共享的端点列表 signal（所有 ViewModel 实例共享）
@@ -34,13 +34,12 @@ class EndpointsViewModel extends BaseViewModel {
     }).toList();
   });
 
-  EndpointsViewModel({required ConfigManager configManager})
-    : _configManager = configManager;
+  EndpointsViewModel({required EndpointRepository endpointRepository})
+      : _endpointRepository = endpointRepository;
 
   /// 初始化
   Future<void> init() async {
     ensureNotDisposed();
-    // 从 ConfigManager 加载端点到 ViewModel 的 signal
     await _loadEndpoints();
   }
 
@@ -48,7 +47,7 @@ class EndpointsViewModel extends BaseViewModel {
   Future<void> _loadEndpoints() async {
     ensureNotDisposed();
     try {
-      final data = await _configManager.loadEndpoints();
+      final data = await _endpointRepository.getAll();
       endpoints.value = data;
     } catch (e) {
       errorMessage.value = e.toString();
@@ -99,8 +98,7 @@ class EndpointsViewModel extends BaseViewModel {
     );
 
     try {
-      await _configManager.saveEndpoint(endpoint);
-      // 重新加载端点列表以更新 signal
+      await _endpointRepository.insert(endpoint);
       await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
@@ -117,8 +115,7 @@ class EndpointsViewModel extends BaseViewModel {
     );
 
     try {
-      await _configManager.saveEndpoint(updated);
-      // 重新加载端点列表以更新 signal
+      await _endpointRepository.update(updated);
       await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
@@ -131,8 +128,7 @@ class EndpointsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     try {
-      await _configManager.deleteEndpoint(id);
-      // 重新加载端点列表以更新 signal
+      await _endpointRepository.delete(id);
       await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
@@ -151,8 +147,7 @@ class EndpointsViewModel extends BaseViewModel {
     );
 
     try {
-      await _configManager.saveEndpoint(updated);
-      // 重新加载端点列表以更新 signal
+      await _endpointRepository.update(updated);
       await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
@@ -165,8 +160,7 @@ class EndpointsViewModel extends BaseViewModel {
     ensureNotDisposed();
 
     try {
-      await _configManager.clearAllEndpoints();
-      // 重新加载端点列表以更新 signal
+      await _endpointRepository.clearAll();
       await _loadEndpoints();
     } catch (e) {
       errorMessage.value = e.toString();
