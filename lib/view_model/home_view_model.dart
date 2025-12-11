@@ -288,7 +288,12 @@ class HomeViewModel extends BaseViewModel {
                   ? 'HTTP ${response.statusCode}'
                   : response.body),
         level: success ? LogLevel.info : LogLevel.error,
-        header: Map<String, dynamic>.from(response.headers),
+        // 修复：使用请求头而不是响应头
+        header: request.headers.map((key, value) => MapEntry(key, value as dynamic)),
+        // 修复：添加消息字段
+        message: success
+            ? 'Request completed successfully'
+            : 'Request failed with status ${response.statusCode}',
         model: model,
         inputTokens: inputTokens,
         outputTokens: outputTokens,
