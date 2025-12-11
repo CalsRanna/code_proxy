@@ -8,10 +8,6 @@ import 'base_view_model.dart';
 class LogsViewModel extends BaseViewModel {
   final RequestLogRepository _requestLogRepository;
 
-  /// 全局信号：通知有新日志插入（用于跨 ViewModel 通信）
-  /// 使用 static 确保跨实例共享
-  static final newLogInserted = signal(0);
-
   /// 响应式状态
   final logs = listSignal<RequestLog>([]);
 
@@ -24,32 +20,13 @@ class LogsViewModel extends BaseViewModel {
   /// Signal 监听器
   EffectCleanup? _logInsertedEffect;
 
-  LogsViewModel({
-    required RequestLogRepository requestLogRepository,
-  })  : _requestLogRepository = requestLogRepository;
+  LogsViewModel({required RequestLogRepository requestLogRepository})
+    : _requestLogRepository = requestLogRepository;
 
   /// 初始化
   void init() {
     ensureNotDisposed();
     loadLogs();
-    _listenToNewLogs();
-  }
-
-  // =========================
-  // 日志加载
-  // =========================
-
-  /// 监听新日志插入信号
-  void _listenToNewLogs() {
-    _logInsertedEffect = effect(() {
-      // 监听 newLogInserted 的变化
-      final _ = newLogInserted.value;
-
-      // 当有新日志插入时，如果当前在第一页，则刷新数据
-      if (currentPage.value == 1) {
-        loadLogs();
-      }
-    });
   }
 
   /// 加载日志（真正的分页加载）

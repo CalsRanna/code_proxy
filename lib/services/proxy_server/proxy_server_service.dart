@@ -12,13 +12,21 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 class ProxyServerService {
+  static final _defaultAnthropicDefaultHaikuModel = 'claude-haiku-4-5-20251001';
+  static final _defaultAnthropicDefaultSonnetModel =
+      'claude-sonnet-4-5-20250929';
+  static final _defaultAnthropicDefaultOpusModel = 'claude-opus-4-5-20251101';
+  static final _defaultAnthropicModel = 'claude-sonnet-4-5-20250929';
+  static final _defaultAnthropicSmallFastModel = 'claude-haiku-4-5-20251001';
+
   final ProxyServerConfig config;
   final void Function(EndpointEntity)? onEndpointUnavailable;
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   onRequestCompleted;
-
   List<EndpointEntity> _endpoints = [];
+
   final http.Client _httpClient = http.Client();
+
   HttpServer? _server;
 
   ProxyServerService({
@@ -61,33 +69,39 @@ class ProxyServerService {
     }
   }
 
-  Future<http.StreamedResponse> _forwardRequest(
+  Future<({http.StreamedResponse response, List<int> modifiedBody})>
+  _forwardRequest(
     shelf.Request request,
     EndpointEntity endpoint,
     List<List<int>> bodyBytes,
   ) async {
-    final uri = Uri.parse(endpoint.anthropicBaseUrl ?? '').replace(
-      path: request.url.path,
-      query: request.url.query.isEmpty ? null : request.url.query,
-    );
+    final url =
+        '${endpoint.anthropicBaseUrl}/${request.url.path}?${request.url.query}';
+    final uri = Uri.parse(url);
     final headers = Map<String, String>.from(request.headers);
     // headers['authorization'] = 'Bearer ${endpoint.anthropicAuthToken ?? ''}';
     headers['x-api-key'] = endpoint.anthropicAuthToken ?? '';
     headers.remove('authorization');
     headers.remove('host');
     headers.remove('content-length');
+
+    // 替换 body 中的 model 字段
+    final modifiedBody = _replaceModelInBody(bodyBytes, endpoint);
+
     final forwardRequest = http.Request(request.method, uri)
       ..headers.addAll(headers)
-      ..bodyBytes = bodyBytes.expand((x) => x).toList();
+      ..bodyBytes = modifiedBody;
+    final response = await _httpClient.send(forwardRequest);
+    LoggerUtil.instance.d('Forward request to $uri, ${response.statusCode}');
 
-    return await _httpClient.send(forwardRequest);
+    return (response: response, modifiedBody: modifiedBody);
   }
 
   Future<shelf.Response> _handleNormalResponse(
     http.StreamedResponse response,
     EndpointEntity endpoint,
     shelf.Request request,
-    List<List<int>> requestBodyBytes,
+    List<int> modifiedRequestBody,
     int startTime,
   ) async {
     final responseBodyBytes = await response.stream.toBytes();
@@ -96,7 +110,7 @@ class ProxyServerService {
     final proxyRequest = ProxyServerRequest(
       path: request.url.path,
       method: request.method,
-      body: _decodeBytes(requestBodyBytes),
+      body: utf8.decode(modifiedRequestBody, allowMalformed: true),
       headers: request.headers,
     );
     final proxyResponse = ProxyServerResponse(
@@ -124,7 +138,7 @@ class ProxyServerService {
     http.StreamedResponse response,
     EndpointEntity endpoint,
     shelf.Request request,
-    List<List<int>> requestBodyBytes,
+    List<int> modifiedRequestBody,
     int startTime,
   ) {
     final responseBodyBytes = <int>[];
@@ -145,7 +159,7 @@ class ProxyServerService {
           final proxyRequest = ProxyServerRequest(
             path: request.url.path,
             method: request.method,
-            body: _decodeBytes(requestBodyBytes),
+            body: utf8.decode(modifiedRequestBody, allowMalformed: true),
             headers: request.headers,
           );
 
@@ -166,7 +180,7 @@ class ProxyServerService {
             endpoint: endpoint,
             request: request,
             startTime: startTime,
-            bodyBytes: requestBodyBytes,
+            modifiedRequestBody: modifiedRequestBody,
             error: error,
           );
           sink.addError(error, stackTrace);
@@ -194,6 +208,24 @@ class ProxyServerService {
         contentType.contains('application/stream+json');
   }
 
+  /// 根据原始模型名称和端点配置获取映射后的模型
+  String? _mapModel(String? originalModel, EndpointEntity endpoint) {
+    return switch (originalModel) {
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL' =>
+        endpoint.anthropicDefaultHaikuModel ??
+            _defaultAnthropicDefaultHaikuModel,
+      'ANTHROPIC_DEFAULT_SONNET_MODEL' =>
+        endpoint.anthropicDefaultSonnetModel ??
+            _defaultAnthropicDefaultSonnetModel,
+      'ANTHROPIC_DEFAULT_OPUS_MODEL' =>
+        endpoint.anthropicDefaultOpusModel ?? _defaultAnthropicDefaultOpusModel,
+      'ANTHROPIC_MODEL' => endpoint.anthropicModel ?? _defaultAnthropicModel,
+      'ANTHROPIC_SMALL_FAST_MODEL' =>
+        endpoint.anthropicSmallFastModel ?? _defaultAnthropicSmallFastModel,
+      _ => _defaultAnthropicModel,
+    };
+  }
+
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final startTime = DateTime.now().millisecondsSinceEpoch;
     final bodyBytes = await request.read().toList();
@@ -201,11 +233,10 @@ class ProxyServerService {
     for (var endpoint in _endpoints) {
       for (int attempt = 0; attempt <= config.maxRetries; attempt++) {
         try {
-          final response = await _forwardRequest(request, endpoint, bodyBytes);
+          final result = await _forwardRequest(request, endpoint, bodyBytes);
+          final response = result.response;
+          final modifiedBody = result.modifiedBody;
           final statusCode = response.statusCode;
-          LoggerUtil.instance.d(
-            'Forward request to ${endpoint.name}, $statusCode',
-          );
 
           final isStreamResponse = _isStreamResponse(response.headers);
           if (isStreamResponse) {
@@ -213,7 +244,7 @@ class ProxyServerService {
               response,
               endpoint,
               request,
-              bodyBytes,
+              modifiedBody,
               startTime,
             );
           } else {
@@ -221,7 +252,7 @@ class ProxyServerService {
               response,
               endpoint,
               request,
-              bodyBytes,
+              modifiedBody,
               startTime,
             );
 
@@ -230,28 +261,28 @@ class ProxyServerService {
             } else if (statusCode >= 400 && statusCode < 500) {
               return shelfResponse;
             } else {
+              // 5xx 错误：重试当前端点
               if (attempt < config.maxRetries) {
                 continue;
               }
-              return shelfResponse;
+              // 达到最大重试次数，尝试下一个端点
+              break;
             }
           }
         } catch (e) {
+          // 异常：重试当前端点
           if (attempt < config.maxRetries) {
             continue;
           }
+          // 达到最大重试次数，记录异常并尝试下一个端点
           _recordException(
             endpoint: endpoint,
             request: request,
             startTime: startTime,
-            bodyBytes: bodyBytes,
+            modifiedRequestBody: _replaceModelInBody(bodyBytes, endpoint),
             error: e,
           );
-          return shelf.Response(
-            500,
-            body: 'Internal Server Error',
-            headers: {'content-type': 'text/plain'},
-          );
+          break;
         }
       }
     }
@@ -266,7 +297,7 @@ class ProxyServerService {
     required EndpointEntity endpoint,
     required shelf.Request request,
     required int startTime,
-    required List<List<int>> bodyBytes,
+    required List<int> modifiedRequestBody,
     required Object error,
   }) {
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
@@ -274,7 +305,7 @@ class ProxyServerService {
     final proxyRequest = ProxyServerRequest(
       path: request.url.path,
       method: request.method,
-      body: _decodeBytes(bodyBytes),
+      body: utf8.decode(modifiedRequestBody, allowMalformed: true),
       headers: request.headers,
     );
 
@@ -286,5 +317,41 @@ class ProxyServerService {
     );
 
     onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
+  }
+
+  /// 替换请求 body 中的 model 字段
+  List<int> _replaceModelInBody(
+    List<List<int>> bodyBytes,
+    EndpointEntity endpoint,
+  ) {
+    try {
+      final bodyString = _decodeBytes(bodyBytes);
+      if (bodyString.isEmpty) {
+        return bodyBytes.expand((x) => x).toList();
+      }
+
+      // 解析 JSON
+      final bodyJson = jsonDecode(bodyString) as Map<String, dynamic>;
+
+      // 如果有 model 字段,进行替换
+      if (bodyJson.containsKey('model')) {
+        final originalModel = bodyJson['model'] as String?;
+        final mappedModel = _mapModel(originalModel, endpoint);
+
+        if (mappedModel != null && mappedModel.isNotEmpty) {
+          bodyJson['model'] = mappedModel;
+          LoggerUtil.instance.d(
+            'Model mapping: $originalModel → $mappedModel (${endpoint.name})',
+          );
+        }
+      }
+
+      // 重新编码为 JSON
+      return utf8.encode(jsonEncode(bodyJson));
+    } catch (e) {
+      // 如果解析失败,返回原始 body
+      LoggerUtil.instance.w('Failed to parse/replace model in body: $e');
+      return bodyBytes.expand((x) => x).toList();
+    }
   }
 }

@@ -38,97 +38,100 @@ class LogPage extends StatelessWidget {
             ],
           ),
           Expanded(
-            child: logs.isEmpty
-                ? const EmptyState(
-                    icon: LucideIcons.arrowUpDown,
-                    message: '暂无日志记录',
-                  )
-                : Column(
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: ShadcnSpacing.spacing24,
-                          ),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return ShadTable(
-                                columnSpanExtent: (column) {
-                                  final totalFixedWidth =
-                                      180 + 160 + 100 + 120 + 120;
-                                  final availableWidth = constraints.maxWidth;
-                                  final remainingWidth =
-                                      (availableWidth - totalFixedWidth).clamp(
-                                        120.0,
-                                        double.infinity,
-                                      );
+            child: Watch((context) {
+              return logs.isEmpty
+                  ? const EmptyState(
+                      icon: LucideIcons.arrowUpDown,
+                      message: '暂无日志记录',
+                    )
+                  : Column(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: ShadcnSpacing.spacing24,
+                            ),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                return ShadTable(
+                                  columnSpanExtent: (column) {
+                                    final totalFixedWidth =
+                                        180 + 160 + 100 + 120 + 120;
+                                    final availableWidth = constraints.maxWidth;
+                                    final remainingWidth =
+                                        (availableWidth - totalFixedWidth)
+                                            .clamp(120.0, double.infinity);
 
-                                  return switch (column) {
-                                    0 => FixedSpanExtent(180),
-                                    1 => FixedSpanExtent(160),
-                                    2 => FixedSpanExtent(remainingWidth),
-                                    3 => FixedSpanExtent(100),
-                                    4 => FixedSpanExtent(120),
-                                    5 => FixedSpanExtent(120),
-                                    _ => null,
-                                  };
-                                },
-                                pinnedRowCount: 1,
-                                onRowTap: (row) {
-                                  if (row == 0) return;
-                                  LogDetailDialog.show(context, logs[row - 1]);
-                                },
-                                header: (context, column) {
-                                  var text = switch (column) {
-                                    0 => '请求时间',
-                                    1 => '端点',
-                                    2 => '模型',
-                                    3 => '状态码',
-                                    4 => '响应时间',
-                                    5 => 'Token',
-                                    _ => '',
-                                  };
-                                  return ShadTableCell.header(
-                                    child: Text(text),
-                                  );
-                                },
-                                builder: (context, index) {
-                                  var log = logs[index.row];
-                                  var text = switch (index.column) {
-                                    0 => DateTime.fromMillisecondsSinceEpoch(
-                                      log.timestamp,
-                                    ).toString().substring(0, 19),
-                                    1 => log.endpointName,
-                                    2 => log.model,
-                                    3 => (log.statusCode ?? 0).toString(),
-                                    4 =>
-                                      '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
-                                    5 =>
-                                      '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}',
-                                    _ => '',
-                                  };
-                                  return ShadTableCell(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(text ?? 'null'),
-                                  );
-                                },
-                                columnCount: 6,
-                                rowCount: logs.length,
-                              );
-                            },
+                                    return switch (column) {
+                                      0 => FixedSpanExtent(180),
+                                      1 => FixedSpanExtent(160),
+                                      2 => FixedSpanExtent(remainingWidth),
+                                      3 => FixedSpanExtent(100),
+                                      4 => FixedSpanExtent(120),
+                                      5 => FixedSpanExtent(120),
+                                      _ => null,
+                                    };
+                                  },
+                                  pinnedRowCount: 1,
+                                  onRowTap: (row) {
+                                    if (row == 0) return;
+                                    LogDetailDialog.show(
+                                      context,
+                                      logs[row - 1],
+                                    );
+                                  },
+                                  header: (context, column) {
+                                    var text = switch (column) {
+                                      0 => '请求时间',
+                                      1 => '端点',
+                                      2 => '模型',
+                                      3 => '状态码',
+                                      4 => '响应时间',
+                                      5 => 'Token',
+                                      _ => '',
+                                    };
+                                    return ShadTableCell.header(
+                                      child: Text(text),
+                                    );
+                                  },
+                                  builder: (context, index) {
+                                    var log = logs[index.row];
+                                    var text = switch (index.column) {
+                                      0 => DateTime.fromMillisecondsSinceEpoch(
+                                        log.timestamp,
+                                      ).toString().substring(0, 19),
+                                      1 => log.endpointName,
+                                      2 => log.model,
+                                      3 => (log.statusCode ?? 0).toString(),
+                                      4 =>
+                                        '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
+                                      5 =>
+                                        '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}',
+                                      _ => '',
+                                    };
+                                    return ShadTableCell(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(text ?? 'null'),
+                                    );
+                                  },
+                                  columnCount: 6,
+                                  rowCount: logs.length,
+                                );
+                              },
+                            ),
                           ),
                         ),
-                      ),
-                      LogPagination(
-                        currentPage: currentPage,
-                        totalPages: totalPages,
-                        totalRecords: totalRecords,
-                        pageSize: pageSize,
-                        onPageChanged: viewModel.goToPage,
-                        onPageSizeChanged: viewModel.setPageSize,
-                      ),
-                    ],
-                  ),
+                        LogPagination(
+                          currentPage: currentPage,
+                          totalPages: totalPages,
+                          totalRecords: totalRecords,
+                          pageSize: pageSize,
+                          onPageChanged: viewModel.goToPage,
+                          onPageSizeChanged: viewModel.setPageSize,
+                        ),
+                      ],
+                    );
+            }),
           ),
         ],
       );

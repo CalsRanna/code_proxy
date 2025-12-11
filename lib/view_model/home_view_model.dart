@@ -11,8 +11,10 @@ import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/util/logger_util.dart';
+import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
+import 'package:uuid/uuid.dart';
 
 import 'base_view_model.dart';
 import 'endpoints_view_model.dart';
@@ -91,6 +93,9 @@ class HomeViewModel extends BaseViewModel {
     endpoints.value = endpoints.value.map((e) {
       return e.id == id ? updated : e;
     }).toList();
+
+    // 更新代理服务器的端点列表（只传递已启用的端点）
+    _proxyServer?.endpoints = endpoints.value.where((e) => e.enabled).toList();
   }
 
   /// 自动启动代理服务器
@@ -108,20 +113,14 @@ class HomeViewModel extends BaseViewModel {
       maxRetries: maxRetries,
     );
 
-    // 检查当前配置是否已经指向代理服务器
-    final isAlreadyPointingToProxy = await _claudeCodeConfigManager
-        .isPointingToProxy(proxyAddress: config.address, proxyPort: 9000);
+    // 更新 Claude Code 配置为代理模式
+    final configUpdated = await _claudeCodeConfigManager.updateProxyConfig(
+      proxyAddress: config.address,
+      proxyPort: config.port,
+    );
 
-    if (!isAlreadyPointingToProxy) {
-      // 如果当前配置不指向代理，切换配置
-      final configSwitched = await _claudeCodeConfigManager.switchToProxy(
-        proxyAddress: config.address,
-        proxyPort: config.port,
-      );
-
-      if (!configSwitched) {
-        throw Exception('无法切换 Claude Code 配置到代理模式');
-      }
+    if (!configUpdated) {
+      throw Exception('无法更新 Claude Code 配置到代理模式');
     }
 
     // 启动代理服务器
@@ -137,7 +136,8 @@ class HomeViewModel extends BaseViewModel {
       },
     );
     await _proxyServer?.start();
-    _proxyServer?.endpoints = endpoints.value;
+    // 只传递已启用的端点
+    _proxyServer?.endpoints = endpoints.value.where((e) => e.enabled).toList();
   }
 
   // =========================
@@ -213,12 +213,8 @@ class HomeViewModel extends BaseViewModel {
     try {
       // 停止代理服务器
       await _proxyServer?.stop();
-
-      // 恢复 Claude Code 原始配置（如果有备份）
-      await _claudeCodeConfigManager.switchFromProxy();
     } catch (e) {
-      // 即使停止失败，也尝试恢复配置
-      await _claudeCodeConfigManager.switchFromProxy();
+      // 静默处理错误
     }
   }
 
@@ -277,7 +273,7 @@ class HomeViewModel extends BaseViewModel {
 
       // 创建并保存日志到数据库（异步，不等待）
       final log = RequestLog(
-        id: '', // 由数据库生成
+        id: const Uuid().v4(), // 生成 UUID
         timestamp: DateTime.now().millisecondsSinceEpoch,
         endpointId: endpoint.id,
         endpointName: endpoint.name,
@@ -296,19 +292,23 @@ class HomeViewModel extends BaseViewModel {
         model: model,
         inputTokens: inputTokens,
         outputTokens: outputTokens,
-        rawHeader: null,
-        rawRequest: null,
-        rawResponse: null,
+        rawHeader: jsonEncode(request.headers),
+        rawRequest: request.body,
+        rawResponse: response.body,
       );
 
       LoggerUtil.instance.d('Store request log: $log');
       // 异步保存到数据库，成功后触发刷新信号
-      requestLogRepository.insert(log).then((_) {
-        // 插入成功后，通知 LogsViewModel 刷新
-        LogsViewModel.newLogInserted.value++;
-      }).catchError((error) {
-        // 静默处理错误
-      });
+      requestLogRepository
+          .insert(log)
+          .then((_) {
+            // 插入成功后，通知 LogsViewModel 刷新
+            final logViewModel = GetIt.instance.get<LogsViewModel>();
+            logViewModel.loadLogs();
+          })
+          .catchError((error) {
+            // 静默处理错误
+          });
     } catch (e) {
       // 记录失败，静默处理
     }

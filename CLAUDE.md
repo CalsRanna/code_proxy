@@ -82,7 +82,7 @@ flutter build ios
 
 **ClaudeCodeConfigManager** (`lib/services/claude_code_config_manager.dart`)
 - Manages Claude Code CLI configuration at `~/.claude/settings.json`
-- Creates backups before modification at `~/.claude/settings.json.backup`
+- Updates configuration to point to proxy server on startup
 - Handles macOS sandbox path resolution for accessing user home directory
 
 **ConfigManager** (`lib/services/config_manager.dart`)
@@ -121,11 +121,10 @@ Uses `signals` package (reactive programming):
 
 The proxy integrates with Claude Code CLI workflow:
 
-1. **Configuration Check**: On startup, checks if `~/.claude/settings.json` is already pointing to proxy
-2. **Backup & Modify**: If not pointing to proxy, backs up `~/.claude/settings.json` and modifies it to route requests to localhost:9000
-3. **Request Routing**: Intercepts Claude Code requests, tries enabled endpoints sequentially with retry logic
-4. **Authentication**: Replaces authentication headers with endpoint's API key using `x-api-key` header format
-5. **Restore**: On shutdown, restores original configuration from backup
+1. **Configuration Update**: On startup, updates `~/.claude/settings.json` to route requests to localhost:9000
+2. **Request Routing**: Intercepts Claude Code requests, tries enabled endpoints sequentially with retry logic
+3. **Authentication**: Replaces authentication headers with endpoint's API key using `x-api-key` header format
+4. **Model Mapping**: Automatically maps model names in request body based on endpoint configuration
 
 ### Models
 

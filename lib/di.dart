@@ -85,11 +85,9 @@ Future<void> setupServiceLocator() async {
     () => EndpointsViewModel(endpointRepository: getIt<EndpointRepository>()),
   );
 
-  // 注册 LogsViewModel（工厂模式，依赖 RequestLogRepository）
-  getIt.registerFactory<LogsViewModel>(
-    () => LogsViewModel(
-      requestLogRepository: getIt<RequestLogRepository>(),
-    ),
+  // 注册 LogsViewModel（单例模式，依赖 RequestLogRepository）
+  getIt.registerLazySingleton<LogsViewModel>(
+    () => LogsViewModel(requestLogRepository: getIt<RequestLogRepository>()),
   );
 
   // 注册 SettingsViewModel（工厂模式，依赖 Repository 和 SharedPreferences）
