@@ -2,6 +2,7 @@ import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/di.dart';
 import 'package:code_proxy/router/router.dart';
 import 'package:code_proxy/themes/app_theme.dart';
+import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +14,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Database.instance.ensureInitialized();
   DI.ensureInitialized();
-  await WindowUtil.ensureInitialized();
+  await WindowUtil.instance.ensureInitialized();
+  await TrayUtil.instance.ensureInitialized();
   SignalsObserver.instance = null;
   runApp(const CodeProxyApp());
 }
@@ -30,7 +32,7 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ShadApp.custom(
+    var child = ShadApp.custom(
       theme: ShadThemeData(textTheme: ShadTextTheme(family: 'Raleway')),
       appBuilder: (context) => Watch(
         (context) => MaterialApp.router(
@@ -42,5 +44,8 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
         ),
       ),
     );
+
+    var actions = Actions(actions: WindowUtil.instance.actions, child: child);
+    return Shortcuts(shortcuts: WindowUtil.instance.shortcuts, child: actions);
   }
 }
