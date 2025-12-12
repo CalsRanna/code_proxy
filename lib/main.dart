@@ -4,9 +4,7 @@ import 'package:code_proxy/router/router.dart';
 import 'package:code_proxy/themes/app_theme.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
-import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -20,15 +18,8 @@ void main() async {
   runApp(const CodeProxyApp());
 }
 
-class CodeProxyApp extends StatefulWidget {
+class CodeProxyApp extends StatelessWidget {
   const CodeProxyApp({super.key});
-
-  @override
-  State<CodeProxyApp> createState() => _CodeProxyAppState();
-}
-
-class _CodeProxyAppState extends State<CodeProxyApp> {
-  final settingViewModel = GetIt.instance.get<SettingViewModel>();
 
   @override
   Widget build(BuildContext context) {
@@ -38,9 +29,7 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
         (context) => MaterialApp.router(
           title: 'Code Proxy',
           theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
           debugShowCheckedModeBanner: false,
-          themeMode: settingViewModel.currentTheme.value,
           routerConfig: router.config(),
         ),
       ),

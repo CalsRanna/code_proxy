@@ -6,7 +6,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 
 class SettingViewModel {
-  final currentTheme = signal(ThemeMode.system);
   final port = signal(9000);
 
   final controller = TextEditingController();
@@ -26,22 +25,6 @@ class SettingViewModel {
 
   bool isValidPort(int port) {
     return port >= 1 && port <= 65535;
-  }
-
-  Future<void> setTheme(ThemeMode mode) async {
-    currentTheme.value = mode;
-  }
-
-  Future<void> toggleTheme() async {
-    switch (currentTheme.value) {
-      case ThemeMode.light:
-        currentTheme.value = ThemeMode.dark;
-        break;
-      case ThemeMode.dark:
-      case ThemeMode.system:
-        currentTheme.value = ThemeMode.light;
-        break;
-    }
   }
 
   Future<void> updateListenPort(BuildContext context) async {

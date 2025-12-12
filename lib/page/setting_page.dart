@@ -1,6 +1,6 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
-import 'package:code_proxy/widgets/common/page_header.dart';
+import 'package:code_proxy/widgets/page_header.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -30,11 +30,7 @@ class _SettingPageState extends State<SettingPage> {
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       children: [portListTile],
     );
-    var pageHeader = PageHeader(
-      title: '应用设置',
-      subtitle: '管理代理服务器配置和应用选项',
-      icon: LucideIcons.bolt,
-    );
+    var pageHeader = PageHeader(title: '应用设置', subtitle: '管理代理服务器配置和应用选项');
     var children = [pageHeader, Expanded(child: listView)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -3,10 +3,9 @@ import 'package:code_proxy/page/dashboard/dashboard_token_bar_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_heatmap.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
-import 'package:code_proxy/widgets/common/page_header.dart';
+import 'package:code_proxy/widgets/page_header.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:signals/signals_flutter.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -40,11 +39,7 @@ class _DashboardPageState extends State<DashboardPage> {
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       child: column,
     );
-    var pageHeader = const PageHeader(
-      title: '控制面板',
-      subtitle: '请求统计与数据分析',
-      icon: LucideIcons.layoutGrid,
-    );
+    var pageHeader = const PageHeader(title: '控制面板', subtitle: '请求统计与数据分析');
     var children = [pageHeader, Expanded(child: singleChildScrollView)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

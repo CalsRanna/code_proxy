@@ -2,7 +2,7 @@ import 'package:code_proxy/page/request_log/request_log_detail_dialog.dart';
 import 'package:code_proxy/page/request_log/request_log_pagination.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
-import 'package:code_proxy/widgets/common/page_header.dart';
+import 'package:code_proxy/widgets/page_header.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -35,7 +35,6 @@ class _RequestLogPageState extends State<RequestLogPage> {
       return PageHeader(
         title: '请求日志',
         subtitle: '$total 条记录',
-        icon: LucideIcons.arrowUpDown,
         actions: [shadButton],
       );
     });

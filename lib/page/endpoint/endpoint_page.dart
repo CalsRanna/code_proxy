@@ -2,7 +2,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/page/endpoint/endpoint_card.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
-import 'package:code_proxy/widgets/common/page_header.dart';
+import 'package:code_proxy/widgets/page_header.dart';
 import 'package:code_proxy/page/endpoint/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -22,7 +22,6 @@ class EndpointPage extends StatelessWidget {
           PageHeader(
             title: '端点管理',
             subtitle: '${viewModel.endpoints.value.length} 个端点',
-            icon: LucideIcons.shell,
             actions: [
               ShadButton(
                 onPressed: () => _showAddEndpointDialog(context),

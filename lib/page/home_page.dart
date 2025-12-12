@@ -10,7 +10,6 @@ import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
-import 'package:code_proxy/widgets/theme_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -89,7 +88,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildLeftBar(BuildContext context) {
     var borderSide = BorderSide(
-      color: ShadcnColors.border(Theme.of(context).brightness),
+      color: ShadcnColors.zinc100,
       width: ShadcnSpacing.borderWidth,
     );
     var boxDecoration = BoxDecoration(border: Border(right: borderSide));
@@ -100,11 +99,25 @@ class _HomePageState extends State<HomePage> {
           return _buildIconButton(index);
         }),
         const Spacer(),
-        ThemeSwitcher(),
+        // _buildThemeButton(),
         const SizedBox(height: ShadcnSpacing.spacing16),
       ];
       var column = Column(spacing: ShadcnSpacing.spacing16, children: children);
       return Container(width: 72, decoration: boxDecoration, child: column);
     });
   }
+
+  // Widget _buildThemeButton() {
+  //   return Watch((context) {
+  //     final brightness = Theme.of(context).brightness;
+  //     var icon = Icon(
+  //       brightness == Brightness.dark ? LucideIcons.moon : LucideIcons.sun,
+  //       size: ShadcnSpacing.iconMedium,
+  //     );
+  //     return ShadIconButton.ghost(
+  //       onPressed: settingsViewModel.toggleTheme,
+  //       icon: icon,
+  //     );
+  //   });
+  // }
 }
