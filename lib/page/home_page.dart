@@ -61,7 +61,7 @@ class _HomePageState extends State<HomePage> {
         0 => DashboardPage(),
         1 => EndpointPage(viewModel: endpointsViewModel),
         2 => LogPage(viewModel: logsViewModel),
-        3 => SettingPage(viewModel: settingsViewModel),
+        3 => SettingPage(),
         _ => DashboardPage(),
       };
     });
