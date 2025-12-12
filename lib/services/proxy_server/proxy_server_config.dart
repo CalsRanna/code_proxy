@@ -15,19 +15,6 @@ class ProxyServerConfig {
     this.maxRetries = 3,
   });
 
-  /// 从 SharedPreferences key-value 创建
-  factory ProxyServerConfig.fromPrefs({
-    String? address,
-    int? port,
-    int? maxRetries,
-  }) {
-    return ProxyServerConfig(
-      address: address ?? '127.0.0.1',
-      port: port ?? 9000,
-      maxRetries: maxRetries ?? 3,
-    );
-  }
-
   @override
   String toString() {
     return 'ProxyConfig(address: $address, port: $port, maxRetries: $maxRetries)';

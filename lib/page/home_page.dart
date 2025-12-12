@@ -13,6 +13,7 @@ import 'package:code_proxy/widgets/theme_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:signals/signals_flutter.dart';
 
 @RoutePage()
 class HomePage extends StatefulWidget {
@@ -23,34 +24,18 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late final HomeViewModel _viewModel;
-  late final EndpointsViewModel _endpointsViewModel;
-  late final LogsViewModel _logsViewModel;
-  late final SettingsViewModel _settingsViewModel;
-
-  int _selectedIndex = 0;
+  final viewModel = GetIt.instance.get<HomeViewModel>();
+  final endpointsViewModel = GetIt.instance.get<EndpointsViewModel>();
+  final logsViewModel = GetIt.instance.get<LogsViewModel>();
+  final settingsViewModel = GetIt.instance.get<SettingsViewModel>();
 
   @override
   void initState() {
     super.initState();
-    _viewModel = GetIt.instance.get<HomeViewModel>();
-    _endpointsViewModel = GetIt.instance.get<EndpointsViewModel>();
-    _logsViewModel = GetIt.instance.get<LogsViewModel>();
-    _settingsViewModel = GetIt.instance.get<SettingsViewModel>();
-
-    _viewModel.init();
-    _endpointsViewModel.init();
-    _logsViewModel.init();
-    _settingsViewModel.init();
-  }
-
-  @override
-  void dispose() {
-    _viewModel.dispose();
-    _endpointsViewModel.dispose();
-    _logsViewModel.dispose();
-    _settingsViewModel.dispose();
-    super.dispose();
+    viewModel.initSignals();
+    endpointsViewModel.initSignals();
+    logsViewModel.initSignals();
+    settingsViewModel.initSignals();
   }
 
   @override
@@ -59,30 +44,7 @@ class _HomePageState extends State<HomePage> {
       body: Row(
         children: [
           // 紧凑的侧边栏 (72px)
-          Container(
-            width: 72,
-            decoration: BoxDecoration(
-              border: Border(
-                right: BorderSide(
-                  color: ShadcnColors.border(Theme.of(context).brightness),
-                  width: ShadcnSpacing.borderWidth,
-                ),
-              ),
-            ),
-            child: Column(
-              spacing: ShadcnSpacing.spacing16,
-              children: [
-                const SizedBox(height: ShadcnSpacing.spacing16),
-                ...List.generate(4, (index) {
-                  return _buildNavItem(index);
-                }),
-                const Spacer(),
-                // 主题切换器
-                ThemeSwitcher(),
-                const SizedBox(height: ShadcnSpacing.spacing16),
-              ],
-            ),
-          ),
+          _buildLeftBar(context),
           // 主内容区
           Expanded(child: _buildContent()),
         ],
@@ -90,8 +52,33 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildLeftBar(BuildContext context) {
+    var borderSide = BorderSide(
+      color: ShadcnColors.border(Theme.of(context).brightness),
+      width: ShadcnSpacing.borderWidth,
+    );
+    return Watch((context) {
+      return Container(
+        width: 72,
+        decoration: BoxDecoration(border: Border(right: borderSide)),
+        child: Column(
+          spacing: ShadcnSpacing.spacing16,
+          children: [
+            const SizedBox(height: ShadcnSpacing.spacing16),
+            ...List.generate(4, (index) {
+              return _buildNavItem(index);
+            }),
+            const Spacer(),
+            ThemeSwitcher(),
+            const SizedBox(height: ShadcnSpacing.spacing16),
+          ],
+        ),
+      );
+    });
+  }
+
   Widget _buildNavItem(int index) {
-    final isSelected = _selectedIndex == index;
+    final isSelected = viewModel.selectedIndex.value == index;
     final icons = [
       LucideIcons.layoutGrid,
       LucideIcons.shell,
@@ -114,26 +101,26 @@ class _HomePageState extends State<HomePage> {
               : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
         onPressed: () {
-          setState(() {
-            _selectedIndex = index;
-          });
+          viewModel.updateSelectedIndex(index);
         },
       ),
     );
   }
 
   Widget _buildContent() {
-    switch (_selectedIndex) {
-      case 0:
-        return DashboardPage(viewModel: _viewModel);
-      case 1:
-        return EndpointPage(viewModel: _endpointsViewModel);
-      case 2:
-        return LogPage(viewModel: _logsViewModel);
-      case 3:
-        return SettingPage(viewModel: _settingsViewModel);
-      default:
-        return DashboardPage(viewModel: _viewModel);
-    }
+    return Watch((context) {
+      switch (viewModel.selectedIndex.value) {
+        case 0:
+          return DashboardPage(viewModel: viewModel);
+        case 1:
+          return EndpointPage(viewModel: endpointsViewModel);
+        case 2:
+          return LogPage(viewModel: logsViewModel);
+        case 3:
+          return SettingPage(viewModel: settingsViewModel);
+        default:
+          return DashboardPage(viewModel: viewModel);
+      }
+    });
   }
 }

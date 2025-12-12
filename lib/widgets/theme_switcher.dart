@@ -1,16 +1,16 @@
+import 'package:code_proxy/themes/shadcn_spacing.dart';
+import 'package:code_proxy/view_model/settings_view_model.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
-import '../di.dart';
-import '../view_model/settings_view_model.dart';
-import '../themes/shadcn_spacing.dart';
 
 class ThemeSwitcher extends StatelessWidget {
   const ThemeSwitcher({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final settingsViewModel = getIt<SettingsViewModel>();
+    final settingsViewModel = GetIt.instance.get<SettingsViewModel>();
 
     return Watch((context) {
       final brightness = Theme.of(context).brightness;
