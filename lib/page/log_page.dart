@@ -1,9 +1,8 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
-import 'package:code_proxy/widgets/common/shadcn_components.dart';
-import 'package:code_proxy/widgets/log/log_detail_dialog.dart';
-import 'package:code_proxy/widgets/log/log_pagination.dart';
+import 'package:code_proxy/page/request_log/log_detail_dialog.dart';
+import 'package:code_proxy/page/request_log/log_pagination.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
@@ -40,10 +39,7 @@ class LogPage extends StatelessWidget {
           Expanded(
             child: Watch((context) {
               return logs.isEmpty
-                  ? const EmptyState(
-                      icon: LucideIcons.arrowUpDown,
-                      message: '暂无日志记录',
-                    )
+                  ? _buildEmpty()
                   : Column(
                       children: [
                         Expanded(
@@ -136,6 +132,10 @@ class LogPage extends StatelessWidget {
         ],
       );
     });
+  }
+
+  Widget _buildEmpty() {
+    return Center(child: Text('暂无数据'));
   }
 
   void _showClearDialog(BuildContext context) {

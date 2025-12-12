@@ -39,6 +39,7 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
           title: 'Code Proxy',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
+          debugShowCheckedModeBanner: false,
           themeMode: settingViewModel.currentTheme.value,
           routerConfig: router.config(),
         ),

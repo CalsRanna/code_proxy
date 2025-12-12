@@ -9,21 +9,15 @@ class TrayUtil with TrayListener {
 
   TrayUtil._();
 
-  /// 销毁托盘
   Future<void> dispose() async {
     trayManager.removeListener(this);
     await trayManager.destroy();
   }
 
-  /// 初始化系统托盘
   Future<void> ensureInitialized({Function()? onShow}) async {
     trayManager.addListener(this);
-
-    // 设置托盘图标
     await _setTrayIcon();
   }
-
-  // TrayListener 实现
 
   @override
   void onTrayIconMouseDown() {
@@ -35,7 +29,6 @@ class TrayUtil with TrayListener {
     WindowUtil.instance.show();
   }
 
-  /// 设置托盘图标
   Future<void> _setTrayIcon() async {
     try {
       String iconPath;

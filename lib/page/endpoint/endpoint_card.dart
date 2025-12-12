@@ -90,7 +90,7 @@ class _EndpointCardState extends State<EndpointCard> {
                 onPressed: widget.onEdit,
                 child: Row(
                   children: [
-                    Icon(LucideIcons.pencil, size: 20),
+                    Icon(LucideIcons.pencil),
                     SizedBox(width: 8),
                     Text('编辑'),
                   ],
@@ -100,7 +100,7 @@ class _EndpointCardState extends State<EndpointCard> {
                 onPressed: widget.onDelete,
                 child: Row(
                   children: [
-                    Icon(LucideIcons.trash2, size: 20, color: Colors.red),
+                    Icon(LucideIcons.trash2, color: Colors.red),
                     SizedBox(width: 8),
                     Text('删除', style: TextStyle(color: Colors.red)),
                   ],

@@ -1,4 +1,3 @@
-import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,14 +17,8 @@ class WindowUtil {
         const _HideWindowIntent(),
   };
 
-  /// 销毁窗口（退出应用前调用）
   Future<void> destroy() async {
-    try {
-      LoggerUtil.instance.i('销毁窗口');
-      await windowManager.destroy();
-    } catch (e, stackTrace) {
-      LoggerUtil.instance.e('销毁窗口失败', error: e, stackTrace: stackTrace);
-    }
+    await windowManager.destroy();
   }
 
   Future<void> ensureInitialized() async {
@@ -49,41 +42,20 @@ class WindowUtil {
   }
 
   Future<void> hide() async {
-    try {
-      LoggerUtil.instance.i('隐藏窗口到托盘');
-      // 先从任务栏移除图标（Dock 和应用切换器）
-      await windowManager.setSkipTaskbar(true);
-      // 再隐藏窗口
-      await windowManager.hide();
-      LoggerUtil.instance.i('窗口已隐藏');
-    } catch (e, stackTrace) {
-      LoggerUtil.instance.e('隐藏窗口失败', error: e, stackTrace: stackTrace);
-    }
+    await windowManager.setSkipTaskbar(true);
+    await windowManager.hide();
   }
 
   Future<void> restore() async {
-    try {
-      if (await windowManager.isMinimized()) {
-        await windowManager.restore();
-        LoggerUtil.instance.i('窗口已恢复');
-      }
-    } catch (e, stackTrace) {
-      LoggerUtil.instance.e('恢复窗口失败', error: e, stackTrace: stackTrace);
+    if (await windowManager.isMinimized()) {
+      await windowManager.restore();
     }
   }
 
   Future<void> show() async {
-    try {
-      LoggerUtil.instance.i('显示窗口');
-      // 先恢复任务栏图标（Dock 和应用切换器）
-      await windowManager.setSkipTaskbar(false);
-      // 再显示窗口
-      await windowManager.show();
-      await windowManager.focus();
-      LoggerUtil.instance.i('窗口已显示');
-    } catch (e, stackTrace) {
-      LoggerUtil.instance.e('显示窗口失败', error: e, stackTrace: stackTrace);
-    }
+    await windowManager.setSkipTaskbar(false);
+    await windowManager.show();
+    await windowManager.focus();
   }
 }
 

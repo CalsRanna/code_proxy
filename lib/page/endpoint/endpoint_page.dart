@@ -3,7 +3,6 @@ import 'package:code_proxy/page/endpoint/endpoint_card.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
-import 'package:code_proxy/widgets/common/shadcn_components.dart';
 import 'package:code_proxy/page/endpoint/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -43,12 +42,7 @@ class EndpointPage extends StatelessWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return EmptyState(
-      icon: LucideIcons.shell,
-      message: '暂无端点配置',
-      actionLabel: '添加端点',
-      onAction: () => _showAddEndpointDialog(context),
-    );
+    return Center(child: Text('暂无数据'));
   }
 
   Widget _buildEndpointsList(

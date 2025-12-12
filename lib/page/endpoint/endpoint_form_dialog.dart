@@ -133,17 +133,17 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            ShadInput(
-              controller: timeoutController,
-              placeholder: const Text('超时时间（毫秒）'),
-            ),
+            // ShadInput(
+            //   controller: timeoutController,
+            //   placeholder: const Text('超时时间（毫秒）'),
+            // ),
             Row(
               spacing: ShadcnSpacing.spacing16,
               children: [
                 Expanded(
                   child: ShadInput(
                     controller: modelController,
-                    placeholder: const Text('主模型'),
+                    placeholder: const Text('模型'),
                   ),
                 ),
                 Expanded(
@@ -182,16 +182,16 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            ShadCheckbox(
-              label: const Text('禁用非必要流量'),
-              sublabel: const Text('减少对该端点的健康检查和测试请求'),
-              value: disableNonessentialTraffic,
-              onChanged: (value) {
-                setState(() {
-                  disableNonessentialTraffic = value;
-                });
-              },
-            ),
+            // ShadCheckbox(
+            //   label: const Text('禁用非必要流量'),
+            //   sublabel: const Text('减少对该端点的健康检查和测试请求'),
+            //   value: disableNonessentialTraffic,
+            //   onChanged: (value) {
+            //     setState(() {
+            //       disableNonessentialTraffic = value;
+            //     });
+            //   },
+            // ),
           ],
         ),
       ),
