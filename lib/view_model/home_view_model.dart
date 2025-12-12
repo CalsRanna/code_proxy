@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:code_proxy/database/database.dart';
-import 'package:code_proxy/model/chart_data.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/request_log.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
@@ -19,8 +18,6 @@ import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
 
 class HomeViewModel {
-  final dailyTokenStats = signal<Map<String, int>>({});
-  final chartData = signal<ChartData?>(null);
   final selectedIndex = signal<int>(0);
 
   ProxyServerService? _proxyServer;
@@ -95,8 +92,6 @@ class HomeViewModel {
 
   Future<void> initSignals() async {
     _autoStartServer();
-    _loadHeatmapData();
-    _loadChartData();
   }
 
   Future<void> toggleEndpointEnabled(String id) async {
@@ -135,44 +130,6 @@ class HomeViewModel {
     final endpointViewModel = GetIt.instance.get<EndpointsViewModel>();
     var endpoints = endpointViewModel.endpoints.value;
     _proxyServer?.endpoints = endpoints.where((e) => e.enabled).toList();
-  }
-
-  Future<void> _loadChartData() async {
-    final repository = RequestLogRepository(Database.instance);
-    final endDate = DateTime.now();
-    final startDate = endDate.subtract(const Duration(days: 7));
-
-    final results = await Future.wait([
-      repository.getDailyRequestStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      ),
-      repository.getEndpointTokenStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      ),
-      repository.getModelDateTokenStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      ),
-    ]);
-    chartData.value = ChartData(
-      dailyRequests: results[0] as Map<String, int>,
-      endpointTokenUsage: results[1] as Map<String, int>,
-      modelDateTokenUsage: results[2] as Map<String, Map<String, int>>,
-    );
-  }
-
-  Future<void> _loadHeatmapData() async {
-    final repository = RequestLogRepository(Database.instance);
-    final now = DateTime.now();
-    final startDate = DateTime(now.year, 1, 1);
-    final endDate = DateTime(now.year, 12, 31);
-    final stats = await repository.getDailySuccessRequestStats(
-      startTimestamp: startDate.millisecondsSinceEpoch,
-      endTimestamp: endDate.millisecondsSinceEpoch,
-    );
-    dailyTokenStats.value = stats;
   }
 
   Map<String, dynamic> _parseSSETokens(String sseBody) {

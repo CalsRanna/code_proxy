@@ -1,10 +1,11 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:code_proxy/page/dashboard_page.dart';
+import 'package:code_proxy/page/dashboard/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
 import 'package:code_proxy/page/log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
+import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoints_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/logs_view_model.dart';
@@ -25,30 +26,64 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final viewModel = GetIt.instance.get<HomeViewModel>();
+  final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
   final endpointsViewModel = GetIt.instance.get<EndpointsViewModel>();
   final logsViewModel = GetIt.instance.get<LogsViewModel>();
   final settingsViewModel = GetIt.instance.get<SettingsViewModel>();
+
+  final icons = [
+    LucideIcons.layoutGrid,
+    LucideIcons.shell,
+    LucideIcons.arrowUpDown,
+    LucideIcons.bolt,
+  ];
+  final labels = ['主页', '端点', '日志', '设置'];
+
+  @override
+  Widget build(BuildContext context) {
+    var children = [_buildLeftBar(context), Expanded(child: _buildContent())];
+    return Scaffold(body: Row(children: children));
+  }
 
   @override
   void initState() {
     super.initState();
     viewModel.initSignals();
+    dashboardViewModel.initSignals();
     endpointsViewModel.initSignals();
     logsViewModel.initSignals();
     settingsViewModel.initSignals();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: [
-          // 紧凑的侧边栏 (72px)
-          _buildLeftBar(context),
-          // 主内容区
-          Expanded(child: _buildContent()),
-        ],
-      ),
+  Widget _buildContent() {
+    return Watch((context) {
+      return switch (viewModel.selectedIndex.value) {
+        0 => DashboardPage(),
+        1 => EndpointPage(viewModel: endpointsViewModel),
+        2 => LogPage(viewModel: logsViewModel),
+        3 => SettingPage(viewModel: settingsViewModel),
+        _ => DashboardPage(),
+      };
+    });
+  }
+
+  Widget _buildIconButton(int index) {
+    final isSelected = viewModel.selectedIndex.value == index;
+    var shadIconButton = ShadIconButton.ghost(
+      backgroundColor: isSelected ? ShadcnColors.zinc100 : null,
+      icon: Icon(icons[index]),
+      onPressed: () {
+        viewModel.updateSelectedIndex(index);
+      },
+    );
+    var anchor = ShadAnchor(
+      overlayAlignment: Alignment.centerRight,
+      childAlignment: Alignment.centerLeft,
+    );
+    return ShadTooltip(
+      anchor: anchor,
+      builder: (context) => Text(labels[index]),
+      child: shadIconButton,
     );
   }
 
@@ -57,70 +92,19 @@ class _HomePageState extends State<HomePage> {
       color: ShadcnColors.border(Theme.of(context).brightness),
       width: ShadcnSpacing.borderWidth,
     );
+    var boxDecoration = BoxDecoration(border: Border(right: borderSide));
     return Watch((context) {
-      return Container(
-        width: 72,
-        decoration: BoxDecoration(border: Border(right: borderSide)),
-        child: Column(
-          spacing: ShadcnSpacing.spacing16,
-          children: [
-            const SizedBox(height: ShadcnSpacing.spacing16),
-            ...List.generate(4, (index) {
-              return _buildNavItem(index);
-            }),
-            const Spacer(),
-            ThemeSwitcher(),
-            const SizedBox(height: ShadcnSpacing.spacing16),
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _buildNavItem(int index) {
-    final isSelected = viewModel.selectedIndex.value == index;
-    final icons = [
-      LucideIcons.layoutGrid,
-      LucideIcons.shell,
-      LucideIcons.arrowUpDown,
-      LucideIcons.bolt,
-    ];
-    final labels = ['主页', '端点', '日志', '设置'];
-
-    return ShadTooltip(
-      anchor: ShadAnchor(
-        overlayAlignment: Alignment.centerRight,
-        childAlignment: Alignment.centerLeft,
-      ),
-      builder: (context) => Text(labels[index]),
-      child: ShadIconButton.ghost(
-        icon: Icon(
-          icons[index],
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        onPressed: () {
-          viewModel.updateSelectedIndex(index);
-        },
-      ),
-    );
-  }
-
-  Widget _buildContent() {
-    return Watch((context) {
-      switch (viewModel.selectedIndex.value) {
-        case 0:
-          return DashboardPage(viewModel: viewModel);
-        case 1:
-          return EndpointPage(viewModel: endpointsViewModel);
-        case 2:
-          return LogPage(viewModel: logsViewModel);
-        case 3:
-          return SettingPage(viewModel: settingsViewModel);
-        default:
-          return DashboardPage(viewModel: viewModel);
-      }
+      var children = [
+        const SizedBox(height: ShadcnSpacing.spacing16),
+        ...List.generate(icons.length, (index) {
+          return _buildIconButton(index);
+        }),
+        const Spacer(),
+        ThemeSwitcher(),
+        const SizedBox(height: ShadcnSpacing.spacing16),
+      ];
+      var column = Column(spacing: ShadcnSpacing.spacing16, children: children);
+      return Container(width: 72, decoration: boxDecoration, child: column);
     });
   }
 }

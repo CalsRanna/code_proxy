@@ -106,7 +106,7 @@ class LogPage extends StatelessWidget {
                                       4 =>
                                         '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
                                       5 =>
-                                        '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}',
+                                        '${log.inputTokens} / ${log.outputTokens}',
                                       _ => '',
                                     };
                                     return ShadTableCell(

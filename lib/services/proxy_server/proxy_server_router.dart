@@ -97,6 +97,7 @@ class ProxyServerRouter {
     EndpointEntity endpoint,
     Future<http.StreamedResponse> Function(EndpointEntity) requestExecutor,
   ) async {
+    LoggerUtil.instance.i('Forwarding request to endpoint ${endpoint.name}');
     for (int attempt = 0; attempt <= _config.maxRetries; attempt++) {
       try {
         final response = await requestExecutor(endpoint);

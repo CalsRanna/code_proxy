@@ -49,12 +49,12 @@ class LogDetailDialog extends StatelessWidget {
             _buildListItem(
               icon: LucideIcons.cloudUpload,
               label: '输入Token',
-              value: '${log.inputTokens ?? 0}',
+              value: '${log.inputTokens}',
             ),
             _buildListItem(
               icon: LucideIcons.cloudDownload,
               label: '输出Token',
-              value: '${log.outputTokens ?? 0}',
+              value: '${log.outputTokens}',
             ),
             _buildListItem(
               icon: LucideIcons.codeXml,
