@@ -1,5 +1,5 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
-import 'package:code_proxy/view_model/settings_view_model.dart';
+import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -14,7 +14,7 @@ class SettingPage extends StatefulWidget {
 }
 
 class _SettingPageState extends State<SettingPage> {
-  final viewModel = GetIt.instance.get<SettingsViewModel>();
+  final viewModel = GetIt.instance.get<SettingViewModel>();
 
   @override
   Widget build(BuildContext context) {

@@ -5,7 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 
-class SettingsViewModel {
+class SettingViewModel {
   final currentTheme = signal(ThemeMode.system);
   final port = signal(9000);
 

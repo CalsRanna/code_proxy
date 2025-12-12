@@ -1,7 +1,7 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/page/endpoint/endpoint_card.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
-import 'package:code_proxy/view_model/endpoints_view_model.dart';
+import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/widgets/common/page_header.dart';
 import 'package:code_proxy/page/endpoint/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +9,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
 class EndpointPage extends StatelessWidget {
-  final EndpointsViewModel viewModel;
+  final EndpointViewModel viewModel;
 
   const EndpointPage({super.key, required this.viewModel});
 

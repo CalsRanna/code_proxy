@@ -4,10 +4,10 @@ import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-class LogDetailDialog extends StatelessWidget {
+class RequestLogDetailDialog extends StatelessWidget {
   final RequestLog log;
 
-  const LogDetailDialog({super.key, required this.log});
+  const RequestLogDetailDialog({super.key, required this.log});
 
   @override
   Widget build(BuildContext context) {
@@ -109,13 +109,6 @@ class LogDetailDialog extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  static void show(BuildContext context, RequestLog log) {
-    showShadDialog(
-      context: context,
-      builder: (context) => LogDetailDialog(log: log),
     );
   }
 }

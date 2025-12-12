@@ -11,8 +11,8 @@ import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
-import 'package:code_proxy/view_model/endpoints_view_model.dart';
-import 'package:code_proxy/view_model/logs_view_model.dart';
+import 'package:code_proxy/view_model/endpoint_view_model.dart';
+import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:get_it/get_it.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
@@ -86,7 +86,7 @@ class HomeViewModel {
       rawResponse: response.body,
     );
     await repository.insert(log);
-    final logViewModel = GetIt.instance.get<LogsViewModel>();
+    final logViewModel = GetIt.instance.get<RequestLogViewModel>();
     logViewModel.loadLogs();
   }
 
@@ -95,7 +95,7 @@ class HomeViewModel {
   }
 
   Future<void> toggleEndpointEnabled(String id) async {
-    final endpointViewModel = GetIt.instance.get<EndpointsViewModel>();
+    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     final endpoints = endpointViewModel.endpoints.value;
     final endpoint = endpoints.firstWhere((e) => e.id == id);
     final updated = endpoint.copyWith(
@@ -133,7 +133,7 @@ class HomeViewModel {
       onRequestCompleted: handleRequestCompleted,
     );
     await _proxyServer?.start();
-    final endpointViewModel = GetIt.instance.get<EndpointsViewModel>();
+    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     final endpoints = endpointViewModel.endpoints.value;
     _proxyServer?.endpoints = endpoints.where((e) => e.enabled).toList();
   }
@@ -154,7 +154,7 @@ class HomeViewModel {
       onRequestCompleted: handleRequestCompleted,
     );
     await _proxyServer?.start();
-    final endpointViewModel = GetIt.instance.get<EndpointsViewModel>();
+    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     var endpoints = endpointViewModel.endpoints.value;
     _proxyServer?.endpoints = endpoints.where((e) => e.enabled).toList();
   }

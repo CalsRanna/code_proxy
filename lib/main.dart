@@ -4,7 +4,7 @@ import 'package:code_proxy/router/router.dart';
 import 'package:code_proxy/themes/app_theme.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
-import 'package:code_proxy/view_model/settings_view_model.dart';
+import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -28,7 +28,7 @@ class CodeProxyApp extends StatefulWidget {
 }
 
 class _CodeProxyAppState extends State<CodeProxyApp> {
-  final settingViewModel = GetIt.instance.get<SettingsViewModel>();
+  final settingViewModel = GetIt.instance.get<SettingViewModel>();
 
   @override
   Widget build(BuildContext context) {

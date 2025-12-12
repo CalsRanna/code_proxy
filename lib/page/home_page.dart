@@ -1,15 +1,15 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:code_proxy/page/dashboard/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
-import 'package:code_proxy/page/log_page.dart';
+import 'package:code_proxy/page/request_log/request_log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
-import 'package:code_proxy/view_model/endpoints_view_model.dart';
+import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
-import 'package:code_proxy/view_model/logs_view_model.dart';
-import 'package:code_proxy/view_model/settings_view_model.dart';
+import 'package:code_proxy/view_model/request_log_view_model.dart';
+import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:code_proxy/widgets/theme_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -27,9 +27,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final viewModel = GetIt.instance.get<HomeViewModel>();
   final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
-  final endpointsViewModel = GetIt.instance.get<EndpointsViewModel>();
-  final logsViewModel = GetIt.instance.get<LogsViewModel>();
-  final settingsViewModel = GetIt.instance.get<SettingsViewModel>();
+  final endpointsViewModel = GetIt.instance.get<EndpointViewModel>();
+  final logsViewModel = GetIt.instance.get<RequestLogViewModel>();
+  final settingsViewModel = GetIt.instance.get<SettingViewModel>();
 
   final icons = [
     LucideIcons.layoutGrid,
@@ -60,7 +60,7 @@ class _HomePageState extends State<HomePage> {
       return switch (viewModel.selectedIndex.value) {
         0 => DashboardPage(),
         1 => EndpointPage(viewModel: endpointsViewModel),
-        2 => LogPage(viewModel: logsViewModel),
+        2 => RequestLogPage(),
         3 => SettingPage(),
         _ => DashboardPage(),
       };

@@ -1,13 +1,13 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/themes/shadcn_spacing.dart';
-import 'package:code_proxy/view_model/endpoints_view_model.dart';
+import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 端点编辑表单对话框（重构后的主对话框）
 class EndpointFormDialog extends StatefulWidget {
   final EndpointEntity? endpoint;
-  final EndpointsViewModel viewModel;
+  final EndpointViewModel viewModel;
 
   const EndpointFormDialog({super.key, this.endpoint, required this.viewModel});
 

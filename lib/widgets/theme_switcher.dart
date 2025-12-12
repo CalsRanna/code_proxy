@@ -1,5 +1,5 @@
 import 'package:code_proxy/themes/shadcn_spacing.dart';
-import 'package:code_proxy/view_model/settings_view_model.dart';
+import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -10,7 +10,7 @@ class ThemeSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final settingsViewModel = GetIt.instance.get<SettingsViewModel>();
+    final settingsViewModel = GetIt.instance.get<SettingViewModel>();
 
     return Watch((context) {
       final brightness = Theme.of(context).brightness;

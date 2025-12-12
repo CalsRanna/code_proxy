@@ -7,7 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
 
-class EndpointsViewModel {
+class EndpointViewModel {
   final _endpointRepository = EndpointRepository(Database.instance);
   final Uuid _uuid = const Uuid();
 
