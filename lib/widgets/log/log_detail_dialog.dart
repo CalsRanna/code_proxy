@@ -69,7 +69,7 @@ class LogDetailDialog extends StatelessWidget {
             _buildListItem(
               icon: LucideIcons.codeXml,
               label: '原始响应',
-              value: log.rawResponse ?? '',
+              value: log.rawResponse?.replaceAll('\n', r'\n') ?? '',
             ),
           ],
         ),
