@@ -46,11 +46,6 @@ class ProxyServerService {
 
   set endpoints(List<EndpointEntity> endpoints) => _endpoints = endpoints;
 
-  Future<void> dispose() async {
-    await stop();
-    _requestHandler.close();
-  }
-
   Future<void> start() async {
     if (_server != null) {
       throw StateError('Server is already running');
@@ -69,8 +64,9 @@ class ProxyServerService {
 
   Future<void> stop() async {
     if (_server == null) return;
-    await _server!.close(force: false);
+    await _server!.close(force: true);
     _server = null;
+    _requestHandler.close();
   }
 
   /// 为指定端点执行请求

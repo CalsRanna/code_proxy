@@ -8,7 +8,7 @@ import 'package:get_it/get_it.dart';
 class DI {
   static void ensureInitialized() {
     final instance = GetIt.instance;
-    instance.registerFactory<HomeViewModel>(() => HomeViewModel());
+    instance.registerLazySingleton<HomeViewModel>(() => HomeViewModel());
     instance.registerLazySingleton<DashboardViewModel>(
       () => DashboardViewModel(),
     );

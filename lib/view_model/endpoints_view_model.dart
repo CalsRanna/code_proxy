@@ -1,6 +1,8 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
+import 'package:code_proxy/view_model/home_view_model.dart';
+import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
@@ -83,5 +85,14 @@ class EndpointsViewModel {
 
   Future<void> _loadEndpoints() async {
     endpoints.value = await _endpointRepository.getAll();
+    // 通知代理服务器端点列表已更新
+    _notifyProxyServer();
+  }
+
+  /// 通知代理服务器端点列表已更新
+  void _notifyProxyServer() {
+    final homeViewModel = GetIt.instance.get<HomeViewModel>();
+    final enabled = endpoints.value.where((e) => e.enabled).toList();
+    homeViewModel.updateProxyEndpoints(enabled);
   }
 }

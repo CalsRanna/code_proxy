@@ -111,6 +111,33 @@ class HomeViewModel {
     selectedIndex.value = index;
   }
 
+  /// 更新代理服务器的端点列表
+  void updateProxyEndpoints(List<EndpointEntity> enabledEndpoints) {
+    _proxyServer?.endpoints = enabledEndpoints;
+  }
+
+  /// 重启代理服务器（用于端口变更等配置修改）
+  Future<void> restartProxyServer(int newPort) async {
+    await _proxyServer?.stop();
+    _proxyServer = null;
+    await ClaudeCodeSettingService().updateProxySetting(newPort);
+    final instance = SharedPreferenceUtil.instance;
+    final maxRetries = await instance.getMaxRetries();
+    final config = ProxyServerConfig(
+      address: '127.0.0.1',
+      port: newPort,
+      maxRetries: maxRetries,
+    );
+    _proxyServer = ProxyServerService(
+      config: config,
+      onRequestCompleted: handleRequestCompleted,
+    );
+    await _proxyServer?.start();
+    final endpointViewModel = GetIt.instance.get<EndpointsViewModel>();
+    final endpoints = endpointViewModel.endpoints.value;
+    _proxyServer?.endpoints = endpoints.where((e) => e.enabled).toList();
+  }
+
   Future<void> _autoStartServer() async {
     var instance = SharedPreferenceUtil.instance;
     final port = await instance.getPort();
