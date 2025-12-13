@@ -16,7 +16,7 @@ class ClientErrorHandler implements ResponseHandlerStrategy {
     void Function(EndpointEntity)? onEndpointUnavailable,
   ) {
     final response = responseOrError as http.StreamedResponse;
-    // 4xx错误是客户端问题，无需重试，直接返回
+    // 4xx错误是客户端问题，无需重试，直接返回，并标记为客户端错误
     return RouteResult.success(response, endpoint);
   }
 }
@@ -68,11 +68,17 @@ class ProxyServerRouter {
     for (var endpoint in endpoints.where((e) => e.enabled)) {
       final routeResult = await _tryEndpoint(endpoint, requestExecutor);
 
-      // 如果成功或遇到错误，直接返回
-      if (routeResult.success || routeResult.error != null) {
+      // 如果成功，直接返回
+      if (routeResult.success) {
         return routeResult;
       }
-      // 如果失败但需要重试，继续尝试下一个端点
+
+      // 如果是客户端错误（4xx），也直接返回（不需要尝试其他端点）
+      if (routeResult.isClientError) {
+        return routeResult;
+      }
+
+      // 其他失败情况（服务器错误、异常等），继续尝试下一个端点
     }
 
     // 所有端点都失败
@@ -166,6 +172,13 @@ class RouteResult {
     : success = true,
       failedEndpoint = null,
       error = null;
+
+  /// 是否为客户端错误（4xx）
+  bool get isClientError {
+    return success && response != null &&
+           response!.statusCode >= 400 &&
+           response!.statusCode < 500;
+  }
 }
 
 /// 服务器错误处理器 - 处理5xx响应（需要重试）
