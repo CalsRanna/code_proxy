@@ -11,6 +11,7 @@ import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
+import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:get_it/get_it.dart';
@@ -94,28 +95,6 @@ class HomeViewModel {
     _autoStartServer();
   }
 
-  Future<void> toggleEndpointEnabled(String id) async {
-    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-    final endpoints = endpointViewModel.endpoints.value;
-    final endpoint = endpoints.firstWhere((e) => e.id == id);
-    final updated = endpoint.copyWith(
-      enabled: !endpoint.enabled,
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-    );
-    await endpointViewModel.updateEndpoint(updated);
-    final enabledEndpoints = endpointViewModel.enabledEndpoints;
-    _proxyServer?.endpoints = enabledEndpoints;
-  }
-
-  void updateSelectedIndex(int index) {
-    selectedIndex.value = index;
-  }
-
-  /// 更新代理服务器的端点列表
-  void updateProxyEndpoints(List<EndpointEntity> enabledEndpoints) {
-    _proxyServer?.endpoints = enabledEndpoints;
-  }
-
   /// 重启代理服务器（用于端口变更等配置修改）
   Future<void> restartProxyServer(int newPort) async {
     await _proxyServer?.stop();
@@ -136,6 +115,33 @@ class HomeViewModel {
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     final endpoints = endpointViewModel.endpoints.value;
     _proxyServer?.endpoints = endpoints.where((e) => e.enabled).toList();
+  }
+
+  Future<void> toggleEndpointEnabled(String id) async {
+    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+    final endpoints = endpointViewModel.endpoints.value;
+    final endpoint = endpoints.firstWhere((e) => e.id == id);
+    final updated = endpoint.copyWith(
+      enabled: !endpoint.enabled,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    );
+    await endpointViewModel.updateEndpoint(updated);
+    final enabledEndpoints = endpointViewModel.enabledEndpoints;
+    _proxyServer?.endpoints = enabledEndpoints;
+  }
+
+  /// 更新代理服务器的端点列表
+  void updateProxyEndpoints(List<EndpointEntity> enabledEndpoints) {
+    _proxyServer?.endpoints = enabledEndpoints;
+  }
+
+  void updateSelectedIndex(int index) {
+    final previousIndex = selectedIndex.value;
+    selectedIndex.value = index;
+    if (index == 0 && previousIndex != 0) {
+      final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
+      dashboardViewModel.refreshData();
+    }
   }
 
   Future<void> _autoStartServer() async {
