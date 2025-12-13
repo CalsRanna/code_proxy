@@ -11,17 +11,23 @@ class EndpointViewModel {
   final _endpointRepository = EndpointRepository(Database.instance);
   final Uuid _uuid = const Uuid();
 
+  // 初始化空列表
   final endpoints = listSignal<EndpointEntity>([]);
-  late final enabledEndpoints = computed(
-    () => endpoints.value.where((e) => e.enabled).toList(),
-  );
+
+  // 使用 getter 来安全地访问 enabledEndpoints
+  List<EndpointEntity> get enabledEndpoints {
+    return endpoints.value.where((e) => e.enabled).toList();
+  }
 
   final shadPopoverController = ShadPopoverController();
+
+  Future<void> initSignals() async {
+    await _loadEndpoints();
+  }
 
   Future<void> addEndpoint({
     required String name,
     String? note,
-    int weight = 1,
     String? anthropicAuthToken,
     String? anthropicBaseUrl,
     int? apiTimeoutMs,
@@ -32,12 +38,15 @@ class EndpointViewModel {
     String? anthropicDefaultOpusModel,
     bool claudeCodeDisableNonessentialTraffic = false,
   }) async {
+    // 计算新的 weight 值：当前列表数量 + 1（作为最后一个）
+    final newWeight = endpoints.value.length + 1;
+
     final now = DateTime.now().millisecondsSinceEpoch;
     final endpoint = EndpointEntity(
       id: _uuid.v4(),
       name: name,
       note: note,
-      weight: weight,
+      weight: newWeight,
       enabled: true,
       createdAt: now,
       updatedAt: now,
@@ -61,10 +70,6 @@ class EndpointViewModel {
     await _loadEndpoints();
   }
 
-  Future<void> initSignals() async {
-    await _loadEndpoints();
-  }
-
   Future<void> toggleEnabled(String id) async {
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
     final updated = endpoint.copyWith(
@@ -84,7 +89,8 @@ class EndpointViewModel {
   }
 
   Future<void> _loadEndpoints() async {
-    endpoints.value = await _endpointRepository.getAll();
+    final allEndpoints = await _endpointRepository.getAll();
+    endpoints.value = allEndpoints;
     // 通知代理服务器端点列表已更新
     _notifyProxyServer();
   }
@@ -94,5 +100,38 @@ class EndpointViewModel {
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
     final enabled = endpoints.value.where((e) => e.enabled).toList();
     homeViewModel.updateProxyEndpoints(enabled);
+  }
+
+  /// 重新排序端点列表并更新 weight 字段
+  Future<void> reorderEndpoints(int oldIndex, int newIndex) async {
+    final currentEndpoints = List<EndpointEntity>.from(endpoints.value);
+
+    // 如果目标位置在原位置之前，调整索引
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+
+    // 移动元素
+    final movedEndpoint = currentEndpoints.removeAt(oldIndex);
+    currentEndpoints.insert(newIndex, movedEndpoint);
+
+    // 重新分配 weight 值（从1开始，按顺序递增）
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final reorderedEndpoints = currentEndpoints.asMap().entries.map((entry) {
+      final index = entry.key;
+      final endpoint = entry.value;
+      return endpoint.copyWith(
+        weight: index + 1,
+        updatedAt: now,
+      );
+    }).toList();
+
+    // 批量更新数据库
+    for (final endpoint in reorderedEndpoints) {
+      await _endpointRepository.update(endpoint);
+    }
+
+    // 重新加载端点列表
+    await _loadEndpoints();
   }
 }

@@ -175,9 +175,10 @@ class RouteResult {
 
   /// 是否为客户端错误（4xx）
   bool get isClientError {
-    return success && response != null &&
-           response!.statusCode >= 400 &&
-           response!.statusCode < 500;
+    return success &&
+        response != null &&
+        response!.statusCode >= 400 &&
+        response!.statusCode < 500;
   }
 }
 
@@ -196,7 +197,7 @@ class ServerErrorHandler implements ResponseHandlerStrategy {
     if (attempt < maxRetries) {
       LoggerUtil.instance.w(
         'Endpoint ${endpoint.name} returned ${response.statusCode}, '
-        'retrying (attempt ${attempt + 1}/${maxRetries + 1})',
+        'retrying (attempt ${attempt + 1}/$maxRetries)',
       );
       // 返回null表示需要重试
       return null;

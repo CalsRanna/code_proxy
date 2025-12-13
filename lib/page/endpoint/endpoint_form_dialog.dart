@@ -215,7 +215,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       await widget.viewModel.addEndpoint(
         name: nameController.text,
         note: noteController.text.isEmpty ? null : noteController.text,
-        weight: int.tryParse(weightController.text) ?? 1,
         anthropicAuthToken: authTokenController.text,
         anthropicBaseUrl: baseUrlController.text,
         apiTimeoutMs: int.tryParse(timeoutController.text),

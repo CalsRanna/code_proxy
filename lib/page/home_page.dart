@@ -58,7 +58,7 @@ class _HomePageState extends State<HomePage> {
     return Watch((context) {
       return switch (viewModel.selectedIndex.value) {
         0 => DashboardPage(),
-        1 => EndpointPage(viewModel: endpointsViewModel),
+        1 => EndpointPage(),
         2 => RequestLogPage(),
         3 => SettingPage(),
         _ => DashboardPage(),
@@ -99,25 +99,10 @@ class _HomePageState extends State<HomePage> {
           return _buildIconButton(index);
         }),
         const Spacer(),
-        // _buildThemeButton(),
         const SizedBox(height: ShadcnSpacing.spacing16),
       ];
       var column = Column(spacing: ShadcnSpacing.spacing16, children: children);
       return Container(width: 72, decoration: boxDecoration, child: column);
     });
   }
-
-  // Widget _buildThemeButton() {
-  //   return Watch((context) {
-  //     final brightness = Theme.of(context).brightness;
-  //     var icon = Icon(
-  //       brightness == Brightness.dark ? LucideIcons.moon : LucideIcons.sun,
-  //       size: ShadcnSpacing.iconMedium,
-  //     );
-  //     return ShadIconButton.ghost(
-  //       onPressed: settingsViewModel.toggleTheme,
-  //       icon: icon,
-  //     );
-  //   });
-  // }
 }

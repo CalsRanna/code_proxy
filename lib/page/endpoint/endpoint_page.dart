@@ -5,38 +5,53 @@ import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/widgets/page_header.dart';
 import 'package:code_proxy/page/endpoint/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
-class EndpointPage extends StatelessWidget {
-  final EndpointViewModel viewModel;
+class EndpointPage extends StatefulWidget {
+  const EndpointPage({super.key});
 
-  const EndpointPage({super.key, required this.viewModel});
+  @override
+  State<StatefulWidget> createState() => _EndpointPageState();
+}
+
+class _EndpointPageState extends State<EndpointPage> {
+  final viewModel = GetIt.instance.get<EndpointViewModel>();
 
   @override
   Widget build(BuildContext context) {
     return Watch((context) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PageHeader(
-            title: '端点管理',
-            subtitle: '${viewModel.endpoints.value.length} 个端点',
-            actions: [
-              ShadButton(
-                onPressed: () => _showAddEndpointDialog(context),
-                leading: const Icon(LucideIcons.plus),
-                child: const Text('添加端点'),
-              ),
-            ],
-          ),
-          Expanded(
-            child: viewModel.endpoints.value.isEmpty
-                ? _buildEmptyState(context)
-                : _buildEndpointsList(context, viewModel.endpoints.value),
-          ),
-        ],
-      );
+      try {
+        // 安全地访问端点列表
+        final endpoints = viewModel.endpoints.value;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PageHeader(
+              title: '端点管理',
+              subtitle: '${endpoints.length} 个端点',
+              actions: [
+                ShadButton(
+                  onPressed: () => _showAddEndpointDialog(context),
+                  leading: const Icon(LucideIcons.plus),
+                  child: const Text('添加端点'),
+                ),
+              ],
+            ),
+            Expanded(
+              child: endpoints.isEmpty
+                  ? _buildEmptyState(context)
+                  : _buildEndpointsList(context, endpoints),
+            ),
+          ],
+        );
+      } catch (e) {
+        print(e);
+        // 如果信号访问失败，显示加载指示器
+        return const Center(child: CircularProgressIndicator());
+      }
     });
   }
 
@@ -48,19 +63,31 @@ class EndpointPage extends StatelessWidget {
     BuildContext context,
     List<EndpointEntity> endpoints,
   ) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ShadcnSpacing.spacing24,
+        vertical: ShadcnSpacing.spacing16,
+      ),
       itemCount: endpoints.length,
       itemBuilder: (context, index) {
         final endpoint = endpoints[index];
         return EndpointCard(
+          key: ValueKey(endpoint.id),
+          index: index,
           endpoint: endpoint,
           onEdit: () => _showEditEndpointDialog(context, endpoint),
           onDelete: () => _showDeleteDialog(context, endpoint),
           onToggleEnabled: (value) => viewModel.toggleEnabled(endpoint.id),
         );
       },
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
+      buildDefaultDragHandles: false,
+      proxyDecorator: (child, index, animation) {
+        // 返回不带阴影的装饰器
+        return child;
+      },
+      onReorder: (oldIndex, newIndex) {
+        viewModel.reorderEndpoints(oldIndex, newIndex);
+      },
     );
   }
 

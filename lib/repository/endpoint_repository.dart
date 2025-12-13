@@ -14,7 +14,7 @@ class EndpointRepository {
   Future<List<EndpointEntity>> getAll() async {
     final results = await _database.laconic
         .table('endpoints')
-        .orderBy('created_at', direction: 'asc')
+        .orderBy('weight', direction: 'asc')
         .get();
 
     return results.map((r) => _fromRow(r.toMap())).toList();
@@ -95,7 +95,7 @@ class EndpointRepository {
     final results = await _database.laconic
         .table('endpoints')
         .where('enabled', 1)
-        .orderBy('weight', direction: 'desc')
+        .orderBy('weight', direction: 'asc')
         .get();
 
     return results.map((r) => _fromRow(r.toMap())).toList();

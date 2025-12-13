@@ -102,8 +102,8 @@ class HomeViewModel {
       enabled: !endpoint.enabled,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
     );
-    endpointViewModel.updateEndpoint(updated);
-    final enabledEndpoints = endpointViewModel.enabledEndpoints.value;
+    await endpointViewModel.updateEndpoint(updated);
+    final enabledEndpoints = endpointViewModel.enabledEndpoints;
     _proxyServer?.endpoints = enabledEndpoints;
   }
 
