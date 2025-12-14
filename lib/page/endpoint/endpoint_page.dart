@@ -22,47 +22,36 @@ class _EndpointPageState extends State<EndpointPage> {
   @override
   Widget build(BuildContext context) {
     return Watch((context) {
-      try {
-        // 安全地访问端点列表
-        final endpoints = viewModel.endpoints.value;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            PageHeader(
-              title: '端点管理',
-              subtitle: '${endpoints.length} 个端点',
-              actions: [
-                ShadButton(
-                  onPressed: () => _showAddEndpointDialog(context),
-                  leading: const Icon(LucideIcons.plus),
-                  child: const Text('添加端点'),
-                ),
-              ],
-            ),
-            Expanded(
-              child: endpoints.isEmpty
-                  ? _buildEmptyState(context)
-                  : _buildEndpointsList(context, endpoints),
-            ),
-          ],
-        );
-      } catch (e) {
-        print(e);
-        // 如果信号访问失败，显示加载指示器
-        return const Center(child: CircularProgressIndicator());
-      }
+      final endpoints = viewModel.endpoints.value;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PageHeader(
+            title: '端点管理',
+            subtitle: '${endpoints.length} 个端点',
+            actions: [
+              ShadButton(
+                onPressed: () => _showAddEndpointDialog(context),
+                leading: const Icon(LucideIcons.plus),
+                child: const Text('添加端点'),
+              ),
+            ],
+          ),
+          Expanded(
+            child: endpoints.isEmpty
+                ? _buildEmptyState()
+                : _buildEndpointsList(endpoints),
+          ),
+        ],
+      );
     });
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState() {
     return Center(child: Text('暂无数据'));
   }
 
-  Widget _buildEndpointsList(
-    BuildContext context,
-    List<EndpointEntity> endpoints,
-  ) {
+  Widget _buildEndpointsList(List<EndpointEntity> endpoints) {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(
         horizontal: ShadcnSpacing.spacing24,
