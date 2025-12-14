@@ -133,10 +133,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            // ShadInput(
-            //   controller: timeoutController,
-            //   placeholder: const Text('超时时间（毫秒）'),
-            // ),
             Row(
               spacing: ShadcnSpacing.spacing16,
               children: [
@@ -182,16 +178,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 ),
               ],
             ),
-            // ShadCheckbox(
-            //   label: const Text('禁用非必要流量'),
-            //   sublabel: const Text('减少对该端点的健康检查和测试请求'),
-            //   value: disableNonessentialTraffic,
-            //   onChanged: (value) {
-            //     setState(() {
-            //       disableNonessentialTraffic = value;
-            //     });
-            //   },
-            // ),
           ],
         ),
       ),
