@@ -12,25 +12,24 @@ class ProxyServerConfig {
   /// 默认临时禁用时长（毫秒）
   final int defaultTempDisableDurationMs;
 
-  /// 重试等待时间（毫秒）
-  final int retryDelayMs;
+  /// 指数退避基数（毫秒）
+  final int exponentialBackoffBaseMs;
 
-  /// 是否启用重试等待
-  final bool enableRetryDelay;
+  /// 指数退避最大延迟（毫秒）
+  final int exponentialBackoffMaxMs;
 
   const ProxyServerConfig({
     this.address = '127.0.0.1',
     this.port = 9000,
     this.maxRetries = 3,
     this.defaultTempDisableDurationMs = 10 * 60 * 1000, // 10分钟
-    this.retryDelayMs = 1000, // 1秒
-    this.enableRetryDelay = true,
+    this.exponentialBackoffBaseMs = 1000, // 1秒
+    this.exponentialBackoffMaxMs = 10000, // 10秒
   });
 
   @override
   String toString() {
     return 'ProxyConfig(address: $address, port: $port, maxRetries: $maxRetries, '
-           'defaultTempDisableDurationMs: $defaultTempDisableDurationMs, '
-           'retryDelayMs: $retryDelayMs, enableRetryDelay: $enableRetryDelay)';
+        'defaultTempDisableDurationMs: $defaultTempDisableDurationMs, ';
   }
 }

@@ -77,6 +77,21 @@ class ProxyServerRouter {
   /// 获取当前状态
   RouteState get state => _state;
 
+  /// 计算重试延迟时间（支持指数退避）
+  /// attempt: 当前尝试次数（从1开始）
+  int _calculateRetryDelay(int attempt) {
+    if (attempt <= 1) {
+      return 0;
+    }
+
+    // 指数退避：base * 2^(attempt-2)
+    // attempt=2: 第一次重试，使用 base
+    // attempt=3: 第二次重试，使用 base * 2
+    // attempt=4: 第三次重试，使用 base * 4
+    final delay = _config.exponentialBackoffBaseMs * (1 << (attempt - 2));
+    return delay.clamp(0, _config.exponentialBackoffMaxMs);
+  }
+
   /// 判断是否还有下一个端点或需要重试
   /// previousResult: 上一次的响应结果，null表示第一次调用
   Future<bool> hasNext(HandleResult? previousResult) async {
@@ -105,12 +120,15 @@ class ProxyServerRouter {
             '($_currentAttempt/${_config.maxRetries})',
           );
 
-          // 添加重试等待逻辑
-          if (_config.enableRetryDelay && _currentAttempt > 1) {
-            LoggerUtil.instance.d(
-              'Waiting ${_config.retryDelayMs}ms before retry',
-            );
-            await Future.delayed(Duration(milliseconds: _config.retryDelayMs));
+          // 添加重试等待逻辑（支持指数退避）
+          if (_currentAttempt > 1) {
+            final delayMs = _calculateRetryDelay(_currentAttempt);
+            if (delayMs > 0) {
+              LoggerUtil.instance.d(
+                'Waiting ${delayMs}ms before retry (attempt $_currentAttempt)',
+              );
+              await Future.delayed(Duration(milliseconds: delayMs));
+            }
           }
 
           return true;
@@ -139,9 +157,7 @@ class ProxyServerRouter {
   /// 设置端点列表
   void setEndpoints(List<EndpointEntity> endpoints) {
     // 过滤掉未启用和临时禁用的端点
-    _endpoints = endpoints
-        .where((e) => e.enabled && !e.forbidden)
-        .toList();
+    _endpoints = endpoints.where((e) => e.enabled && !e.forbidden).toList();
     _resetForNewRequest();
   }
 
@@ -153,7 +169,9 @@ class ProxyServerRouter {
     // 检查下一个端点是否过期，如果是则自动恢复
     while (_currentEndpointIndex < _endpoints.length) {
       final nextEndpoint = _endpoints[_currentEndpointIndex];
-      final restored = await _repository.checkAndRestoreExpired(nextEndpoint.id);
+      final restored = await _repository.checkAndRestoreExpired(
+        nextEndpoint.id,
+      );
       if (restored) {
         LoggerUtil.instance.i(
           'Automatically restored expired temp-disabled endpoint: ${nextEndpoint.name}',
