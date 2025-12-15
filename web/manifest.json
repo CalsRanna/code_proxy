@@ -1,6 +1,6 @@
 {
-    "name": "code_proxy",
-    "short_name": "code_proxy",
+    "name": "Code Proxy",
+    "short_name": "Code Proxy",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#hexcode",
