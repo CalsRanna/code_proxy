@@ -4,11 +4,13 @@ import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/services/claude_code_setting_service.dart';
+import 'package:code_proxy/util/app_restart_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 
 class SettingViewModel {
@@ -273,6 +275,28 @@ class SettingViewModel {
           );
         },
       );
+    }
+  }
+
+  /// 恢复默认设置
+  /// 删除数据库文件和所有 SharedPreferences 设置,然后重启应用
+  Future<void> resetToDefault() async {
+    try {
+      // 1. 删除数据库文件
+      final dbFile = File(Database.instance.path);
+      if (await dbFile.exists()) {
+        await dbFile.delete();
+      }
+
+      // 2. 清空所有 SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      // 3. 重启应用
+      await AppRestartUtil.restart();
+    } catch (e) {
+      // 如果出错,至少尝试重启
+      await AppRestartUtil.restart();
     }
   }
 }

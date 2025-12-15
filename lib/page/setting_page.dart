@@ -64,6 +64,12 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => _showClearDatabaseDialog(context),
       );
     });
+    var resetTile = ListTile(
+      title: const Text('恢复默认设置'),
+      subtitle: const Text('清空所有数据和设置,应用将自动重启'),
+      trailing: const Icon(LucideIcons.chevronRight),
+      onTap: () => _showResetToDefaultDialog(context),
+    );
     var listView = ListView(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       children: [
@@ -72,6 +78,7 @@ class _SettingPageState extends State<SettingPage> {
         apiTimeoutTile,
         disableNonessentialTrafficTile,
         sizeTile,
+        resetTile,
       ],
     );
     var pageHeader = PageHeader(title: '应用设置', subtitle: '管理代理服务器配置和应用选项');
@@ -109,6 +116,38 @@ class _SettingPageState extends State<SettingPage> {
                 viewModel.clearDatabase(context);
               },
               child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showResetToDefaultDialog(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (context) {
+        return ShadDialog(
+          title: const Text('恢复默认设置'),
+          description: const Text(
+            '此操作将:\n'
+            '• 删除所有端点配置\n'
+            '• 删除所有请求日志\n'
+            '• 清空所有应用设置\n'
+            '• 自动重启应用程序\n\n'
+            '此操作不可撤销,确定继续吗?',
+          ),
+          actions: [
+            ShadButton.outline(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            ShadButton.destructive(
+              onPressed: () {
+                Navigator.of(context).pop();
+                viewModel.resetToDefault();
+              },
+              child: const Text('确定恢复'),
             ),
           ],
         );

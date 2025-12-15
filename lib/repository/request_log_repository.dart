@@ -60,7 +60,7 @@ class RequestLogRepository {
     return dailyStats;
   }
 
-  /// Get daily success request stats for heatmap
+  /// Get daily request stats for heatmap
   Future<Map<String, int>> getDailySuccessRequestStats({
     required int startTimestamp,
     required int endTimestamp,
@@ -72,7 +72,6 @@ class RequestLogRepository {
           'COUNT(id) as request_count',
         ])
         .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
-        .where('success', 1)
         .groupBy('date')
         .orderBy('date')
         .get();

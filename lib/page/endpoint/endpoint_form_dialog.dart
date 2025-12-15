@@ -21,15 +21,12 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController noteController;
   late final TextEditingController authTokenController;
   late final TextEditingController baseUrlController;
-  late final TextEditingController timeoutController;
   late final TextEditingController modelController;
   late final TextEditingController smallFastModelController;
   late final TextEditingController haikuModelController;
   late final TextEditingController sonnetModelController;
   late final TextEditingController opusModelController;
   late final TextEditingController weightController;
-
-  late bool disableNonessentialTraffic;
 
   @override
   void initState() {
@@ -69,7 +66,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     noteController.dispose();
     authTokenController.dispose();
     baseUrlController.dispose();
-    timeoutController.dispose();
     modelController.dispose();
     smallFastModelController.dispose();
     haikuModelController.dispose();
@@ -221,7 +217,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         note: noteController.text.isEmpty ? null : noteController.text,
         anthropicAuthToken: authTokenController.text,
         anthropicBaseUrl: baseUrlController.text,
-        apiTimeoutMs: int.tryParse(timeoutController.text),
         anthropicModel: modelController.text.isEmpty
             ? null
             : modelController.text,
@@ -237,7 +232,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         anthropicDefaultOpusModel: opusModelController.text.isEmpty
             ? null
             : opusModelController.text,
-        claudeCodeDisableNonessentialTraffic: disableNonessentialTraffic,
       );
     } else {
       // 更新端点
