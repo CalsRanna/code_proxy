@@ -2,249 +2,244 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## 项目概述
 
-Code Proxy is a Flutter application that implements an intelligent HTTP proxy server for Claude API endpoints. It provides load balancing, health checking, request logging, and API cost tracking functionality with a modern Flutter UI.
+**Code Proxy** 是一个 Flutter 桌面应用程序，用于管理多个 Anthropic API 端点，实现智能负载均衡、故障转移和请求路由。该应用支持 macOS、Windows 和 Linux 平台。
 
-**Core Purpose**: Acts as a transparent proxy between Claude Code CLI and multiple Claude API endpoints (official Anthropic API or third-party aggregators), automatically routing requests to the fastest healthy endpoint with fallback support.
+## 技术栈
 
-## Development Commands
+- **框架**: Flutter 3.10+
+- **状态管理**: signals (signals_flutter)
+- **依赖注入**: get_it
+- **路由**: auto_route
+- **UI 框架**: shadcn_ui
+- **数据库**: sqlite3 + laconic ORM
+- **Web 服务器**: shelf (Dart 原生 HTTP 服务器)
+- **图标**: lucide_icons_flutter
+- **图表**: syncfusion_flutter_charts
+- **桌面集成**: tray_manager, window_manager
 
-### Essential Commands
+## 常用命令
+
+### 开发命令
+
 ```bash
-# Install dependencies
-flutter pub get
+# 运行应用程序（开发模式）
+flutter run
 
-# Run the app (macOS is primary platform)
+# 在指定平台运行
 flutter run -d macos
+flutter run -d windows
+flutter run -d linux
 
-# Run tests
-flutter test
-
-# Analyze code for issues
+# 代码分析
 flutter analyze
 
-# Clean build artifacts
-flutter clean
+# 运行测试
+flutter test
 
-# Generate code (auto_route, etc.)
-dart run build_runner build
-
-# Generate code with conflict resolution
-dart run build_runner build --delete-conflicting-outputs
+# 运行特定测试文件
+flutter test test/widget_test.dart
 ```
 
-### Build Commands
-```bash
-# Build for macOS
-flutter build macos
+### 构建命令
 
-# Build for specific platforms
+```bash
+# 构建当前平台的发布版本
+flutter build
+
+# 构建特定平台
+flutter build macos
 flutter build windows
 flutter build linux
-flutter build apk     # Android
-flutter build ios
+
+# 构建 web 版本
+flutter build web
+
+# 清理构建文件
+flutter clean
 ```
 
-## Architecture
+### 依赖管理
 
-### Three-Layer Architecture
-
-1. **Services Layer** (`lib/services/`)
-   - Core business logic and infrastructure
-   - All services are singletons registered via GetIt dependency injection
-   - Services communicate through callbacks to avoid circular dependencies
-
-2. **ViewModel Layer** (`lib/view_model/`)
-   - UI state management using `signals` package (reactive programming)
-   - ViewModels are factory-registered (new instance per page)
-   - Inherit from `BaseViewModel` for lifecycle management
-
-3. **View Layer** (`lib/page/`, `lib/widgets/`)
-   - Flutter widgets that observe and react to ViewModel signals
-   - Pages use auto_route for navigation
-
-### Key Services
-
-**ProxyServerService** (`lib/services/proxy_server/proxy_server_service.dart`)
-- Implements HTTP proxy using `shelf` package
-- Listens on port 9000 by default
-- Handles request forwarding with retry logic and automatic endpoint failover
-- Supports both streaming (SSE) and non-streaming responses
-- Uses `x-api-key` header for authentication with Claude API
-- Records statistics via callbacks to StatsCollector
-- Iterates through enabled endpoints until request succeeds or all endpoints exhausted
-
-**StatsCollector** (`lib/services/stats_collector.dart`)
-- Records request logs with detailed metrics
-- Tracks token usage and API costs
-- Persists logs to database with configurable retention
-
-**ClaudeCodeConfigManager** (`lib/services/claude_code_config_manager.dart`)
-- Manages Claude Code CLI configuration at `~/.claude/settings.json`
-- Updates configuration to point to proxy server on startup
-- Handles macOS sandbox path resolution for accessing user home directory
-
-**ConfigManager** (`lib/services/config_manager.dart`)
-- Manages proxy configuration and endpoint list via DatabaseService
-- Manages app preferences via SharedPreferences (theme, language, window state)
-- Provides config import/export functionality
-
-**DatabaseService** (`lib/services/database_service.dart`)
-- SQLite database wrapper using `sqlite3` package
-- Manages endpoints, request_logs, and proxy_config tables
-- Handles schema migrations and daily statistics queries
-
-**ThemeService** (`lib/services/theme_service.dart`)
-- Manages application theme state (light/dark mode)
-- Persists theme preference via SharedPreferences
-- Independent singleton service
-
-### Dependency Injection
-
-All service initialization occurs in `lib/di.dart`:
-- Services registered as lazy singletons via `getIt.registerLazySingleton`
-- ViewModels registered as factories via `getIt.registerFactory` (new instance per page)
-- Bootstrap sequence: DatabaseService → ConfigManager → load initial data → other services
-- Global state initialization: `EndpointsViewModel.endpoints` and `SettingsViewModel.theme` loaded during startup
-- Use `getIt<ServiceType>()` to access services
-
-### State Management
-
-Uses `signals` package (reactive programming):
-- Services expose `Signal<T>` for state
-- UI observes signals with `Watch` widget or `.watch(context)`
-- Automatic UI updates when signal values change
-- No need for manual setState() calls
-
-### Claude Code Integration
-
-The proxy integrates with Claude Code CLI workflow:
-
-1. **Configuration Update**: On startup, updates `~/.claude/settings.json` to route requests to localhost:9000
-2. **Request Routing**: Intercepts Claude Code requests, tries enabled endpoints sequentially with retry logic
-3. **Authentication**: Replaces authentication headers with endpoint's API key using `x-api-key` header format
-4. **Model Mapping**: Automatically maps model names in request body based on endpoint configuration
-
-### Models
-
-Key data models in `lib/model/`:
-- `EndpointEntity`: API endpoint configuration with URL, API key, weight, enabled status, and Anthropic model settings (default models for Haiku/Sonnet/Opus, small fast model, etc.)
-- `ProxyServerConfigEntity`: Proxy server settings (address, port, timeouts, max retries, max log entries)
-- `ProxyServerState`: Runtime proxy server state (listen address/port, request counts, success rate)
-- `RequestLog`: Detailed log entry with request/response data, headers, tokens, cost, timing metrics
-- `EndpointStats`: Aggregated statistics per endpoint
-- `ClaudeConfig`: Claude Code-specific configuration (base URL, API key, environment variables)
-
-### Router
-
-Uses `auto_route` package for navigation:
-- Route definitions in `lib/router/router.dart`
-- Generated code in `lib/router/router.gr.dart`
-- Run code generator after modifying routes
-
-## Important Patterns
-
-### Service Communication
-Services use callbacks instead of direct dependencies to avoid circular references:
-```dart
-// Example from ProxyServerService
-final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)? onRequestCompleted;
-```
-
-### Global Reactive State
-ViewModels can share state via static signals:
-```dart
-// In EndpointsViewModel
-static final endpoints = listSignal<EndpointEntity>([]);
-
-// Accessed from other ViewModels
-ListSignal<EndpointEntity> get endpoints => EndpointsViewModel.endpoints;
-```
-
-### Reactive UI Updates
-```dart
-// In ViewModel
-final counter = Signal(0);
-
-// In UI
-Watch((context) => Text('${viewModel.counter.value}'))
-```
-
-### Resource Cleanup
-ViewModels inherit from `BaseViewModel` which provides:
-- `dispose()` method - override to clean up timers, subscriptions, etc.
-- `isDisposed` flag - check before updating signals to avoid errors
-- `ensureNotDisposed()` - throws if ViewModel already disposed
-
-### SSE (Server-Sent Events) Support
-The proxy handles streaming responses from Claude API:
-- Detects SSE via `content-type: text/event-stream` header
-- Uses `StreamTransformer` to capture response data while streaming
-- Parses SSE format (`data: {...}` lines) to extract token usage from multiple chunks
-- Records metrics after stream completes (total time + time to first byte)
-
-### Request Routing & Failover
-ProxyServerService implements endpoint failover:
-- Iterates through all enabled endpoints in order
-- For each endpoint, retries up to `maxRetries` times on failure
-- 2xx responses: Returns immediately (success)
-- 4xx responses: Returns immediately (client error, no retry)
-- 5xx responses or exceptions: Retries or tries next endpoint
-- If all endpoints fail: Returns 500 Internal Server Error
-
-## Testing
-
-- Default test in `test/widget_test.dart`
-- Run specific test file: `flutter test test/widget_test.dart`
-- Mock services using GetIt's reset functionality (see `resetServiceLocator()` in `di.dart`)
-
-## Platform Notes
-
-### macOS
-- Primary development and deployment platform
-- Requires handling of macOS sandbox for file system access
-- Configuration file path resolution in `ClaudeCodeConfigManager` handles sandbox paths
-
-### Multi-platform Support
-- Built for macOS, Windows, Linux, iOS, Android, Web
-- Platform-specific code should use `Platform.isX` checks
-- File paths use `path_provider` package for platform abstraction
-
-## Database Schema
-
-### endpoints Table
-Stores API endpoint configurations with these key fields:
-- Basic info: `id`, `name`, `note`, `enabled`, `weight`
-- API settings: `anthropicAuthToken`, `anthropicBaseUrl`, `apiTimeoutMs`
-- Model configuration: `anthropicModel`, `anthropicSmallFastModel`, `anthropicDefaultHaikuModel`, `anthropicDefaultSonnetModel`, `anthropicDefaultOpusModel`
-- Claude Code settings: `claudeCodeDisableNonessentialTraffic`
-
-### request_logs Table
-Stores detailed request logs with fields for:
-- Request data: `method`, `path`, `rawRequest`, `rawHeader`
-- Response data: `statusCode`, `rawResponse`, `responseTime`, `timeToFirstByte`
-- Metrics: `model`, `inputTokens`, `outputTokens`, `cost`
-- Metadata: `timestamp`, `endpointId`, `endpointName`, `success`
-
-### proxy_config Table
-Stores proxy server configuration:
-- Network: `address` (default: 127.0.0.1), `port` (default: 9000)
-- Behavior: `requestTimeoutMs`, `maxRetries`, `maxLogEntries`
-
-## Code Generation
-
-The project uses code generation for:
-- **auto_route**: Navigation routing (generates `router.gr.dart`)
-
-Run generator after modifying annotated code:
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+# 获取依赖
+flutter pub get
+
+# 升级依赖（自动处理主版本）
+flutter pub upgrade --major-versions
+
+# 查看过时依赖
+flutter pub outdated
 ```
 
-## Configuration Files
+## 项目架构
 
-- `pubspec.yaml`: Dependencies and Flutter configuration
-- `analysis_options.yaml`: Dart analyzer settings (uses flutter_lints)
-- `~/.claude/settings.json`: Claude Code CLI configuration (managed by app)
-- `~/.claude/settings.json.backup`: Original Claude Code config backup
+### 目录结构
+
+```
+lib/
+├── database/          # 数据库相关
+│   ├── database.dart
+│   └── migration/     # 数据库迁移脚本
+├── di.dart           # 依赖注入配置
+├── main.dart         # 应用程序入口
+├── model/            # 数据模型
+│   ├── endpoint_entity.dart
+│   └── request_log.dart
+├── page/             # 页面组件
+│   ├── dashboard/    # 仪表盘页面
+│   ├── endpoint/     # 端点管理页面
+│   ├── request_log/  # 请求日志页面
+│   ├── home_page.dart
+│   └── setting_page.dart
+├── repository/       # 数据访问层
+│   ├── endpoint_repository.dart
+│   └── request_log_repository.dart
+├── router/           # 路由配置
+│   └── router.dart
+├── services/         # 业务服务
+│   ├── claude_code_setting_service.dart
+│   └── proxy_server/ # 代理服务器核心
+│       ├── proxy_server_service.dart     # 主服务
+│       ├── proxy_server_config.dart      # 配置
+│       ├── proxy_server_router.dart      # 路由逻辑
+│       ├── proxy_server_request_handler.dart
+│       ├── proxy_server_response_handler.dart
+│       └── ... (其他处理器)
+├── themes/           # 主题和样式
+├── util/             # 工具类
+│   ├── logger_util.dart
+│   ├── window_util.dart
+│   └── tray_util.dart
+├── view_model/       # 视图模型
+│   ├── dashboard_view_model.dart
+│   ├── endpoint_view_model.dart
+│   ├── home_view_model.dart
+│   ├── request_log_view_model.dart
+│   └── setting_view_model.dart
+└── widgets/          # 共享组件
+```
+
+### 架构模式
+
+项目采用 **MVVM (Model-View-ViewModel)** 架构：
+
+- **Model**: `lib/model/` - 数据模型和实体
+- **View**: `lib/page/` - UI 页面和组件
+- **ViewModel**: `lib/view_model/` - 状态管理和业务逻辑
+- **Repository**: `lib/repository/` - 数据访问层
+- **Services**: `lib/services/` - 核心业务服务（代理服务器）
+
+### 依赖注入
+
+使用 **get_it** 进行依赖注入，配置在 `lib/di.dart`：
+
+```dart
+class DI {
+  static void ensureInitialized() {
+    final instance = GetIt.instance;
+    instance.registerLazySingleton<HomeViewModel>(() => HomeViewModel());
+    instance.registerLazySingleton<DashboardViewModel>(() => DashboardViewModel());
+    instance.registerLazySingleton<EndpointViewModel>(() => EndpointViewModel());
+    instance.registerLazySingleton<RequestLogViewModel>(() => RequestLogViewModel());
+    instance.registerLazySingleton<SettingViewModel>(() => SettingViewModel());
+  }
+}
+```
+
+### 代理服务器架构
+
+代理服务器 (`lib/services/proxy_server/`) 是应用的核心功能：
+
+1. **ProxyServerService** - 主服务，协调整个代理流程
+2. **ProxyServerRouter** - 路由逻辑，处理端点选择和故障转移
+3. **ProxyServerRequestHandler** - 请求处理，构建和转发 HTTP 请求
+4. **ProxyServerResponseHandler** - 响应处理，记录日志和判断是否需要重试
+5. **ProxyServerConfig** - 配置管理（端口、重试策略等）
+
+代理流程：
+1. 接收请求 → 2. 路由到下一个端点 → 3. 发送请求 → 4. 处理响应 → 5. 记录日志 → 6. 返回响应或重试下一个端点
+
+### 数据库
+
+使用 **sqlite3 + laconic ORM**，数据库文件位于：
+- macOS: `~/Library/Application Support/code_proxy/code_proxy.db`
+- Linux: `~/.local/share/code_proxy/code_proxy.db`
+- Windows: `%APPDATA%\code_proxy\code_proxy.db`
+
+主要表：
+- `endpoints` - 存储端点配置
+- `request_logs` - 存储请求日志
+
+## 关键文件
+
+### 入口和初始化
+
+- `lib/main.dart` - 应用程序入口，初始化数据库、DI、窗口和系统托盘
+- `lib/di.dart` - 依赖注入配置
+- `lib/database/database.dart` - 数据库初始化和迁移
+
+### 核心服务
+
+- `lib/services/proxy_server/proxy_server_service.dart` - 代理服务器主服务
+- `lib/services/proxy_server/proxy_server_config.dart` - 代理服务器配置
+- `lib/services/proxy_server/proxy_server_router.dart` - 端点路由和故障转移逻辑
+
+### 主要页面
+
+- `lib/page/home_page.dart` - 主页面，包含侧边栏导航
+- `lib/page/dashboard/dashboard_page.dart` - 仪表盘，显示统计数据
+- `lib/page/endpoint/endpoint_page.dart` - 端点管理页面
+- `lib/page/request_log/request_log_page.dart` - 请求日志页面
+
+## 开发注意事项
+
+1. **代码生成**: 项目使用 `auto_route_generator` 和 `build_runner`，修改路由或模型后需要运行 `dart run build_runner build --delete-conflicting-outputs`
+
+2. **状态管理**: 使用 signals 进行响应式状态管理，在 `initState()` 中调用 `initSignals()` 初始化信号
+
+3. **依赖注入**: 通过 `GetIt.instance.get<T>()` 获取 ViewModel 或服务实例
+
+4. **日志系统**: 使用 `LoggerUtil.instance` 进行日志记录
+
+5. **数据库迁移**: 新增表或字段时，在 `lib/database/migration/` 目录下创建新的迁移文件
+
+6. **UI 主题**: 使用 Shadcn UI 组件库，自定义主题在 `lib/themes/` 目录下
+
+## 测试
+
+项目包含基本的 widget 测试：
+- `test/widget_test.dart` - 主应用 widget 测试
+
+运行测试：
+```bash
+flutter test
+```
+
+## 构建和发布
+
+### 本地构建
+
+```bash
+# macOS
+flutter build macos
+
+# Windows
+flutter build windows
+
+# Linux
+flutter build linux
+```
+
+构建完成后，可执行文件位于：
+- macOS: `build/macos/Build/Products/Release/code_proxy.app`
+- Windows: `build\windows\x64\runner\Release\code_proxy.exe`
+- Linux: `build/linux/x64/release/bundle/code_proxy`
+
+## 平台支持
+
+- ✅ macOS (Intel & Apple Silicon)
+- ✅ Windows (x64)
+- ✅ Linux (x64)
+- ✅ Web (实验性支持)
