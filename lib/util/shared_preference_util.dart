@@ -10,6 +10,8 @@ class SharedPreferenceUtil {
   final String _keyBrightness = 'brightness';
   final String _keyPort = 'port';
   final String _keyMaxRetries = 'max_retries';
+  final String _keyApiTimeout = 'api_timeout';
+  final String _keyDisableNonessentialTraffic = 'disable_nonessential_traffic';
 
   SharedPreferenceUtil._();
 
@@ -19,6 +21,14 @@ class SharedPreferenceUtil {
 
   Future<int> getMaxRetries() async {
     return (await _preferences).getInt(_keyMaxRetries) ?? 5;
+  }
+
+  Future<int> getApiTimeout() async {
+    return (await _preferences).getInt(_keyApiTimeout) ?? 600000; // 默认 600000ms (10分钟)
+  }
+
+  Future<bool> getDisableNonessentialTraffic() async {
+    return (await _preferences).getBool(_keyDisableNonessentialTraffic) ?? true; // 默认启用
   }
 
   Future<int> getPort() async {
@@ -39,6 +49,14 @@ class SharedPreferenceUtil {
 
   Future<void> setMaxRetries(int maxRetries) async {
     await (await _preferences).setInt(_keyMaxRetries, maxRetries);
+  }
+
+  Future<void> setApiTimeout(int timeout) async {
+    await (await _preferences).setInt(_keyApiTimeout, timeout);
+  }
+
+  Future<void> setDisableNonessentialTraffic(bool disable) async {
+    await (await _preferences).setBool(_keyDisableNonessentialTraffic, disable);
   }
 
   Future<void> setPort(int port) async {

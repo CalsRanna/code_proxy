@@ -37,7 +37,7 @@ class ProxyServerService {
       repository: repository,
       onEndpointUnavailable: onEndpointUnavailable,
     );
-    _requestHandler = ProxyServerRequestHandler();
+    _requestHandler = ProxyServerRequestHandler(config);
     _responseHandler = ProxyServerResponseHandler(
       onRequestCompleted: onRequestCompleted,
     );

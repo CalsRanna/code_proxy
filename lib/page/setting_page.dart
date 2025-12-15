@@ -26,6 +26,36 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editListenPort(context),
       );
     });
+    var maxRetriesTile = Watch((context) {
+      return ListTile(
+        title: const Text('最大重试次数'),
+        subtitle: Text('每个端点最多重试 ${viewModel.maxRetries.value} 次'),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => viewModel.editMaxRetries(context),
+      );
+    });
+    var apiTimeoutTile = Watch((context) {
+      return ListTile(
+        title: const Text('API 超时时间'),
+        subtitle: Text('${viewModel.apiTimeout.value} 毫秒'),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => viewModel.editApiTimeout(context),
+      );
+    });
+    var disableNonessentialTrafficTile = Watch((context) {
+      return ListTile(
+        title: const Text('禁用非必要网络请求'),
+        subtitle: const Text('减少 Claude Code 的后台网络活动'),
+        trailing: ShadSwitch(
+          value: viewModel.disableNonessentialTraffic.value,
+          onChanged: (value) =>
+              viewModel.toggleDisableNonessentialTraffic(value),
+        ),
+        onTap: () => viewModel.toggleDisableNonessentialTraffic(
+          !viewModel.disableNonessentialTraffic.value,
+        ),
+      );
+    });
     var sizeTile = Watch((context) {
       return ListTile(
         title: const Text('数据库文件大小'),
@@ -36,7 +66,13 @@ class _SettingPageState extends State<SettingPage> {
     });
     var listView = ListView(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
-      children: [portListTile, sizeTile],
+      children: [
+        portListTile,
+        maxRetriesTile,
+        apiTimeoutTile,
+        disableNonessentialTrafficTile,
+        sizeTile,
+      ],
     );
     var pageHeader = PageHeader(title: '应用设置', subtitle: '管理代理服务器配置和应用选项');
     var children = [pageHeader, Expanded(child: listView)];

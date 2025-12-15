@@ -1,10 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
 
 class ClaudeCodeSettingService {
-  Future<void> updateProxySetting(int port) async {
+  Future<void> updateProxySetting() async {
+    final instance = SharedPreferenceUtil.instance;
+    final port = await instance.getPort();
+    final apiTimeout = await instance.getApiTimeout();
+    final disableNonessentialTraffic = await instance
+        .getDisableNonessentialTraffic();
+
     final setting = {
       'env': {
         'ANTHROPIC_AUTH_TOKEN': 'proxy-token',
@@ -14,8 +21,10 @@ class ClaudeCodeSettingService {
         'ANTHROPIC_DEFAULT_SONNET_MODEL': 'ANTHROPIC_DEFAULT_SONNET_MODEL',
         'ANTHROPIC_MODEL': 'ANTHROPIC_MODEL',
         'ANTHROPIC_SMALL_FAST_MODEL': 'ANTHROPIC_SMALL_FAST_MODEL',
-        'API_TIMEOUT_MS': 600000,
-        'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': 1,
+        'API_TIMEOUT_MS': apiTimeout,
+        'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': disableNonessentialTraffic
+            ? 1
+            : 0,
       },
     };
     final home = Platform.environment['HOME'] ?? '';

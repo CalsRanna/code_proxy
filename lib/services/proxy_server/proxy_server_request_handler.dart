@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_model_mapper.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
@@ -9,8 +10,9 @@ import 'package:shelf/shelf.dart' as shelf;
 /// 请求处理器 - 负责请求准备和转发
 class ProxyServerRequestHandler {
   final http.Client _httpClient;
+  final ProxyServerConfig config;
 
-  ProxyServerRequestHandler() : _httpClient = http.Client();
+  ProxyServerRequestHandler(this.config) : _httpClient = http.Client();
 
   void close() {
     _httpClient.close();
@@ -18,7 +20,9 @@ class ProxyServerRequestHandler {
 
   /// 转发HTTP请求
   Future<http.StreamedResponse> forwardRequest(http.Request request) async {
-    final response = await _httpClient.send(request);
+    final response = await _httpClient.send(request).timeout(
+      Duration(milliseconds: config.apiTimeoutMs),
+    );
     return response;
   }
 

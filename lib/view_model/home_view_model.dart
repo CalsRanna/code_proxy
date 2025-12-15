@@ -67,6 +67,7 @@ class HomeViewModel {
       address: '127.0.0.1',
       port: await instance.getPort(),
       maxRetries: await instance.getMaxRetries(),
+      apiTimeoutMs: await instance.getApiTimeout(),
     );
 
     // 触发临时禁用
@@ -97,13 +98,15 @@ class HomeViewModel {
   Future<void> restartProxyServer(int newPort) async {
     await _proxyServer?.stop();
     _proxyServer = null;
-    await ClaudeCodeSettingService().updateProxySetting(newPort);
+    await ClaudeCodeSettingService().updateProxySetting();
     final instance = SharedPreferenceUtil.instance;
     final maxRetries = await instance.getMaxRetries();
+    final apiTimeout = await instance.getApiTimeout();
     final config = ProxyServerConfig(
       address: '127.0.0.1',
       port: newPort,
       maxRetries: maxRetries,
+      apiTimeoutMs: apiTimeout,
     );
     _proxyServer = ProxyServerService(
       config: config,
@@ -148,13 +151,15 @@ class HomeViewModel {
     var instance = SharedPreferenceUtil.instance;
     final port = await instance.getPort();
     final maxRetries = await instance.getMaxRetries();
+    final apiTimeout = await instance.getApiTimeout();
 
     final config = ProxyServerConfig(
       address: '127.0.0.1',
       port: port,
       maxRetries: maxRetries,
+      apiTimeoutMs: apiTimeout,
     );
-    await ClaudeCodeSettingService().updateProxySetting(port);
+    await ClaudeCodeSettingService().updateProxySetting();
     _proxyServer ??= ProxyServerService(
       config: config,
       onRequestCompleted: handleRequestCompleted,
