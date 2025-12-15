@@ -43,18 +43,13 @@ class EndpointRepository {
         'note': endpoint.note,
         'enabled': endpoint.enabled ? 1 : 0,
         'weight': endpoint.weight,
-        'created_at': endpoint.createdAt,
-        'updated_at': endpoint.updatedAt,
         'anthropic_auth_token': endpoint.anthropicAuthToken,
         'anthropic_base_url': endpoint.anthropicBaseUrl,
-        'api_timeout_ms': endpoint.apiTimeoutMs,
         'anthropic_model': endpoint.anthropicModel,
         'anthropic_small_fast_model': endpoint.anthropicSmallFastModel,
         'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
         'anthropic_default_sonnet_model': endpoint.anthropicDefaultSonnetModel,
         'anthropic_default_opus_model': endpoint.anthropicDefaultOpusModel,
-        'claude_code_disable_nonessential_traffic':
-            endpoint.claudeCodeDisableNonessentialTraffic ? 1 : 0,
       },
     ]);
   }
@@ -62,27 +57,20 @@ class EndpointRepository {
   /// Update an existing endpoint
   Future<void> update(EndpointEntity endpoint) async {
     // Clear forbidden status when manually updating
-    final updated = endpoint.copyWith(
-      forbidden: false,
-      forbiddenUntil: null,
-    );
+    final updated = endpoint.copyWith(forbidden: false, forbiddenUntil: null);
 
     await _database.laconic.table('endpoints').where('id', updated.id).update({
       'name': updated.name,
       'note': updated.note,
       'enabled': updated.enabled ? 1 : 0,
       'weight': updated.weight,
-      'updated_at': updated.updatedAt,
       'anthropic_auth_token': updated.anthropicAuthToken,
       'anthropic_base_url': updated.anthropicBaseUrl,
-      'api_timeout_ms': updated.apiTimeoutMs,
       'anthropic_model': updated.anthropicModel,
       'anthropic_small_fast_model': updated.anthropicSmallFastModel,
       'anthropic_default_haiku_model': updated.anthropicDefaultHaikuModel,
       'anthropic_default_sonnet_model': updated.anthropicDefaultSonnetModel,
       'anthropic_default_opus_model': updated.anthropicDefaultOpusModel,
-      'claude_code_disable_nonessential_traffic':
-          updated.claudeCodeDisableNonessentialTraffic ? 1 : 0,
       'forbidden': 0,
       'forbidden_until': null,
     });
@@ -112,10 +100,7 @@ class EndpointRepository {
   /// Mark endpoint as temporarily forbidden
   Future<void> forbid(String id, int durationMs) async {
     final disableUntil = DateTime.now().millisecondsSinceEpoch + durationMs;
-    await _database.laconic
-        .table('endpoints')
-        .where('id', id)
-        .update({
+    await _database.laconic.table('endpoints').where('id', id).update({
       'forbidden': 1,
       'forbidden_until': disableUntil,
     });
@@ -123,10 +108,7 @@ class EndpointRepository {
 
   /// Remove forbidden status from endpoint
   Future<void> unforbid(String id) async {
-    await _database.laconic
-        .table('endpoints')
-        .where('id', id)
-        .update({
+    await _database.laconic.table('endpoints').where('id', id).update({
       'forbidden': 0,
       'forbidden_until': null,
     });
@@ -155,18 +137,15 @@ class EndpointRepository {
       note: row['note'] as String?,
       enabled: (row['enabled'] as int) == 1,
       weight: row['weight'] as int,
-      createdAt: row['created_at'] as int,
-      updatedAt: row['updated_at'] as int,
       anthropicAuthToken: row['anthropic_auth_token'] as String?,
       anthropicBaseUrl: row['anthropic_base_url'] as String?,
-      apiTimeoutMs: row['api_timeout_ms'] as int?,
       anthropicModel: row['anthropic_model'] as String?,
       anthropicSmallFastModel: row['anthropic_small_fast_model'] as String?,
-      anthropicDefaultHaikuModel: row['anthropic_default_haiku_model'] as String?,
-      anthropicDefaultSonnetModel: row['anthropic_default_sonnet_model'] as String?,
+      anthropicDefaultHaikuModel:
+          row['anthropic_default_haiku_model'] as String?,
+      anthropicDefaultSonnetModel:
+          row['anthropic_default_sonnet_model'] as String?,
       anthropicDefaultOpusModel: row['anthropic_default_opus_model'] as String?,
-      claudeCodeDisableNonessentialTraffic:
-          (row['claude_code_disable_nonessential_traffic'] as int?) == 1,
       forbidden: (row['forbidden'] as int?) == 1,
       forbiddenUntil: row['forbidden_until'] as int?,
     );

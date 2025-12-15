@@ -15,17 +15,13 @@ class Migration202512110000 {
         note TEXT,
         enabled INTEGER DEFAULT 1,
         weight INTEGER DEFAULT 1,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
         anthropic_auth_token TEXT,
         anthropic_base_url TEXT,
-        api_timeout_ms INTEGER,
         anthropic_model TEXT,
         anthropic_small_fast_model TEXT,
         anthropic_default_haiku_model TEXT,
         anthropic_default_sonnet_model TEXT,
-        anthropic_default_opus_model TEXT,
-        claude_code_disable_nonessential_traffic INTEGER DEFAULT 0
+        anthropic_default_opus_model TEXT
       )
     ''');
 

@@ -16,9 +16,7 @@ class EndpointViewModel {
 
   // 使用 getter 来安全地访问 enabledEndpoints
   List<EndpointEntity> get enabledEndpoints {
-    return endpoints.value
-        .where((e) => e.enabled && !e.forbidden)
-        .toList();
+    return endpoints.value.where((e) => e.enabled && !e.forbidden).toList();
   }
 
   final shadPopoverController = ShadPopoverController();
@@ -44,25 +42,19 @@ class EndpointViewModel {
     // 计算新的 weight 值：当前列表数量 + 1（作为最后一个）
     final newWeight = endpoints.value.length + 1;
 
-    final now = DateTime.now().millisecondsSinceEpoch;
     final endpoint = EndpointEntity(
       id: _uuid.v4(),
       name: name,
       note: note,
       weight: newWeight,
       enabled: true,
-      createdAt: now,
-      updatedAt: now,
       anthropicAuthToken: anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl,
-      apiTimeoutMs: apiTimeoutMs,
       anthropicModel: anthropicModel,
       anthropicSmallFastModel: anthropicSmallFastModel,
       anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
       anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
       anthropicDefaultOpusModel: anthropicDefaultOpusModel,
-      claudeCodeDisableNonessentialTraffic:
-          claudeCodeDisableNonessentialTraffic,
     );
     await _endpointRepository.insert(endpoint);
     await _loadEndpoints();
@@ -75,19 +67,13 @@ class EndpointViewModel {
 
   Future<void> toggleEnabled(String id) async {
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
-    final updated = endpoint.copyWith(
-      enabled: !endpoint.enabled,
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-    );
+    final updated = endpoint.copyWith(enabled: !endpoint.enabled);
     await _endpointRepository.update(updated);
     await _loadEndpoints();
   }
 
   Future<void> updateEndpoint(EndpointEntity endpoint) async {
-    final updated = endpoint.copyWith(
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-    );
-    await _endpointRepository.update(updated);
+    await _endpointRepository.update(endpoint);
     await _loadEndpoints();
   }
 
@@ -103,7 +89,9 @@ class EndpointViewModel {
     final allEndpoints = await _endpointRepository.getAll();
     for (final endpoint in allEndpoints) {
       if (endpoint.forbidden && endpoint.forbiddenUntil != null) {
-        final restored = await _endpointRepository.checkAndRestoreExpired(endpoint.id);
+        final restored = await _endpointRepository.checkAndRestoreExpired(
+          endpoint.id,
+        );
         if (restored) {
           // 这里可以添加日志记录
         }
@@ -132,14 +120,10 @@ class EndpointViewModel {
     currentEndpoints.insert(newIndex, movedEndpoint);
 
     // 重新分配 weight 值（从1开始，按顺序递增）
-    final now = DateTime.now().millisecondsSinceEpoch;
     final reorderedEndpoints = currentEndpoints.asMap().entries.map((entry) {
       final index = entry.key;
       final endpoint = entry.value;
-      return endpoint.copyWith(
-        weight: index + 1,
-        updatedAt: now,
-      );
+      return endpoint.copyWith(weight: index + 1);
     }).toList();
 
     // 批量更新数据库

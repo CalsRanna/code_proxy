@@ -120,10 +120,7 @@ class HomeViewModel {
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     final endpoints = endpointViewModel.endpoints.value;
     final endpoint = endpoints.firstWhere((e) => e.id == id);
-    final updated = endpoint.copyWith(
-      enabled: !endpoint.enabled,
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-    );
+    final updated = endpoint.copyWith(enabled: !endpoint.enabled);
     await endpointViewModel.updateEndpoint(updated);
     final enabledEndpoints = endpointViewModel.enabledEndpoints;
     _proxyServer?.endpoints = enabledEndpoints;

@@ -32,15 +32,9 @@ class Migration202512150001 {
         method TEXT NOT NULL,
         status_code INTEGER,
         response_time INTEGER,
-        success INTEGER NOT NULL DEFAULT 1,
-        error TEXT,
-        level TEXT NOT NULL DEFAULT 'info',
-        header TEXT,
-        message TEXT,
         model TEXT,
         input_tokens INTEGER,
-        output_tokens INTEGER,
-        log_file_path TEXT
+        output_tokens INTEGER
       )
     ''');
 

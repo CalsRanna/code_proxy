@@ -43,9 +43,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     baseUrlController = TextEditingController(
       text: widget.endpoint?.anthropicBaseUrl,
     );
-    timeoutController = TextEditingController(
-      text: widget.endpoint?.apiTimeoutMs?.toString() ?? '600000',
-    );
     modelController = TextEditingController(
       text: widget.endpoint?.anthropicModel,
     );
@@ -64,9 +61,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     weightController = TextEditingController(
       text: widget.endpoint?.weight.toString() ?? '1',
     );
-
-    disableNonessentialTraffic =
-        widget.endpoint?.claudeCodeDisableNonessentialTraffic ?? false;
   }
 
   @override
@@ -201,7 +195,9 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     if (!_isValidUrl(baseUrl)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请输入有效的 HTTPS URL（如：https://api.example.com）')),
+          const SnackBar(
+            content: Text('请输入有效的 HTTPS URL（如：https://api.example.com）'),
+          ),
         );
       }
       return;
@@ -210,7 +206,9 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     if (!_isHttpsUrl(baseUrl)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Base URL 必须是 HTTPS 协议（如：https://api.example.com）')),
+          const SnackBar(
+            content: Text('Base URL 必须是 HTTPS 协议（如：https://api.example.com）'),
+          ),
         );
       }
       return;
@@ -251,7 +249,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
               int.tryParse(weightController.text) ?? widget.endpoint!.weight,
           anthropicAuthToken: authTokenController.text,
           anthropicBaseUrl: baseUrlController.text,
-          apiTimeoutMs: int.tryParse(timeoutController.text),
           anthropicModel: modelController.text.isEmpty
               ? null
               : modelController.text,
@@ -267,7 +264,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           anthropicDefaultOpusModel: opusModelController.text.isEmpty
               ? null
               : opusModelController.text,
-          claudeCodeDisableNonessentialTraffic: disableNonessentialTraffic,
         ),
       );
     }
