@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:code_proxy/database/database.dart';
+import 'package:code_proxy/repository/endpoint_repository.dart';
+import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +12,7 @@ import 'package:signals/signals.dart';
 
 class SettingViewModel {
   final port = signal(9000);
-  final size = signal('');
+  final size = signal(0);
 
   final controller = TextEditingController();
 
@@ -93,6 +95,57 @@ class SettingViewModel {
   Future<void> getSqliteFileSize() async {
     var file = File(Database.instance.path);
     var stats = await file.stat();
-    size.value = stats.size.toString();
+    size.value = stats.size;
+  }
+
+  Future<void> clearDatabase(BuildContext context) async {
+    try {
+      final database = Database.instance;
+      final endpointRepo = EndpointRepository(database);
+      final requestLogRepo = RequestLogRepository(database);
+
+      await endpointRepo.clearAll();
+      await requestLogRepo.clearAll();
+
+      await getSqliteFileSize();
+
+      if (!context.mounted) return;
+
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return ShadDialog.alert(
+            title: const Text('数据库已清空'),
+            description: const Text('所有数据已清空，应用程序将自动重启。'),
+            actions: [
+              ShadButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  exit(0);
+                },
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return ShadDialog.alert(
+            title: const Text('错误'),
+            description: Text('清空数据库失败: $e'),
+            actions: [
+              ShadButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 }
