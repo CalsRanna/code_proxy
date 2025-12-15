@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/model/request_log.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/services/claude_code_setting_service.dart';
@@ -37,17 +36,17 @@ class HomeViewModel {
     ProxyServerRequest request,
     ProxyServerResponse response,
   ) async {
-    // 使用 RequestLogger 解析数据并组装 RequestLog 对象
-    final RequestLog log = _requestLogger.buildRequestLog(
+    // 1. 构建数据库日志对象（使用现有的 LogHandler）
+    final log = _requestLogger.buildRequestLog(
       endpoint: endpoint,
       request: request,
       response: response,
     );
 
-    // 插入数据库
+    // 2. 插入数据库
     await _requestLogRepository.insert(log);
 
-    // 刷新请求日志页面
+    // 3. 刷新请求日志页面
     try {
       final logViewModel = GetIt.instance.get<RequestLogViewModel>();
       logViewModel.loadLogs();

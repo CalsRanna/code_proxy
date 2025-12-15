@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/request_log.dart';
 
@@ -162,8 +160,6 @@ class RequestLogRepository {
 
   /// Insert a new request log
   Future<void> insert(RequestLog log) async {
-    final headerJson = log.header != null ? jsonEncode(log.header!) : null;
-
     await _database.laconic.table('request_logs').insert([
       {
         'id': log.id,
@@ -174,25 +170,15 @@ class RequestLogRepository {
         'method': log.method,
         'status_code': log.statusCode,
         'response_time': log.responseTime,
-        'success': log.success ? 1 : 0,
-        'error': log.error,
-        'level': log.level.name,
-        'header': headerJson,
-        'message': log.message,
         'model': log.model,
         'input_tokens': log.inputTokens,
         'output_tokens': log.outputTokens,
-        'raw_header': log.rawHeader,
-        'raw_request': log.rawRequest,
-        'raw_response': log.rawResponse,
       },
     ]);
   }
 
   /// Convert database row to RequestLog
   RequestLog _fromRow(Map<String, dynamic> row) {
-    final headerStr = row['header'] as String?;
-
     return RequestLog(
       id: row['id'] as String,
       timestamp: row['timestamp'] as int,
@@ -202,33 +188,9 @@ class RequestLogRepository {
       method: row['method'] as String,
       statusCode: row['status_code'] as int?,
       responseTime: row['response_time'] as int?,
-      success: (row['success'] as int) == 1,
-      error: row['error'] as String?,
-      level: _logLevelFromString(row['level'] as String),
-      header: headerStr != null
-          ? Map<String, dynamic>.from(jsonDecode(headerStr))
-          : null,
-      message: row['message'] as String?,
       model: row['model'] as String?,
       inputTokens: row['input_tokens'] as int?,
       outputTokens: row['output_tokens'] as int?,
-      rawHeader: row['raw_header'] as String?,
-      rawRequest: row['raw_request'] as String?,
-      rawResponse: row['raw_response'] as String?,
     );
-  }
-
-  /// Convert string to LogLevel
-  LogLevel _logLevelFromString(String value) {
-    switch (value) {
-      case 'info':
-        return LogLevel.info;
-      case 'warning':
-        return LogLevel.warning;
-      case 'error':
-        return LogLevel.error;
-      default:
-        return LogLevel.info;
-    }
   }
 }

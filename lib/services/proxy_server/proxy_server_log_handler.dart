@@ -80,23 +80,9 @@ class ProxyServerLogHandler {
       method: request.method,
       statusCode: response.statusCode,
       responseTime: response.responseTime,
-      success: success,
-      error: success
-          ? null
-          : (response.statusCode > 0
-                ? 'HTTP ${response.statusCode}'
-                : response.body),
-      level: success ? LogLevel.info : LogLevel.error,
-      header: request.headers,
-      message: success
-          ? 'Request completed successfully'
-          : 'Request failed with status ${response.statusCode}',
       model: model,
       inputTokens: inputTokens,
       outputTokens: outputTokens,
-      rawHeader: jsonEncode(request.headers),
-      rawRequest: request.body,
-      rawResponse: response.body,
     );
   }
 

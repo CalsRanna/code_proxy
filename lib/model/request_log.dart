@@ -1,10 +1,3 @@
-/// 日志级别枚举
-enum LogLevel {
-  info,
-  warning,
-  error,
-}
-
 /// 请求日志模型
 class RequestLog {
   /// 日志 ID
@@ -31,21 +24,6 @@ class RequestLog {
   /// 响应时间（毫秒）
   final int? responseTime;
 
-  /// 是否成功
-  final bool success;
-
-  /// 错误信息
-  final String? error;
-
-  /// 日志级别
-  final LogLevel level;
-
-  /// 请求头
-  final Map<String, dynamic>? header;
-
-  /// 消息内容
-  final String? message;
-
   /// 实际使用的模型
   final String? model;
 
@@ -54,15 +32,6 @@ class RequestLog {
 
   /// 输出 token 数量
   final int? outputTokens;
-
-  /// 原始请求头（String 格式）
-  final String? rawHeader;
-
-  /// 原始请求体（String 格式）
-  final String? rawRequest;
-
-  /// 原始响应体（String 格式）
-  final String? rawResponse;
 
   const RequestLog({
     required this.id,
@@ -73,17 +42,9 @@ class RequestLog {
     this.method = 'GET',
     this.statusCode,
     this.responseTime,
-    this.success = true,
-    this.error,
-    this.level = LogLevel.info,
-    this.header,
-    this.message,
     this.model,
     this.inputTokens,
     this.outputTokens,
-    this.rawHeader,
-    this.rawRequest,
-    this.rawResponse,
   });
 
   /// 从 JSON 反序列化
@@ -97,17 +58,9 @@ class RequestLog {
       method: json['method'] as String? ?? 'GET',
       statusCode: json['statusCode'] as int?,
       responseTime: json['responseTime'] as int?,
-      success: json['success'] as bool? ?? true,
-      error: json['error'] as String?,
-      level: _logLevelFromString(json['level'] as String?),
-      header: json['header'] as Map<String, dynamic>?,
-      message: json['message'] as String?,
       model: json['model'] as String?,
       inputTokens: json['inputTokens'] as int?,
       outputTokens: json['outputTokens'] as int?,
-      rawHeader: json['rawHeader'] as String?,
-      rawRequest: json['rawRequest'] as String?,
-      rawResponse: json['rawResponse'] as String?,
     );
   }
 
@@ -122,36 +75,43 @@ class RequestLog {
       'method': method,
       'statusCode': statusCode,
       'responseTime': responseTime,
-      'success': success,
-      'error': error,
-      'level': level.name,
-      'header': header,
-      'message': message,
       'model': model,
       'inputTokens': inputTokens,
       'outputTokens': outputTokens,
-      'rawHeader': rawHeader,
-      'rawRequest': rawRequest,
-      'rawResponse': rawResponse,
     };
   }
 
   @override
   String toString() {
-    return 'RequestLog(id: $id, method: $method, path: $path, success: $success, statusCode: $statusCode)';
+    return 'RequestLog(id: $id, method: $method, path: $path, statusCode: $statusCode)';
   }
 
-  /// 将字符串转换为 LogLevel
-  static LogLevel _logLevelFromString(String? value) {
-    switch (value) {
-      case 'info':
-        return LogLevel.info;
-      case 'warning':
-        return LogLevel.warning;
-      case 'error':
-        return LogLevel.error;
-      default:
-        return LogLevel.info;
-    }
+  /// 复制并修改部分字段
+  RequestLog copyWith({
+    String? id,
+    int? timestamp,
+    String? endpointId,
+    String? endpointName,
+    String? path,
+    String? method,
+    int? statusCode,
+    int? responseTime,
+    String? model,
+    int? inputTokens,
+    int? outputTokens,
+  }) {
+    return RequestLog(
+      id: id ?? this.id,
+      timestamp: timestamp ?? this.timestamp,
+      endpointId: endpointId ?? this.endpointId,
+      endpointName: endpointName ?? this.endpointName,
+      path: path ?? this.path,
+      method: method ?? this.method,
+      statusCode: statusCode ?? this.statusCode,
+      responseTime: responseTime ?? this.responseTime,
+      model: model ?? this.model,
+      inputTokens: inputTokens ?? this.inputTokens,
+      outputTokens: outputTokens ?? this.outputTokens,
+    );
   }
 }

@@ -56,21 +56,6 @@ class RequestLogDetailDialog extends StatelessWidget {
               label: '输出Token',
               value: '${log.outputTokens}',
             ),
-            _buildListItem(
-              icon: LucideIcons.codeXml,
-              label: '请求头',
-              value: log.rawHeader ?? '',
-            ),
-            _buildListItem(
-              icon: LucideIcons.codeXml,
-              label: '请求Body',
-              value: log.rawRequest ?? '',
-            ),
-            _buildListItem(
-              icon: LucideIcons.codeXml,
-              label: '响应Body',
-              value: log.rawResponse?.replaceAll('\n', r'\n') ?? '',
-            ),
           ],
         ),
       ),

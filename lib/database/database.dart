@@ -6,6 +6,7 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:code_proxy/database/migration/migration_202512110000.dart';
 import 'package:code_proxy/database/migration/migration_202512150000.dart';
+import 'package:code_proxy/database/migration/migration_202512150001.dart';
 
 class Database {
   static final Database instance = Database._internal();
@@ -52,5 +53,6 @@ SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';
     }
     await Migration202512110000().migrate(laconic);
     await Migration202512150000().migrate(laconic);
+    await Migration202512150001().migrate(laconic);
   }
 }
