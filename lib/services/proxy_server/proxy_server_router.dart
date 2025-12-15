@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
@@ -41,6 +43,7 @@ enum HandleResult {
 /// 端点路由器 - 状态机实现
 class ProxyServerRouter {
   final ProxyServerConfig _config;
+  final EndpointRepository _repository;
   final void Function(EndpointEntity)? _onEndpointUnavailable;
 
   List<EndpointEntity> _endpoints = [];
@@ -50,8 +53,10 @@ class ProxyServerRouter {
 
   ProxyServerRouter({
     required ProxyServerConfig config,
+    required EndpointRepository repository,
     void Function(EndpointEntity)? onEndpointUnavailable,
   }) : _config = config,
+       _repository = repository,
        _onEndpointUnavailable = onEndpointUnavailable;
 
   /// 获取当前尝试次数
@@ -74,10 +79,10 @@ class ProxyServerRouter {
 
   /// 判断是否还有下一个端点或需要重试
   /// previousResult: 上一次的响应结果，null表示第一次调用
-  bool hasNext(HandleResult? previousResult) {
+  Future<bool> hasNext(HandleResult? previousResult) async {
     // 第一次调用
     if (previousResult == null) {
-      _resetForNewRequest();
+      await _resetForNewRequest();
       return _endpoints.isNotEmpty;
     }
 
@@ -99,14 +104,24 @@ class ProxyServerRouter {
             'Retrying endpoint ${currentEndpoint?.name} '
             '($_currentAttempt/${_config.maxRetries})',
           );
+
+          // 添加重试等待逻辑
+          if (_config.enableRetryDelay && _currentAttempt > 1) {
+            LoggerUtil.instance.d(
+              'Waiting ${_config.retryDelayMs}ms before retry',
+            );
+            await Future.delayed(Duration(milliseconds: _config.retryDelayMs));
+          }
+
           return true;
         } else {
-          // 重试用尽，转移到下一个端点
-          LoggerUtil.instance.e(
-            'Endpoint ${currentEndpoint?.name} exhausted retries',
-          );
-          _onEndpointUnavailable?.call(currentEndpoint!);
-          _moveToNextEndpoint();
+          // 重试用尽，调用onEndpointUnavailable回调
+          final endpoint = currentEndpoint;
+          if (endpoint != null) {
+            _onEndpointUnavailable?.call(endpoint);
+          }
+
+          await _moveToNextEndpoint();
 
           if (_currentEndpointIndex < _endpoints.length) {
             _state = RouteState.failingOver;
@@ -123,21 +138,47 @@ class ProxyServerRouter {
 
   /// 设置端点列表
   void setEndpoints(List<EndpointEntity> endpoints) {
-    _endpoints = endpoints.where((e) => e.enabled).toList();
+    // 过滤掉未启用和临时禁用的端点
+    _endpoints = endpoints
+        .where((e) => e.enabled && !e.forbidden)
+        .toList();
     _resetForNewRequest();
   }
 
   /// 移动到下一个端点
-  void _moveToNextEndpoint() {
+  Future<void> _moveToNextEndpoint() async {
     _currentEndpointIndex++;
     _currentAttempt = 0;
+
+    // 检查下一个端点是否过期，如果是则自动恢复
+    while (_currentEndpointIndex < _endpoints.length) {
+      final nextEndpoint = _endpoints[_currentEndpointIndex];
+      final restored = await _repository.checkAndRestoreExpired(nextEndpoint.id);
+      if (restored) {
+        LoggerUtil.instance.i(
+          'Automatically restored expired temp-disabled endpoint: ${nextEndpoint.name}',
+        );
+        // 重新加载端点列表以获取更新后的状态
+        // 注意：这里简化处理，实际可能需要更复杂的逻辑
+        break;
+      }
+      break;
+    }
   }
 
   /// 重置路由状态
-  void _resetForNewRequest() {
+  Future<void> _resetForNewRequest() async {
     _currentEndpointIndex = 0;
     _currentAttempt = 0;
     _state = RouteState.selectingEndpoint;
+
+    // 主动检查所有端点的过期状态
+    for (final endpoint in _endpoints) {
+      await _repository.checkAndRestoreExpired(endpoint.id);
+    }
+
+    // 过滤掉临时禁用的端点
+    _endpoints = _endpoints.where((e) => e.enabled && !e.forbidden).toList();
   }
 }
 

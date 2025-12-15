@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +10,7 @@ import 'package:signals/signals.dart';
 
 class SettingViewModel {
   final port = signal(9000);
+  final size = signal('');
 
   final controller = TextEditingController();
 
@@ -84,5 +88,11 @@ class SettingViewModel {
       ],
       child: ShadInput(controller: controller),
     );
+  }
+
+  Future<void> getSqliteFileSize() async {
+    var file = File(Database.instance.path);
+    var stats = await file.stat();
+    size.value = stats.size.toString();
   }
 }

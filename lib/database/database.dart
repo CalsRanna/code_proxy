@@ -5,11 +5,13 @@ import 'package:laconic/laconic.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:code_proxy/database/migration/migration_202412110000.dart';
+import 'package:code_proxy/database/migration/migration_202512150000.dart';
 
 class Database {
   static final Database instance = Database._internal();
 
   late Laconic laconic;
+  late String path;
   final _migrationCreateSql = '''
 CREATE TABLE migrations(
   name TEXT NOT NULL
@@ -23,7 +25,7 @@ SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';
 
   Future<void> ensureInitialized() async {
     final directory = await getApplicationSupportDirectory();
-    final path = join(directory.path, 'code_proxy.db');
+    path = join(directory.path, 'code_proxy.db');
     LoggerUtil.instance.d('Sqlite db file path: $path');
 
     final file = File(path);
@@ -49,5 +51,6 @@ SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';
       await laconic.statement(_migrationCreateSql);
     }
     await Migration202412110000().migrate(laconic);
+    await Migration202512150000().migrate(laconic);
   }
 }

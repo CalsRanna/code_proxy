@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request_handler.dart';
@@ -29,8 +31,10 @@ class ProxyServerService {
     this.onRequestCompleted,
     this.onEndpointUnavailable,
   }) {
+    final repository = EndpointRepository(Database.instance);
     _router = ProxyServerRouter(
       config: config,
+      repository: repository,
       onEndpointUnavailable: onEndpointUnavailable,
     );
     _requestHandler = ProxyServerRequestHandler();
@@ -75,7 +79,7 @@ class ProxyServerService {
     shelf.Response? finalResponse;
 
     // 循环尝试端点
-    while (_router.hasNext(previousResult)) {
+    while (await _router.hasNext(previousResult)) {
       final endpoint = _router.currentEndpoint;
       if (endpoint == null) break;
 

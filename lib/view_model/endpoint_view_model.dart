@@ -16,12 +16,15 @@ class EndpointViewModel {
 
   // 使用 getter 来安全地访问 enabledEndpoints
   List<EndpointEntity> get enabledEndpoints {
-    return endpoints.value.where((e) => e.enabled).toList();
+    return endpoints.value
+        .where((e) => e.enabled && !e.forbidden)
+        .toList();
   }
 
   final shadPopoverController = ShadPopoverController();
 
   Future<void> initSignals() async {
+    await _checkAndRestoreExpiredForAllEndpoints();
     await _loadEndpoints();
   }
 
@@ -93,6 +96,19 @@ class EndpointViewModel {
     endpoints.value = allEndpoints;
     // 通知代理服务器端点列表已更新
     _notifyProxyServer();
+  }
+
+  /// 检查并恢复所有过期的临时禁用端点
+  Future<void> _checkAndRestoreExpiredForAllEndpoints() async {
+    final allEndpoints = await _endpointRepository.getAll();
+    for (final endpoint in allEndpoints) {
+      if (endpoint.forbidden && endpoint.forbiddenUntil != null) {
+        final restored = await _endpointRepository.checkAndRestoreExpired(endpoint.id);
+        if (restored) {
+          // 这里可以添加日志记录
+        }
+      }
+    }
   }
 
   /// 通知代理服务器端点列表已更新

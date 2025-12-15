@@ -12,7 +12,7 @@ class EndpointEntity {
   /// 是否启用
   final bool enabled;
 
-  /// 权重(用于负载均衡)
+  /// 权重(用于排序和请求顺序)
   final int weight;
 
   /// 创建时间戳(毫秒)
@@ -48,6 +48,12 @@ class EndpointEntity {
   /// Claude Code 禁用非必要流量
   final bool claudeCodeDisableNonessentialTraffic;
 
+  /// 是否临时禁用
+  final bool forbidden;
+
+  /// 临时禁用到期时间戳（毫秒）
+  final int? forbiddenUntil;
+
   const EndpointEntity({
     required this.id,
     required this.name,
@@ -65,6 +71,8 @@ class EndpointEntity {
     this.anthropicDefaultSonnetModel,
     this.anthropicDefaultOpusModel,
     this.claudeCodeDisableNonessentialTraffic = false,
+    this.forbidden = false,
+    this.forbiddenUntil,
   });
 
   /// 从 JSON 反序列化
@@ -82,13 +90,14 @@ class EndpointEntity {
       apiTimeoutMs: json['apiTimeoutMs'] as int?,
       anthropicModel: json['anthropicModel'] as String?,
       anthropicSmallFastModel: json['anthropicSmallFastModel'] as String?,
-      anthropicDefaultHaikuModel:
-          json['anthropicDefaultHaikuModel'] as String?,
+      anthropicDefaultHaikuModel: json['anthropicDefaultHaikuModel'] as String?,
       anthropicDefaultSonnetModel:
           json['anthropicDefaultSonnetModel'] as String?,
       anthropicDefaultOpusModel: json['anthropicDefaultOpusModel'] as String?,
       claudeCodeDisableNonessentialTraffic:
           json['claudeCodeDisableNonessentialTraffic'] as bool? ?? false,
+      forbidden: json['forbidden'] as bool? ?? false,
+      forbiddenUntil: json['forbiddenUntil'] as int?,
     );
   }
 
@@ -112,6 +121,8 @@ class EndpointEntity {
       'anthropicDefaultOpusModel': anthropicDefaultOpusModel,
       'claudeCodeDisableNonessentialTraffic':
           claudeCodeDisableNonessentialTraffic,
+      'forbidden': forbidden,
+      'forbiddenUntil': forbiddenUntil,
     };
   }
 
@@ -133,6 +144,8 @@ class EndpointEntity {
     String? anthropicDefaultSonnetModel,
     String? anthropicDefaultOpusModel,
     bool? claudeCodeDisableNonessentialTraffic,
+    bool? forbidden,
+    int? forbiddenUntil,
   }) {
     return EndpointEntity(
       id: id ?? this.id,
@@ -156,7 +169,9 @@ class EndpointEntity {
           anthropicDefaultOpusModel ?? this.anthropicDefaultOpusModel,
       claudeCodeDisableNonessentialTraffic:
           claudeCodeDisableNonessentialTraffic ??
-              this.claudeCodeDisableNonessentialTraffic,
+          this.claudeCodeDisableNonessentialTraffic,
+      forbidden: forbidden ?? this.forbidden,
+      forbiddenUntil: forbiddenUntil ?? this.forbiddenUntil,
     );
   }
 

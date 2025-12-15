@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/request_log.dart';
+import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/services/claude_code_setting_service.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
@@ -10,10 +11,12 @@ import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_log_handler.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
+import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:get_it/get_it.dart';
 import 'package:signals/signals.dart';
 
@@ -23,6 +26,9 @@ class HomeViewModel {
   ProxyServerService? _proxyServer;
   final ProxyServerLogHandler _requestLogger = ProxyServerLogHandler.create();
   final RequestLogRepository _requestLogRepository = RequestLogRepository(
+    Database.instance,
+  );
+  final EndpointRepository _endpointRepository = EndpointRepository(
     Database.instance,
   );
 
@@ -50,6 +56,40 @@ class HomeViewModel {
     }
   }
 
+  /// 处理端点不可用事件（重试用尽后触发）
+  Future<void> handleEndpointUnavailable(EndpointEntity endpoint) async {
+    LoggerUtil.instance.w(
+      'Endpoint ${endpoint.name} exhausted retries, triggering temporary disable',
+    );
+
+    // 获取配置以获取临时禁用时长
+    final instance = SharedPreferenceUtil.instance;
+    final config = ProxyServerConfig(
+      address: '127.0.0.1',
+      port: await instance.getPort(),
+      maxRetries: await instance.getMaxRetries(),
+    );
+
+    // 触发临时禁用
+    await _endpointRepository.forbid(
+      endpoint.id,
+      config.defaultTempDisableDurationMs,
+    );
+
+    LoggerUtil.instance.i(
+      'Endpoint ${endpoint.name} temporarily disabled for '
+      '${config.defaultTempDisableDurationMs ~/ 60000} minutes',
+    );
+
+    // 刷新端点列表以更新状态
+    try {
+      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+      endpointViewModel.initSignals();
+    } catch (e) {
+      // 忽略获取 ViewModel 的错误
+    }
+  }
+
   Future<void> initSignals() async {
     _autoStartServer();
   }
@@ -69,11 +109,12 @@ class HomeViewModel {
     _proxyServer = ProxyServerService(
       config: config,
       onRequestCompleted: handleRequestCompleted,
+      onEndpointUnavailable: handleEndpointUnavailable,
     );
     await _proxyServer?.start();
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-    final endpoints = endpointViewModel.endpoints.value;
-    _proxyServer?.endpoints = endpoints.where((e) => e.enabled).toList();
+    final enabledEndpoints = endpointViewModel.enabledEndpoints;
+    _proxyServer?.endpoints = enabledEndpoints;
   }
 
   Future<void> toggleEndpointEnabled(String id) async {
@@ -101,6 +142,10 @@ class HomeViewModel {
       final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
       dashboardViewModel.refreshData();
     }
+    if (index == 3 && previousIndex != 3) {
+      final settingViewModel = GetIt.instance.get<SettingViewModel>();
+      settingViewModel.getSqliteFileSize();
+    }
   }
 
   Future<void> _autoStartServer() async {
@@ -117,10 +162,11 @@ class HomeViewModel {
     _proxyServer ??= ProxyServerService(
       config: config,
       onRequestCompleted: handleRequestCompleted,
+      onEndpointUnavailable: handleEndpointUnavailable,
     );
     await _proxyServer?.start();
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-    var endpoints = endpointViewModel.endpoints.value;
-    _proxyServer?.endpoints = endpoints.where((e) => e.enabled).toList();
+    final enabledEndpoints = endpointViewModel.enabledEndpoints;
+    _proxyServer?.endpoints = enabledEndpoints;
   }
 }

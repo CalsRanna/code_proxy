@@ -57,10 +57,17 @@ class _EndpointCardState extends State<EndpointCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.endpoint.name,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                      Row(
+                        spacing: ShadcnSpacing.spacing8,
+                        children: [
+                          Text(
+                            widget.endpoint.name,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          if (widget.endpoint.forbidden)
+                            ShadBadge(child: Text('Forbidden')),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       if (widget.endpoint.anthropicBaseUrl != null &&

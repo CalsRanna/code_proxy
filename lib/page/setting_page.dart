@@ -26,9 +26,15 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editListenPort(context),
       );
     });
+    var sizeTile = Watch((context) {
+      return ListTile(
+        title: const Text('数据库大小'),
+        subtitle: Text(viewModel.size.value.toString()),
+      );
+    });
     var listView = ListView(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
-      children: [portListTile],
+      children: [portListTile, sizeTile],
     );
     var pageHeader = PageHeader(title: '应用设置', subtitle: '管理代理服务器配置和应用选项');
     var children = [pageHeader, Expanded(child: listView)];
