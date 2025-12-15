@@ -41,7 +41,7 @@ class RequestLogRepository {
     final results = await _database.laconic
         .table('request_logs')
         .select([
-          'date(timestamp / 1000, \'unixepoch\', \'localtime\') as date',
+          'date(timestamp / 1000, \'unixepoch\') as date',
           'COUNT(id) as request_count',
         ])
         .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
@@ -68,7 +68,7 @@ class RequestLogRepository {
     final results = await _database.laconic
         .table('request_logs')
         .select([
-          'date(timestamp / 1000, \'unixepoch\', \'localtime\') as date',
+          'date(timestamp / 1000, \'unixepoch\') as date',
           'COUNT(id) as request_count',
         ])
         .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
@@ -123,7 +123,7 @@ class RequestLogRepository {
     final results = await _database.laconic
         .table('request_logs')
         .select([
-          'date(timestamp / 1000, \'unixepoch\', \'localtime\') as date',
+          'date(timestamp / 1000, \'unixepoch\') as date',
           'COALESCE(model, \'unknown\') as model',
           'SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens',
         ])
