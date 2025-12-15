@@ -77,6 +77,10 @@ class ProxyServerRequestHandler {
           endpoint: endpoint,
         );
 
+        LoggerUtil.instance.d(
+          'Model mapping: endpoint=${endpoint.name}, original=$originalModel, mapped=$mappedModel',
+        );
+
         if (mappedModel != null && mappedModel.isNotEmpty) {
           bodyJson['model'] = mappedModel;
         }

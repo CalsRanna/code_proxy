@@ -128,7 +128,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 Expanded(
                   child: ShadInput(
                     controller: baseUrlController,
-                    placeholder: const Text('Base URL'),
+                    placeholder: const Text('https://api.example.com'),
                   ),
                 ),
               ],
@@ -196,6 +196,26 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       return;
     }
 
+    // 验证 Base URL 格式
+    final baseUrl = baseUrlController.text.trim();
+    if (!_isValidUrl(baseUrl)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请输入有效的 HTTPS URL（如：https://api.example.com）')),
+        );
+      }
+      return;
+    }
+
+    if (!_isHttpsUrl(baseUrl)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Base URL 必须是 HTTPS 协议（如：https://api.example.com）')),
+        );
+      }
+      return;
+    }
+
     if (widget.endpoint == null) {
       // 添加新端点
       await widget.viewModel.addEndpoint(
@@ -254,6 +274,26 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
 
     if (mounted) {
       Navigator.of(context).pop();
+    }
+  }
+
+  /// 验证 URL 是否有效
+  bool _isValidUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return uri.hasScheme && uri.hasAuthority;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 验证 URL 是否为 HTTPS
+  bool _isHttpsUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return uri.scheme == 'https';
+    } catch (e) {
+      return false;
     }
   }
 }

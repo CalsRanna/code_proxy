@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
@@ -11,17 +13,96 @@ import 'package:shelf/shelf.dart' as shelf;
 class ProxyServerResponseHandler {
   final ResponseProcessor _processor;
   final HeaderCleaner _headerCleaner;
-  final StatsRecorder _statsRecorder;
+  final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
+  _onRequestCompleted;
 
   ProxyServerResponseHandler({
     void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
     onRequestCompleted,
   }) : _processor = const ResponseProcessor(),
        _headerCleaner = const HeaderCleaner(),
-       _statsRecorder = StatsRecorder(onRequestCompleted: onRequestCompleted);
+       _onRequestCompleted = onRequestCompleted;
 
-  /// 处理HTTP响应
-  Future<shelf.Response> handleResponse(
+  /// 处理HTTP响应并判断是否需要继续
+  /// 返回值：
+  /// - 非null的 shelf.Response: 这是最终响应，停止循环
+  /// - null: 需要继续循环（重试或转移）
+  Future<shelf.Response?> handleResponse(
+    http.StreamedResponse response,
+    EndpointEntity endpoint,
+    shelf.Request request,
+    List<int> requestBodyBytes,
+    int startTime, {
+    List<int>? mappedRequestBodyBytes,
+  }) async {
+    final statusCode = response.statusCode;
+    final requestBodyToLog = mappedRequestBodyBytes ?? requestBodyBytes;
+    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+
+    // 立即记录日志（每次请求都记录）
+    recordRequest(
+      endpoint: endpoint,
+      request: request,
+      requestBodyBytes: requestBodyBytes,
+      response: response,
+      responseTime: responseTime,
+      mappedRequestBodyBytes: mappedRequestBodyBytes,
+    );
+
+    // 根据状态码判断下一步操作
+    if (statusCode >= 200 && statusCode < 300) {
+      // 成功响应 → 处理并返回给客户端
+      return await _processAndReturnResponse(
+        response,
+        endpoint,
+        request,
+        requestBodyToLog,
+        startTime,
+        mappedRequestBodyBytes: mappedRequestBodyBytes,
+      );
+    } else if (statusCode >= 400 && statusCode < 500) {
+      // 客户端错误 → 处理并返回给客户端（但不重试）
+      return await _processAndReturnResponse(
+        response,
+        endpoint,
+        request,
+        requestBodyToLog,
+        startTime,
+        mappedRequestBodyBytes: mappedRequestBodyBytes,
+      );
+    } else if (statusCode >= 500) {
+      // 服务器错误 → 继续循环（重试或转移）
+      return null;
+    } else {
+      // 1xx 或其他未知状态码，按成功处理
+      return await _processAndReturnResponse(
+        response,
+        endpoint,
+        request,
+        requestBodyToLog,
+        startTime,
+        mappedRequestBodyBytes: mappedRequestBodyBytes,
+      );
+    }
+  }
+
+  /// 根据状态码获取HandleResult（供外部调用）
+  HandleResult getHandleResult(http.StreamedResponse response) {
+    final statusCode = response.statusCode;
+
+    if (statusCode >= 200 && statusCode < 300) {
+      return HandleResult.success;
+    } else if (statusCode >= 400 && statusCode < 500) {
+      return HandleResult.clientError;
+    } else if (statusCode >= 500) {
+      return HandleResult.serverError;
+    } else {
+      return HandleResult.success;
+    }
+  }
+
+  /// 处理响应并返回给客户端（仅在成功或客户端错误时调用）
+  Future<shelf.Response> _processAndReturnResponse(
     http.StreamedResponse response,
     EndpointEntity endpoint,
     shelf.Request request,
@@ -31,39 +112,150 @@ class ProxyServerResponseHandler {
   }) async {
     final isStream = _processor.isStream(response.headers);
     final cleanHeaders = _headerCleaner.clean(response.headers);
-
-    void recordStats(List<int>? responseBodyBytes) => _statsRecorder.record(
-      endpoint: endpoint,
-      request: request,
-      requestBodyBytes: mappedRequestBodyBytes ?? requestBodyBytes,
-      response: response,
-      responseBodyBytes: responseBodyBytes,
-      responseTime: DateTime.now().millisecondsSinceEpoch - startTime,
-      timeToFirstByte: null,
-    );
-
-    void recordException(Object error) => _statsRecorder.recordException(
-      endpoint: endpoint,
-      request: request,
-      requestBodyBytes: requestBodyBytes,
-      startTime: startTime,
-      error: error,
-    );
+    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
     if (isStream) {
       return _processor.processStreamResponse(
         response,
         cleanHeaders,
-        recordStats,
-        recordException,
+        (List<int>? responseBodyBytes) => _recordRequestWithBody(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          response: response,
+          responseBodyBytes: responseBodyBytes,
+          responseTime: responseTime,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
+        ),
+        (Object error) => recordException(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          startTime: startTime,
+          error: error,
+        ),
       );
     } else {
       return await _processor.processNormalResponse(
         response,
         cleanHeaders,
-        recordStats,
+        (List<int>? responseBodyBytes) => _recordRequestWithBody(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          response: response,
+          responseBodyBytes: responseBodyBytes,
+          responseTime: responseTime,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
+        ),
       );
     }
+  }
+
+  /// 记录请求统计 - 每次HTTP请求完成时调用（不含响应体）
+  void recordRequest({
+    required EndpointEntity endpoint,
+    required shelf.Request request,
+    required List<int> requestBodyBytes,
+    required http.StreamedResponse response,
+    required int responseTime,
+    List<int>? mappedRequestBodyBytes,
+  }) {
+    // 使用映射后的请求体（如果提供），否则使用原始请求体
+    final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
+    final requestBodyString = utf8.decode(bodyBytesToUse, allowMalformed: true);
+
+    // 调试：提取模型信息
+    String? model;
+    try {
+      final requestJson = jsonDecode(requestBodyString);
+      if (requestJson is Map<String, dynamic>) {
+        model = requestJson['model'] as String?;
+      }
+    } catch (e) {
+      // 忽略JSON解析错误
+    }
+
+    LoggerUtil.instance.d(
+      'Recording to DB - endpoint: ${endpoint.name}, model: $model, statusCode: ${response.statusCode}, requestBodyLength: ${bodyBytesToUse.length}',
+    );
+
+    final proxyRequest = ProxyServerRequest(
+      path: request.url.path,
+      method: request.method,
+      body: requestBodyString,
+      headers: request.headers,
+    );
+
+    // 对于立即记录，我们不包含响应体（避免消耗流式响应）
+    final proxyResponse = ProxyServerResponse(
+      statusCode: response.statusCode,
+      body: '', // 立即记录时不包含响应体
+      headers: response.headers,
+      responseTime: responseTime,
+      timeToFirstByte: null,
+    );
+
+    _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
+  }
+
+  /// 记录请求统计 - 包含响应体的记录（用于最终成功响应）
+  void _recordRequestWithBody({
+    required EndpointEntity endpoint,
+    required shelf.Request request,
+    required List<int> requestBodyBytes,
+    required http.StreamedResponse response,
+    required List<int>? responseBodyBytes,
+    required int responseTime,
+    List<int>? mappedRequestBodyBytes,
+  }) {
+    // 使用映射后的请求体（如果提供），否则使用原始请求体
+    final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
+    final proxyRequest = ProxyServerRequest(
+      path: request.url.path,
+      method: request.method,
+      body: utf8.decode(bodyBytesToUse, allowMalformed: true),
+      headers: request.headers,
+    );
+
+    final proxyResponse = ProxyServerResponse(
+      statusCode: response.statusCode,
+      body: responseBodyBytes != null
+          ? utf8.decode(responseBodyBytes, allowMalformed: true)
+          : '',
+      headers: response.headers,
+      responseTime: responseTime,
+      timeToFirstByte: null,
+    );
+
+    _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
+  }
+
+  /// 记录异常 - 网络错误等情况
+  void recordException({
+    required EndpointEntity endpoint,
+    required shelf.Request request,
+    required List<int> requestBodyBytes,
+    required int startTime,
+    required Object error,
+  }) {
+    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+
+    final proxyRequest = ProxyServerRequest(
+      path: request.url.path,
+      method: request.method,
+      body: utf8.decode(requestBodyBytes, allowMalformed: true),
+      headers: request.headers,
+    );
+
+    final proxyResponse = ProxyServerResponse(
+      statusCode: 0,
+      body: error.toString(),
+      headers: {},
+      responseTime: responseTime,
+    );
+
+    _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
   }
 }
 
@@ -142,77 +334,5 @@ class HeaderCleaner {
   Map<String, String> clean(Map<String, String> headers) {
     return Map.from(headers)
       ..removeWhere((key, _) => _headersToRemove.contains(key));
-  }
-}
-
-/// 统计记录器 - 专注数据记录
-class StatsRecorder {
-  final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
-  _onRequestCompleted;
-
-  StatsRecorder({
-    required void Function(
-      EndpointEntity,
-      ProxyServerRequest,
-      ProxyServerResponse,
-    )?
-    onRequestCompleted,
-  }) : _onRequestCompleted = onRequestCompleted;
-
-  /// 记录请求统计
-  void record({
-    required EndpointEntity endpoint,
-    required shelf.Request request,
-    required List<int> requestBodyBytes,
-    required http.StreamedResponse response,
-    required List<int>? responseBodyBytes,
-    required int responseTime,
-    required int? timeToFirstByte,
-  }) {
-    final proxyRequest = ProxyServerRequest(
-      path: request.url.path,
-      method: request.method,
-      body: utf8.decode(requestBodyBytes, allowMalformed: true),
-      headers: request.headers,
-    );
-
-    final proxyResponse = ProxyServerResponse(
-      statusCode: response.statusCode,
-      body: responseBodyBytes != null
-          ? utf8.decode(responseBodyBytes, allowMalformed: true)
-          : '',
-      headers: response.headers,
-      responseTime: responseTime,
-      timeToFirstByte: timeToFirstByte,
-    );
-
-    _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
-  }
-
-  /// 记录异常
-  void recordException({
-    required EndpointEntity endpoint,
-    required shelf.Request request,
-    required List<int> requestBodyBytes,
-    required int startTime,
-    required Object error,
-  }) {
-    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
-
-    final proxyRequest = ProxyServerRequest(
-      path: request.url.path,
-      method: request.method,
-      body: utf8.decode(requestBodyBytes, allowMalformed: true),
-      headers: request.headers,
-    );
-
-    final proxyResponse = ProxyServerResponse(
-      statusCode: 0,
-      body: error.toString(),
-      headers: {},
-      responseTime: responseTime,
-    );
-
-    _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
   }
 }

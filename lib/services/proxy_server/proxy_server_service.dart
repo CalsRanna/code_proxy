@@ -9,7 +9,6 @@ import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response_handler.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
 import 'package:code_proxy/util/logger_util.dart';
-import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
@@ -20,14 +19,10 @@ class ProxyServerService {
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   onRequestCompleted;
 
-  List<EndpointEntity> _endpoints = [];
   late final ProxyServerRouter _router;
   late final ProxyServerRequestHandler _requestHandler;
   late final ProxyServerResponseHandler _responseHandler;
   HttpServer? _server;
-
-  // 临时存储映射后的请求体，用于日志记录
-  List<int>? _lastMappedRequestBody;
 
   ProxyServerService({
     required this.config,
@@ -44,7 +39,9 @@ class ProxyServerService {
     );
   }
 
-  set endpoints(List<EndpointEntity> endpoints) => _endpoints = endpoints;
+  set endpoints(List<EndpointEntity> endpoints) {
+    _router.setEndpoints(endpoints);
+  }
 
   Future<void> start() async {
     if (_server != null) {
@@ -69,52 +66,71 @@ class ProxyServerService {
     _requestHandler.close();
   }
 
-  /// 为指定端点执行请求
-  Future<http.StreamedResponse> _executeRequestForEndpoint(
-    EndpointEntity endpoint,
-    shelf.Request request,
-    List<int> rawBody,
-  ) async {
-    final preparedRequest = _requestHandler.prepareRequest(
-      request,
-      endpoint,
-      rawBody,
-    );
-
-    // 存储映射后的请求体，用于日志记录
-    _lastMappedRequestBody = preparedRequest.bodyBytes;
-
-    return _requestHandler.forwardRequest(preparedRequest);
-  }
-
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final startTime = DateTime.now().millisecondsSinceEpoch;
     final rawBody = await request.read().expand((x) => x).toList();
 
-    // 使用路由器选择端点并执行请求
-    final routeResult = await _router.routeRequest(
-      _endpoints,
-      (endpoint) => _executeRequestForEndpoint(endpoint, request, rawBody),
-    );
+    HandleResult? previousResult;
+    shelf.Response? finalResponse;
 
-    // 处理路由结果
-    if (routeResult.success &&
-        routeResult.response != null &&
-        routeResult.endpoint != null) {
-      return await _responseHandler.handleResponse(
-        routeResult.response!,
-        routeResult.endpoint!,
-        request,
-        rawBody,
-        startTime,
-        mappedRequestBodyBytes: _lastMappedRequestBody,
-      );
+    // 循环尝试端点
+    while (_router.hasNext(previousResult)) {
+      final endpoint = _router.currentEndpoint;
+      if (endpoint == null) break;
+
+      try {
+        // 1. 构建请求
+        final preparedRequest = _requestHandler.prepareRequest(
+          request,
+          endpoint,
+          rawBody,
+        );
+
+        // 2. 发送请求
+        final response = await _requestHandler.forwardRequest(preparedRequest);
+
+        // 3. 处理响应并判断是否需要继续
+        finalResponse = await _responseHandler.handleResponse(
+          response,
+          endpoint,
+          request,
+          rawBody,
+          startTime,
+          mappedRequestBodyBytes: preparedRequest.bodyBytes,
+        );
+
+        // 如果返回非null，这是最终响应
+        if (finalResponse != null) {
+          // 获取HandleResult并设置previousResult
+          previousResult = _responseHandler.getHandleResult(response);
+          break;
+        }
+
+        // 如果返回null，继续循环
+        // 设置previousResult为serverError，触发重试或转移逻辑
+        previousResult = HandleResult.serverError;
+      } catch (e) {
+        // 异常：设置previousResult为exception，触发重试或转移
+        previousResult = HandleResult.exception;
+        LoggerUtil.instance.e('Exception during request: $e');
+
+        // 记录异常请求到数据库
+        _responseHandler.recordException(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: rawBody,
+          startTime: startTime,
+          error: e,
+        );
+      }
+    }
+
+    if (finalResponse != null) {
+      return finalResponse;
     } else {
-      // 失败的情况
-      return shelf.Response.internalServerError(
-        body: routeResult.error ?? 'All endpoints failed',
-      );
+      // 所有端点都失败
+      return shelf.Response.internalServerError(body: 'All endpoints failed');
     }
   }
 }
