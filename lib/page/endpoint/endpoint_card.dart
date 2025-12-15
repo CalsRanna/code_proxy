@@ -65,8 +65,19 @@ class _EndpointCardState extends State<EndpointCard> {
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
+                          if (widget.endpoint.note != null &&
+                              widget.endpoint.note!.isNotEmpty) ...[
+                            ShadBadge.secondary(
+                              child: Text(
+                                widget.endpoint.note!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                           if (widget.endpoint.forbidden)
-                            ShadBadge(child: Text('Forbidden')),
+                            ShadBadge.secondary(child: Text('Forbidden')),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -84,16 +95,6 @@ class _EndpointCardState extends State<EndpointCard> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      if (widget.endpoint.note != null &&
-                          widget.endpoint.note!.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.endpoint.note!,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
                     ],
                   ),
                 ),
