@@ -14,6 +14,8 @@ class RequestLogRepository {
   /// Clear all request logs
   Future<void> clearAll() async {
     await _database.laconic.table('request_logs').delete();
+    // 回收数据库空间
+    await _database.laconic.statement('VACUUM;');
   }
 
   /// Get all request logs with pagination

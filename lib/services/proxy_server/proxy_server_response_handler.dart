@@ -5,7 +5,6 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
-import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
@@ -39,16 +38,6 @@ class ProxyServerResponseHandler {
     final requestBodyToLog = mappedRequestBodyBytes ?? requestBodyBytes;
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
-    // 立即记录日志（每次请求都记录）
-    recordRequest(
-      endpoint: endpoint,
-      request: request,
-      requestBodyBytes: requestBodyBytes,
-      response: response,
-      responseTime: responseTime,
-      mappedRequestBodyBytes: mappedRequestBodyBytes,
-    );
-
     // 根据状态码判断下一步操作
     if (statusCode >= 200 && statusCode < 300) {
       // 成功响应 → 处理并返回给客户端
@@ -71,7 +60,17 @@ class ProxyServerResponseHandler {
         mappedRequestBodyBytes: mappedRequestBodyBytes,
       );
     } else if (statusCode >= 500) {
-      // 服务器错误 → 继续循环（重试或转移）
+      // 服务器错误 → 记录日志后继续循环（重试或转移）
+      final responseBodyBytes = await response.stream.toBytes();
+      _recordRequestWithBody(
+        endpoint: endpoint,
+        request: request,
+        requestBodyBytes: requestBodyBytes,
+        response: response,
+        responseBodyBytes: responseBodyBytes,
+        responseTime: responseTime,
+        mappedRequestBodyBytes: mappedRequestBodyBytes,
+      );
       return null;
     } else {
       // 1xx 或其他未知状态码，按成功处理
@@ -152,54 +151,7 @@ class ProxyServerResponseHandler {
     }
   }
 
-  /// 记录请求统计 - 每次HTTP请求完成时调用（不含响应体）
-  void recordRequest({
-    required EndpointEntity endpoint,
-    required shelf.Request request,
-    required List<int> requestBodyBytes,
-    required http.StreamedResponse response,
-    required int responseTime,
-    List<int>? mappedRequestBodyBytes,
-  }) {
-    // 使用映射后的请求体（如果提供），否则使用原始请求体
-    final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
-    final requestBodyString = utf8.decode(bodyBytesToUse, allowMalformed: true);
-
-    // 调试：提取模型信息
-    String? model;
-    try {
-      final requestJson = jsonDecode(requestBodyString);
-      if (requestJson is Map<String, dynamic>) {
-        model = requestJson['model'] as String?;
-      }
-    } catch (e) {
-      // 忽略JSON解析错误
-    }
-
-    LoggerUtil.instance.d(
-      'Recording to DB - endpoint: ${endpoint.name}, model: $model, statusCode: ${response.statusCode}, requestBodyLength: ${bodyBytesToUse.length}',
-    );
-
-    final proxyRequest = ProxyServerRequest(
-      path: request.url.path,
-      method: request.method,
-      body: requestBodyString,
-      headers: request.headers,
-    );
-
-    // 对于立即记录，我们不包含响应体（避免消耗流式响应）
-    final proxyResponse = ProxyServerResponse(
-      statusCode: response.statusCode,
-      body: '', // 立即记录时不包含响应体
-      headers: response.headers,
-      responseTime: responseTime,
-      timeToFirstByte: null,
-    );
-
-    _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
-  }
-
-  /// 记录请求统计 - 包含响应体的记录（用于最终成功响应）
+  /// 记录请求统计 - 包含响应体的记录
   void _recordRequestWithBody({
     required EndpointEntity endpoint,
     required shelf.Request request,
