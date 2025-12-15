@@ -41,10 +41,14 @@ class WindowUtil {
       windowButtonVisibility: false,
       title: 'Code Proxy',
     );
+    bool isPreventClose = true;
+    if (Platform.isWindows) {
+      isPreventClose = false;
+    }
     windowManager.waitUntilReadyToShow(options, () async {
       await windowManager.show();
       await windowManager.focus();
-      await windowManager.setPreventClose(true);
+      await windowManager.setPreventClose(isPreventClose);
     });
   }
 
