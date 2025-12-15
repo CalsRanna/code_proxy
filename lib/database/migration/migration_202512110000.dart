@@ -1,7 +1,7 @@
 import 'package:laconic/laconic.dart';
 
-class Migration202412110000 {
-  static const name = 'migration_202412110000';
+class Migration202512110000 {
+  static const name = 'migration_202512110000';
 
   Future<void> migrate(Laconic laconic) async {
     final count = await laconic.table('migrations').where('name', name).count();

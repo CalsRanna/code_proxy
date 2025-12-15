@@ -4,7 +4,7 @@ import 'package:code_proxy/util/logger_util.dart';
 import 'package:laconic/laconic.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:code_proxy/database/migration/migration_202412110000.dart';
+import 'package:code_proxy/database/migration/migration_202512110000.dart';
 import 'package:code_proxy/database/migration/migration_202512150000.dart';
 
 class Database {
@@ -50,7 +50,7 @@ SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';
     if (tables.isEmpty) {
       await laconic.statement(_migrationCreateSql);
     }
-    await Migration202412110000().migrate(laconic);
+    await Migration202512110000().migrate(laconic);
     await Migration202512150000().migrate(laconic);
   }
 }
