@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,11 +28,16 @@ class WindowUtil {
     var height = await instance.getWindowHeight();
     var width = await instance.getWindowWidth();
     await windowManager.ensureInitialized();
+
+    TitleBarStyle? titleStyle = TitleBarStyle.hidden;
+    if (Platform.isWindows) {
+      titleStyle = TitleBarStyle.normal;
+    }
     final options = WindowOptions(
       center: true,
       minimumSize: const Size(1080, 720),
       size: Size(width, height),
-      titleBarStyle: TitleBarStyle.hidden,
+      titleBarStyle: titleStyle,
       windowButtonVisibility: false,
       title: 'Code Proxy',
     );

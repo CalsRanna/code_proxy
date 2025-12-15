@@ -497,10 +497,10 @@ packages:
     dependency: "direct main"
     description:
       name: lucide_icons_flutter
-      sha256: dbe8edc3811d66793ad0fca16203c191b4c964536b82b2a510557bdf1c19507e
+      sha256: aaadab3b503d2cc4eb971661511c6053bfe7d52742ba46f551d508494822a0fa
       url: "https://pub.dev"
     source: hosted
-    version: "3.1.7"
+    version: "3.1.8"
   matcher:
     dependency: transitive
     description:
@@ -729,18 +729,18 @@ packages:
     dependency: "direct main"
     description:
       name: shadcn_ui
-      sha256: "2ec6c8b87f860503b210e43d379cd39cb7ea95a81a9469556b24ed010023e31b"
+      sha256: "1a10041915f1688784652818f3b706d3dfe20f6557ea9d25b62109c0ca34edff"
       url: "https://pub.dev"
     source: hosted
-    version: "0.40.5"
+    version: "0.40.6"
   shared_preferences:
     dependency: "direct main"
     description:
       name: shared_preferences
-      sha256: "6e8bf70b7fef813df4e9a36f658ac46d107db4b4cfe1048b477d4e453a8159f5"
+      sha256: "2939ae520c9024cb197fc20dee269cd8cdbf564c8b5746374ec6cacdc5169e64"
       url: "https://pub.dev"
     source: hosted
-    version: "2.5.3"
+    version: "2.5.4"
   shared_preferences_android:
     dependency: transitive
     description:
@@ -1046,10 +1046,10 @@ packages:
     dependency: transitive
     description:
       name: watcher
-      sha256: "592ab6e2892f67760543fb712ff0177f4ec76c031f02f5b4ff8d3fc5eb9fb61a"
+      sha256: f52385d4f73589977c80797e60fe51014f7f2b957b5e9a62c3f6ada439889249
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.4"
+    version: "1.2.0"
   web:
     dependency: transitive
     description:

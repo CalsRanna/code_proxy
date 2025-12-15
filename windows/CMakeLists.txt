@@ -4,7 +4,7 @@ project(code_proxy LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "Code Proxy")
+set(BINARY_NAME "code_proxy")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
