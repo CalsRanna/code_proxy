@@ -72,7 +72,6 @@ class ProxyServerService {
 
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
-    final startTime = DateTime.now().millisecondsSinceEpoch;
     final rawBody = await request.read().expand((x) => x).toList();
 
     HandleResult? previousResult;
@@ -82,7 +81,7 @@ class ProxyServerService {
     while (await _router.hasNext(previousResult)) {
       final endpoint = _router.currentEndpoint;
       if (endpoint == null) break;
-
+      final startTime = DateTime.now().millisecondsSinceEpoch;
       try {
         // 1. 构建请求
         final preparedRequest = _requestHandler.prepareRequest(
@@ -90,10 +89,8 @@ class ProxyServerService {
           endpoint,
           rawBody,
         );
-
         // 2. 发送请求
         final response = await _requestHandler.forwardRequest(preparedRequest);
-
         // 3. 处理响应并判断是否需要继续
         finalResponse = await _responseHandler.handleResponse(
           response,
