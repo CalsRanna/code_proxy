@@ -69,15 +69,16 @@ class _RequestLogPageState extends State<RequestLogPage> {
         return ShadTable(
           builder: (context, index) {
             var log = logs[index.row];
+            var time = DateTime.fromMillisecondsSinceEpoch(log.timestamp);
+            var statusCode = log.statusCode;
+            var tokenText = '${log.inputTokens} / ${log.outputTokens}';
             var text = switch (index.column) {
-              0 => DateTime.fromMillisecondsSinceEpoch(
-                log.timestamp,
-              ).toString().substring(0, 19),
+              0 => time.toString().substring(0, 19),
               1 => log.endpointName,
               2 => log.model,
-              3 => (log.statusCode ?? 0).toString(),
+              3 => statusCode.toString(),
               4 => '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
-              5 => '${log.inputTokens} / ${log.outputTokens}',
+              5 => statusCode != 200 ? '-' : tokenText,
               _ => '',
             };
             return ShadTableCell(
