@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/request_log.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_model_mapper.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:uuid/uuid.dart';
@@ -28,18 +27,12 @@ class ProxyServerLogHandler {
     int? inputTokens;
     int? outputTokens;
 
-    // 从请求体中提取模型信息并进行映射
-    String? originalModel;
+    // 从请求体中提取模型信息
     if (request.body.isNotEmpty) {
       try {
         final requestJson = jsonDecode(request.body);
         if (requestJson is Map<String, dynamic>) {
-          originalModel = requestJson['model'] as String?;
-          // 使用模型映射器将原始模型名称映射为实际模型名称
-          model = ProxyServerModelMapper.mapModel(
-            originalModel,
-            endpoint: endpoint,
-          );
+          model = requestJson['model'] as String?;
         }
       } catch (e) {
         // 忽略 JSON 解析错误
