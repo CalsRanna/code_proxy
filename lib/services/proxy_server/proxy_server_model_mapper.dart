@@ -12,7 +12,7 @@ class ProxyServerModelMapper {
     String? originalModel, {
     required EndpointEntity endpoint,
   }) {
-    return switch (originalModel) {
+    return switch (originalModel?.toUpperCase()) {
       'ANTHROPIC_DEFAULT_HAIKU_MODEL' =>
         endpoint.anthropicDefaultHaikuModel ??
             _defaultAnthropicDefaultHaikuModel,

@@ -129,25 +129,18 @@ class _SettingPageState extends State<SettingPage> {
       builder: (context) {
         return ShadDialog(
           title: const Text('恢复默认设置'),
-          description: const Text(
-            '此操作将:\n'
-            '• 删除所有端点配置\n'
-            '• 删除所有请求日志\n'
-            '• 清空所有应用设置\n'
-            '• 自动重启应用程序\n\n'
-            '此操作不可撤销,确定继续吗?',
-          ),
+          description: const Text('确定要清空所有数据和设置吗？此操作无法撤销。'),
           actions: [
             ShadButton.outline(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('取消'),
             ),
-            ShadButton.destructive(
+            ShadButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 viewModel.resetToDefault();
               },
-              child: const Text('确定恢复'),
+              child: const Text('确定'),
             ),
           ],
         );
