@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
+import 'package:uuid/uuid.dart';
 
 class ClaudeCodeSettingService {
   Future<void> updateProxySetting() async {
@@ -11,10 +12,12 @@ class ClaudeCodeSettingService {
     final apiTimeout = await instance.getApiTimeout();
     final disableNonessentialTraffic = await instance
         .getDisableNonessentialTraffic();
+    final uuid = const Uuid().v4().replaceAll('-', '');
+    final token = 'cp-$uuid';
 
     final setting = {
       'env': {
-        'ANTHROPIC_AUTH_TOKEN': 'proxy-token',
+        'ANTHROPIC_AUTH_TOKEN': token,
         'ANTHROPIC_BASE_URL': 'http://127.0.0.1:$port',
         'ANTHROPIC_DEFAULT_HAIKU_MODEL': 'ANTHROPIC_DEFAULT_HAIKU_MODEL',
         'ANTHROPIC_DEFAULT_OPUS_MODEL': 'ANTHROPIC_DEFAULT_OPUS_MODEL',
