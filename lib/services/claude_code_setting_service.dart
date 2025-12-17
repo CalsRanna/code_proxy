@@ -27,10 +27,23 @@ class ClaudeCodeSettingService {
             : 0,
       },
     };
-    final home = Platform.environment['HOME'] ?? '';
+
+    final home = _getHomeDirectory();
     final path = join(home, '.claude', 'settings.json');
     final file = File(path);
+    await file.parent.create(recursive: true);
+
     final json = JsonEncoder.withIndent('  ').convert(setting);
     await file.writeAsString(json);
+  }
+
+  String _getHomeDirectory() {
+    var environment = Platform.environment;
+    if (Platform.isWindows) {
+      return environment['USERPROFILE'] ??
+          '${environment['HOMEDRIVE']}${environment['HOMEPATH']}';
+    } else {
+      return environment['HOME'] ?? '';
+    }
   }
 }
