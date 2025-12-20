@@ -45,6 +45,7 @@ class ProxyServerRouter {
   final ProxyServerConfig _config;
   final EndpointRepository _repository;
   final void Function(EndpointEntity)? _onEndpointUnavailable;
+  final void Function(EndpointEntity)? _onEndpointRestored;
 
   List<EndpointEntity> _endpoints = [];
   int _currentEndpointIndex = 0;
@@ -55,9 +56,11 @@ class ProxyServerRouter {
     required ProxyServerConfig config,
     required EndpointRepository repository,
     void Function(EndpointEntity)? onEndpointUnavailable,
+    void Function(EndpointEntity)? onEndpointRestored,
   }) : _config = config,
        _repository = repository,
-       _onEndpointUnavailable = onEndpointUnavailable;
+       _onEndpointUnavailable = onEndpointUnavailable,
+       _onEndpointRestored = onEndpointRestored;
 
   /// 获取当前尝试次数
   int get currentAttempt => _currentAttempt;
@@ -176,8 +179,11 @@ class ProxyServerRouter {
         LoggerUtil.instance.i(
           'Automatically restored expired temp-disabled endpoint: ${nextEndpoint.name}',
         );
-        // 重新加载端点列表以获取更新后的状态
-        // 注意：这里简化处理，实际可能需要更复杂的逻辑
+        // 获取更新后的端点实体并触发回调
+        final restoredEndpoint = await _repository.getById(nextEndpoint.id);
+        if (restoredEndpoint != null) {
+          _onEndpointRestored?.call(restoredEndpoint);
+        }
         break;
       }
       break;
@@ -192,7 +198,14 @@ class ProxyServerRouter {
 
     // 主动检查所有端点的过期状态
     for (final endpoint in _endpoints) {
-      await _repository.checkAndRestoreExpired(endpoint.id);
+      final restored = await _repository.checkAndRestoreExpired(endpoint.id);
+      if (restored) {
+        // 获取更新后的端点实体并触发回调
+        final restoredEndpoint = await _repository.getById(endpoint.id);
+        if (restoredEndpoint != null) {
+          _onEndpointRestored?.call(restoredEndpoint);
+        }
+      }
     }
 
     // 过滤掉临时禁用的端点

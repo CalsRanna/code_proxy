@@ -55,6 +55,21 @@ class HomeViewModel {
     }
   }
 
+  /// 处理端点恢复事件（临时禁用到期后自动恢复）
+  Future<void> handleEndpointRestored(EndpointEntity endpoint) async {
+    LoggerUtil.instance.i(
+      'Endpoint ${endpoint.name} has been automatically restored from temporary disable',
+    );
+
+    // 刷新端点列表 UI
+    try {
+      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+      await endpointViewModel.initSignals();
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to refresh endpoint list: $e');
+    }
+  }
+
   /// 处理端点不可用事件（重试用尽后触发）
   Future<void> handleEndpointUnavailable(EndpointEntity endpoint) async {
     LoggerUtil.instance.w(
@@ -112,6 +127,7 @@ class HomeViewModel {
       config: config,
       onRequestCompleted: handleRequestCompleted,
       onEndpointUnavailable: handleEndpointUnavailable,
+      onEndpointRestored: handleEndpointRestored,
     );
     await _proxyServer?.start();
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
@@ -164,6 +180,7 @@ class HomeViewModel {
       config: config,
       onRequestCompleted: handleRequestCompleted,
       onEndpointUnavailable: handleEndpointUnavailable,
+      onEndpointRestored: handleEndpointRestored,
     );
     await _proxyServer?.start();
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();

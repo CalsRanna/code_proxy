@@ -19,6 +19,7 @@ class ProxyServerService {
   final ProxyServerConfig config;
 
   final void Function(EndpointEntity)? onEndpointUnavailable;
+  final void Function(EndpointEntity)? onEndpointRestored;
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   onRequestCompleted;
 
@@ -31,12 +32,14 @@ class ProxyServerService {
     required this.config,
     this.onRequestCompleted,
     this.onEndpointUnavailable,
+    this.onEndpointRestored,
   }) {
     final repository = EndpointRepository(Database.instance);
     _router = ProxyServerRouter(
       config: config,
       repository: repository,
       onEndpointUnavailable: onEndpointUnavailable,
+      onEndpointRestored: onEndpointRestored,
     );
     _requestHandler = ProxyServerRequestHandler(config);
     _responseHandler = ProxyServerResponseHandler(
