@@ -4,7 +4,10 @@
       "Bash(flutter:*)",
       "Bash(dir:*)",
       "Bash(find:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(sqlite3:*)",
+      "WebSearch",
+      "WebFetch(domain:sqlite.org)"
     ],
     "deny": []
   }

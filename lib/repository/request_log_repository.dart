@@ -38,10 +38,16 @@ class RequestLogRepository {
     required int startTimestamp,
     required int endTimestamp,
   }) async {
+    // 计算时区偏移（分钟）
+    // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
+    // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
+    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    final offsetModifier = offsetMinutes >= 0 ? '+$offsetMinutes minutes' : '$offsetMinutes minutes';
+
     final results = await _database.laconic
         .table('request_logs')
         .select([
-          'date(timestamp / 1000, \'unixepoch\') as date',
+          'date(timestamp / 1000, \'unixepoch\', \'$offsetModifier\') as date',
           'COUNT(id) as request_count',
         ])
         .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
@@ -65,10 +71,16 @@ class RequestLogRepository {
     required int startTimestamp,
     required int endTimestamp,
   }) async {
+    // 计算时区偏移（分钟）
+    // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
+    // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
+    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    final offsetModifier = offsetMinutes >= 0 ? '+$offsetMinutes minutes' : '$offsetMinutes minutes';
+
     final results = await _database.laconic
         .table('request_logs')
         .select([
-          'date(timestamp / 1000, \'unixepoch\') as date',
+          'date(timestamp / 1000, \'unixepoch\', \'$offsetModifier\') as date',
           'COUNT(id) as request_count',
         ])
         .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
@@ -120,10 +132,16 @@ class RequestLogRepository {
     required int startTimestamp,
     required int endTimestamp,
   }) async {
+    // 计算时区偏移（分钟）
+    // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
+    // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
+    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    final offsetModifier = offsetMinutes >= 0 ? '+$offsetMinutes minutes' : '$offsetMinutes minutes';
+
     final results = await _database.laconic
         .table('request_logs')
         .select([
-          'date(timestamp / 1000, \'unixepoch\') as date',
+          'date(timestamp / 1000, \'unixepoch\', \'$offsetModifier\') as date',
           'COALESCE(model, \'unknown\') as model',
           'SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens',
         ])
