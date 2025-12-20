@@ -132,6 +132,7 @@ class ProxyServerResponseHandler {
           requestBodyBytes: requestBodyBytes,
           startTime: startTime,
           error: error,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
         ),
       );
     } else {
@@ -190,13 +191,15 @@ class ProxyServerResponseHandler {
     required List<int> requestBodyBytes,
     required int startTime,
     required Object error,
+    List<int>? mappedRequestBodyBytes,
   }) {
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
+    final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
     final proxyRequest = ProxyServerRequest(
       path: request.url.path,
       method: request.method,
-      body: utf8.decode(requestBodyBytes, allowMalformed: true),
+      body: utf8.decode(bodyBytesToUse, allowMalformed: true),
       headers: request.headers,
     );
 

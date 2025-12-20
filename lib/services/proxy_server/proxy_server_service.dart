@@ -11,6 +11,7 @@ import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response_handler.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
 import 'package:code_proxy/util/logger_util.dart';
+import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
@@ -82,9 +83,10 @@ class ProxyServerService {
       final endpoint = _router.currentEndpoint;
       if (endpoint == null) break;
       final startTime = DateTime.now().millisecondsSinceEpoch;
+      http.Request? preparedRequest;
       try {
         // 1. 构建请求
-        final preparedRequest = _requestHandler.prepareRequest(
+        preparedRequest = _requestHandler.prepareRequest(
           request,
           endpoint,
           rawBody,
@@ -123,6 +125,7 @@ class ProxyServerService {
           requestBodyBytes: rawBody,
           startTime: startTime,
           error: e,
+          mappedRequestBodyBytes: preparedRequest?.bodyBytes,
         );
       }
     }
