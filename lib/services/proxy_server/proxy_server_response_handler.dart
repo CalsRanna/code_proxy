@@ -36,7 +36,6 @@ class ProxyServerResponseHandler {
   }) async {
     final statusCode = response.statusCode;
     final requestBodyToLog = mappedRequestBodyBytes ?? requestBodyBytes;
-    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
     // 根据状态码判断下一步操作
     if (statusCode >= 200 && statusCode < 300) {
@@ -62,6 +61,8 @@ class ProxyServerResponseHandler {
     } else if (statusCode >= 500) {
       // 服务器错误 → 记录日志后继续循环（重试或转移）
       final responseBodyBytes = await response.stream.toBytes();
+      // 在读取完响应体后才计算响应时间
+      final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
       _recordRequestWithBody(
         endpoint: endpoint,
         request: request,
@@ -111,13 +112,14 @@ class ProxyServerResponseHandler {
   }) async {
     final isStream = _processor.isStream(response.headers);
     final cleanHeaders = _headerCleaner.clean(response.headers);
-    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
     if (isStream) {
+      // 流式响应：在流完成时才计算响应时间
       return _processor.processStreamResponse(
         response,
         cleanHeaders,
-        (List<int>? responseBodyBytes) => _recordRequestWithBody(
+        startTime,
+        (List<int>? responseBodyBytes, int responseTime) => _recordRequestWithBody(
           endpoint: endpoint,
           request: request,
           requestBodyBytes: requestBodyBytes,
@@ -136,10 +138,12 @@ class ProxyServerResponseHandler {
         ),
       );
     } else {
+      // 非流式响应：在读取完响应体后计算响应时间
       return await _processor.processNormalResponse(
         response,
         cleanHeaders,
-        (List<int>? responseBodyBytes) => _recordRequestWithBody(
+        startTime,
+        (List<int>? responseBodyBytes, int responseTime) => _recordRequestWithBody(
           endpoint: endpoint,
           request: request,
           requestBodyBytes: requestBodyBytes,
@@ -229,10 +233,12 @@ class ResponseProcessor {
   Future<shelf.Response> processNormalResponse(
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
-    void Function(List<int>? responseBodyBytes) recordStats,
+    int startTime,
+    void Function(List<int>? responseBodyBytes, int responseTime) recordStats,
   ) async {
     final responseBodyBytes = await response.stream.toBytes();
-    recordStats(responseBodyBytes);
+    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+    recordStats(responseBodyBytes, responseTime);
 
     return shelf.Response(
       response.statusCode,
@@ -245,7 +251,8 @@ class ResponseProcessor {
   shelf.Response processStreamResponse(
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
-    void Function(List<int>? responseBodyBytes) recordStats,
+    int startTime,
+    void Function(List<int>? responseBodyBytes, int responseTime) recordStats,
     void Function(Object error) recordException,
   ) {
     final buffer = <int>[];
@@ -257,7 +264,9 @@ class ResponseProcessor {
           sink.add(chunk);
         },
         handleDone: (EventSink<List<int>> sink) {
-          recordStats(buffer);
+          // 流完成时计算响应时间
+          final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+          recordStats(buffer, responseTime);
           sink.close();
         },
         handleError: (error, stackTrace, EventSink<List<int>> sink) {
