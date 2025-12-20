@@ -23,9 +23,6 @@ class ProxyServerResponseHandler {
        _onRequestCompleted = onRequestCompleted;
 
   /// 处理HTTP响应并判断是否需要继续
-  /// 返回值：
-  /// - 非null的 shelf.Response: 这是最终响应，停止循环
-  /// - null: 需要继续循环（重试或转移）
   Future<shelf.Response?> handleResponse(
     http.StreamedResponse response,
     EndpointEntity endpoint,
@@ -39,7 +36,6 @@ class ProxyServerResponseHandler {
 
     // 根据状态码判断下一步操作
     if (statusCode >= 200 && statusCode < 300) {
-      // 成功响应 → 处理并返回给客户端
       return await _processAndReturnResponse(
         response,
         endpoint,
@@ -49,7 +45,6 @@ class ProxyServerResponseHandler {
         mappedRequestBodyBytes: mappedRequestBodyBytes,
       );
     } else if (statusCode >= 400 && statusCode < 500) {
-      // 客户端错误 → 处理并返回给客户端（但不重试）
       return await _processAndReturnResponse(
         response,
         endpoint,
@@ -61,20 +56,37 @@ class ProxyServerResponseHandler {
     } else if (statusCode >= 500) {
       // 服务器错误 → 记录日志后继续循环（重试或转移）
       final responseBodyBytes = await response.stream.toBytes();
-      // 在读取完响应体后才计算响应时间
       final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+
+      // 尝试提取 token（服务器错误也可能包含 usage）
+      Map<String, int>? usage;
+      try {
+        final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
+        final json = jsonDecode(bodyStr);
+        if (json is Map<String, dynamic> && json.containsKey('usage')) {
+          final usageData = json['usage'];
+          if (usageData is Map<String, dynamic>) {
+            usage = {
+              'input': usageData['input_tokens'] as int? ?? 0,
+              'output': usageData['output_tokens'] as int? ?? 0,
+            };
+          }
+        }
+      } catch (e) {
+        // 忽略解析错误
+      }
+
       _recordRequestWithBody(
         endpoint: endpoint,
         request: request,
         requestBodyBytes: requestBodyBytes,
         response: response,
-        responseBodyBytes: responseBodyBytes,
         responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        tokenUsage: usage,
       );
       return null;
     } else {
-      // 1xx 或其他未知状态码，按成功处理
       return await _processAndReturnResponse(
         response,
         endpoint,
@@ -86,10 +98,8 @@ class ProxyServerResponseHandler {
     }
   }
 
-  /// 根据状态码获取HandleResult（供外部调用）
   HandleResult getHandleResult(http.StreamedResponse response) {
     final statusCode = response.statusCode;
-
     if (statusCode >= 200 && statusCode < 300) {
       return HandleResult.success;
     } else if (statusCode >= 400 && statusCode < 500) {
@@ -101,7 +111,6 @@ class ProxyServerResponseHandler {
     }
   }
 
-  /// 处理响应并返回给客户端（仅在成功或客户端错误时调用）
   Future<shelf.Response> _processAndReturnResponse(
     http.StreamedResponse response,
     EndpointEntity endpoint,
@@ -119,14 +128,14 @@ class ProxyServerResponseHandler {
         response,
         cleanHeaders,
         startTime,
-        (List<int>? responseBodyBytes, int responseTime) => _recordRequestWithBody(
+        (Map<String, int> tokenUsage, int responseTime) => _recordRequestWithBody(
           endpoint: endpoint,
           request: request,
           requestBodyBytes: requestBodyBytes,
           response: response,
-          responseBodyBytes: responseBodyBytes,
           responseTime: responseTime,
           mappedRequestBodyBytes: mappedRequestBodyBytes,
+          tokenUsage: tokenUsage,
         ),
         (Object error) => recordException(
           endpoint: endpoint,
@@ -138,35 +147,33 @@ class ProxyServerResponseHandler {
         ),
       );
     } else {
-      // 非流式响应：在读取完响应体后计算响应时间
+      // 非流式响应：在读取完响应体后计算响应时间并提取 token
       return await _processor.processNormalResponse(
         response,
         cleanHeaders,
         startTime,
-        (List<int>? responseBodyBytes, int responseTime) => _recordRequestWithBody(
+        (int responseTime, Map<String, int>? usage) => _recordRequestWithBody(
           endpoint: endpoint,
           request: request,
           requestBodyBytes: requestBodyBytes,
           response: response,
-          responseBodyBytes: responseBodyBytes,
           responseTime: responseTime,
           mappedRequestBodyBytes: mappedRequestBodyBytes,
+          tokenUsage: usage,
         ),
       );
     }
   }
 
-  /// 记录请求统计 - 包含响应体的记录
   void _recordRequestWithBody({
     required EndpointEntity endpoint,
     required shelf.Request request,
     required List<int> requestBodyBytes,
     required http.StreamedResponse response,
-    required List<int>? responseBodyBytes,
     required int responseTime,
     List<int>? mappedRequestBodyBytes,
+    Map<String, int>? tokenUsage,
   }) {
-    // 使用映射后的请求体（如果提供），否则使用原始请求体
     final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
     final proxyRequest = ProxyServerRequest(
       path: request.url.path,
@@ -177,18 +184,15 @@ class ProxyServerResponseHandler {
 
     final proxyResponse = ProxyServerResponse(
       statusCode: response.statusCode,
-      body: responseBodyBytes != null
-          ? utf8.decode(responseBodyBytes, allowMalformed: true)
-          : '',
       headers: response.headers,
       responseTime: responseTime,
       timeToFirstByte: null,
+      usage: tokenUsage,
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
   }
 
-  /// 记录异常 - 网络错误等情况
   void recordException({
     required EndpointEntity endpoint,
     required shelf.Request request,
@@ -198,8 +202,8 @@ class ProxyServerResponseHandler {
     List<int>? mappedRequestBodyBytes,
   }) {
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
-
     final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
+
     final proxyRequest = ProxyServerRequest(
       path: request.url.path,
       method: request.method,
@@ -209,7 +213,6 @@ class ProxyServerResponseHandler {
 
     final proxyResponse = ProxyServerResponse(
       statusCode: 0,
-      body: error.toString(),
       headers: {},
       responseTime: responseTime,
     );
@@ -218,27 +221,43 @@ class ProxyServerResponseHandler {
   }
 }
 
-/// 响应处理器 - 专注流式/非流式转换
 class ResponseProcessor {
   const ResponseProcessor();
 
-  /// 检测是否是流式响应（SSE 或其他流式格式）
   bool isStream(Map<String, String> headers) {
     final contentType = headers['content-type'] ?? '';
     return contentType.contains('text/event-stream') ||
         contentType.contains('application/stream+json');
   }
 
-  /// 处理非流式响应
   Future<shelf.Response> processNormalResponse(
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
     int startTime,
-    void Function(List<int>? responseBodyBytes, int responseTime) recordStats,
+    void Function(int responseTime, Map<String, int>? usage) recordStats,
   ) async {
     final responseBodyBytes = await response.stream.toBytes();
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
-    recordStats(responseBodyBytes, responseTime);
+
+    // 提取 token 使用量（非流式响应）
+    Map<String, int>? usage;
+    try {
+      final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
+      final json = jsonDecode(bodyStr);
+      if (json is Map<String, dynamic> && json.containsKey('usage')) {
+        final usageData = json['usage'];
+        if (usageData is Map<String, dynamic>) {
+          usage = {
+            'input': usageData['input_tokens'] as int? ?? 0,
+            'output': usageData['output_tokens'] as int? ?? 0,
+          };
+        }
+      }
+    } catch (e) {
+      // 忽略 JSON 解析错误（非 JSON 响应或格式不匹配）
+    }
+
+    recordStats(responseTime, usage);
 
     return shelf.Response(
       response.statusCode,
@@ -247,26 +266,74 @@ class ResponseProcessor {
     );
   }
 
-  /// 处理流式响应（SSE）
   shelf.Response processStreamResponse(
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
     int startTime,
-    void Function(List<int>? responseBodyBytes, int responseTime) recordStats,
+    void Function(Map<String, int> tokenUsage, int responseTime) recordStats,
     void Function(Object error) recordException,
   ) {
-    final buffer = <int>[];
+    int inputTokens = 0;
+    int outputTokens = 0;
+    String pendingData = '';
 
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
         handleData: (List<int> chunk, EventSink<List<int>> sink) {
-          buffer.addAll(chunk);
-          sink.add(chunk);
+          try {
+            sink.add(chunk);
+
+            final chunkStr = utf8.decode(chunk, allowMalformed: true);
+            final fullData = pendingData + chunkStr;
+            final lines = fullData.split('\n');
+
+            if (!fullData.endsWith('\n')) {
+              pendingData = lines.removeLast();
+            } else {
+              pendingData = '';
+            }
+
+            for (final line in lines) {
+              if (line.startsWith('data: ')) {
+                final jsonStr = line.substring(6).trim();
+                if (jsonStr.isNotEmpty && jsonStr != '[DONE]') {
+                  try {
+                    final json = jsonDecode(jsonStr);
+                    if (json is Map<String, dynamic>) {
+                      // Extract message_start usage (input tokens)
+                      if (json['type'] == 'message_start' && json.containsKey('message')) {
+                        final message = json['message'];
+                        if (message is Map<String, dynamic> && message.containsKey('usage')) {
+                          final usage = message['usage'];
+                          if (usage is Map<String, dynamic>) {
+                            inputTokens = usage['input_tokens'] as int? ?? 0;
+                          }
+                        }
+                      }
+                      // Extract message_delta usage (output tokens)
+                      if (json['type'] == 'message_delta' && json.containsKey('usage')) {
+                        final usage = json['usage'];
+                        if (usage is Map<String, dynamic>) {
+                          outputTokens += (usage['output_tokens'] as int? ?? 0);
+                        }
+                      }
+                    }
+                  } catch (_) {
+                    // Ignore JSON parse errors
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // Catch-all for decoding/parsing errors
+          }
         },
         handleDone: (EventSink<List<int>> sink) {
-          // 流完成时计算响应时间
           final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
-          recordStats(buffer, responseTime);
+          recordStats(
+            {'input': inputTokens, 'output': outputTokens},
+            responseTime,
+          );
           sink.close();
         },
         handleError: (error, stackTrace, EventSink<List<int>> sink) {
@@ -284,7 +351,6 @@ class ResponseProcessor {
   }
 }
 
-/// 头部清理器 - 专注头部处理
 class HeaderCleaner {
   static const Set<String> _headersToRemove = {
     'transfer-encoding',
@@ -294,7 +360,6 @@ class HeaderCleaner {
 
   const HeaderCleaner();
 
-  /// 清理响应头，移除可能导致问题的头部
   Map<String, String> clean(Map<String, String> headers) {
     return Map.from(headers)
       ..removeWhere((key, _) => _headersToRemove.contains(key));

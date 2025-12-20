@@ -6,9 +6,6 @@ class ProxyServerResponse {
   /// 响应头
   final Map<String, String> headers;
 
-  /// 响应体
-  final String body;
-
   /// 响应时间（毫秒）- 总时间
   final int responseTime;
 
@@ -16,11 +13,15 @@ class ProxyServerResponse {
   /// 对于流式响应（如 SSE），这个值表示接收到第一个数据块的时间
   final int? timeToFirstByte;
 
+  /// Token 使用量 {'input': inputTokens, 'output': outputTokens}
+  /// 在 ResponseHandler 中统一解析（流式和非流式）
+  final Map<String, int>? usage;
+
   const ProxyServerResponse({
     required this.statusCode,
     required this.headers,
-    required this.body,
     required this.responseTime,
     this.timeToFirstByte,
+    this.usage,
   });
 }

@@ -39,28 +39,10 @@ class ProxyServerLogHandler {
       }
     }
 
-    // 从响应体中提取 token 使用量
-    final contentType = response.headers['content-type'] ?? '';
-    final isSSE = contentType.contains('text/event-stream');
-    if (success && response.body.isNotEmpty) {
-      if (isSSE) {
-        final tokens = _parseSSETokens(response.body);
-        inputTokens = tokens['input'];
-        outputTokens = tokens['output'];
-      } else {
-        try {
-          final responseJson = jsonDecode(response.body);
-          if (responseJson is Map<String, dynamic>) {
-            final usage = responseJson['usage'];
-            if (usage is Map<String, dynamic>) {
-              inputTokens = usage['input_tokens'] as int?;
-              outputTokens = usage['output_tokens'] as int?;
-            }
-          }
-        } catch (e) {
-          // 忽略 JSON 解析错误
-        }
-      }
+    // 直接使用 response.usage（已在 ResponseHandler 中统一解析）
+    if (success && response.usage != null) {
+      inputTokens = response.usage!['input'];
+      outputTokens = response.usage!['output'];
     }
 
     // 构建并返回请求日志对象
@@ -77,51 +59,5 @@ class ProxyServerLogHandler {
       inputTokens: inputTokens,
       outputTokens: outputTokens,
     );
-  }
-
-  /// 解析 SSE 响应中的 token 使用量
-  Map<String, int?> _parseSSETokens(String sseBody) {
-    int? inputTokens;
-    int? outputTokens;
-    final lines = sseBody.split('\n');
-    for (var line in lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          final jsonStr = line.substring(6).trim();
-          if (jsonStr.isEmpty || jsonStr == '[DONE]') continue;
-          final json = jsonDecode(jsonStr);
-          if (json is Map<String, dynamic>) {
-            _extractTokensRecursively(json, (input, output) {
-              inputTokens ??= input;
-              if (output != null) outputTokens = output;
-            });
-          }
-        } catch (_) {
-          // 解析失败，跳过这一行
-        }
-      }
-    }
-    return {
-      'input': inputTokens,
-      'output': outputTokens,
-    };
-  }
-
-  /// 递归提取 JSON 中的 token 信息
-  void _extractTokensRecursively(
-    Map<String, dynamic> json,
-    void Function(int?, int?) callback,
-  ) {
-    final usage = json['usage'];
-    if (usage is Map<String, dynamic>) {
-      final input = usage['input_tokens'] as int?;
-      final output = usage['output_tokens'] as int?;
-      callback(input, output);
-    }
-    for (var value in json.values) {
-      if (value is Map<String, dynamic>) {
-        _extractTokensRecursively(value, callback);
-      }
-    }
   }
 }
