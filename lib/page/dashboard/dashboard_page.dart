@@ -6,6 +6,7 @@ import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/widgets/page_header.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -70,7 +71,10 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
         child: column,
       );
-      return SizedBox(height: 320, child: Card(child: padding));
+      return SizedBox(
+        height: 320,
+        child: ShadCard(padding: EdgeInsets.zero, child: padding),
+      );
     });
   }
 
@@ -102,7 +106,10 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
         child: column,
       );
-      return SizedBox(height: 320, child: Card(child: padding));
+      return SizedBox(
+        height: 320,
+        child: ShadCard(padding: EdgeInsets.zero, child: padding),
+      );
     });
   }
 }

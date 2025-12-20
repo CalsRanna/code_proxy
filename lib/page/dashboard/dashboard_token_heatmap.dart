@@ -10,6 +10,8 @@ class DashboardTokenHeatmap extends StatelessWidget {
   static const double _monthLabelHeight = 14.0;
   static const double _monthLabelFontSize = 10.0;
   static const double _borderRadius = 2.0;
+  static const double _weekdayLabelWidth = 16.0;
+  static const double _weekdayLabelFontSize = 10.0;
 
   final Map<String, int> chartData;
   final DateTime? now;
@@ -43,7 +45,10 @@ class DashboardTokenHeatmap extends StatelessWidget {
         );
       },
     );
-    return ShadCard(child: layoutBuilder);
+    return ShadCard(
+      padding: EdgeInsets.all(ShadcnSpacing.spacing16),
+      child: layoutBuilder,
+    );
   }
 
   Widget _buildDayCell(_DayData dayData, int maxRequests, double cellSize) {
@@ -84,6 +89,9 @@ class DashboardTokenHeatmap extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 星期标签列
+        _buildWeekdayLabels(cellSize),
+        // 热力图格子
         for (final week in heatmapData)
           Column(
             children: [
@@ -95,10 +103,39 @@ class DashboardTokenHeatmap extends StatelessWidget {
     );
   }
 
+  /// 构建星期标签列（只显示一、三、五）
+  Widget _buildWeekdayLabels(double cellSize) {
+    final cellHeight = cellSize + _cellSpacing;
+    const weekdays = ['', '一', '', '三', '', '五', ''];
+
+    return Container(
+      width: _weekdayLabelWidth,
+      margin: const EdgeInsets.only(right: ShadcnSpacing.spacing4),
+      child: Column(
+        children: [
+          for (int i = 0; i < _daysPerWeek; i++)
+            Container(
+              height: cellHeight,
+              alignment: Alignment.center,
+              child: weekdays[i].isEmpty
+                  ? null
+                  : Text(
+                      weekdays[i],
+                      style: const TextStyle(
+                        fontSize: _weekdayLabelFontSize,
+                        color: ShadcnColors.zinc500,
+                      ),
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMonthLabels(List<List<_DayData>> heatmapData, double cellSize) {
     final labels = <Widget>[];
     String? lastMonth;
-    double offset = 0;
+    double offset = _weekdayLabelWidth + ShadcnSpacing.spacing4; // 考虑星期标签的宽度和间距
     final cellWidth = cellSize + _cellSpacing;
     final currentYear = (now ?? DateTime.now()).year;
 
@@ -137,7 +174,10 @@ class DashboardTokenHeatmap extends StatelessWidget {
       offset += cellWidth;
     }
 
-    final totalWidth = heatmapData.length * cellWidth;
+    final totalWidth =
+        heatmapData.length * cellWidth +
+        _weekdayLabelWidth +
+        ShadcnSpacing.spacing4;
 
     return SizedBox(
       width: totalWidth,
@@ -149,7 +189,10 @@ class DashboardTokenHeatmap extends StatelessWidget {
   /// 计算格子大小
   /// 每个格子有 margin: all(1)，所以每个格子实际占用 cellSize + _cellSpacing
   double _calculateCellSize(double availableWidth, int totalWeeks) {
-    return (availableWidth / totalWeeks) - _cellSpacing;
+    // 减去星期标签的宽度和间距
+    final adjustedWidth =
+        availableWidth - _weekdayLabelWidth - ShadcnSpacing.spacing4;
+    return (adjustedWidth / totalWeeks) - _cellSpacing;
   }
 
   /// 计算包含指定日期的第一个周日
