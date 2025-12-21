@@ -16,7 +16,10 @@ class RequestLogDetailDialog extends StatelessWidget {
         spacing: ShadcnSpacing.spacing16,
         children: [
           Text('${log.method} ${log.path}'),
-          ShadBadge.secondary(child: Text(log.statusCode.toString())),
+          if (log.statusCode == 200)
+            ShadBadge.secondary(child: Text(log.statusCode.toString())),
+          if (log.statusCode != 200)
+            ShadBadge.destructive(child: Text(log.statusCode.toString())),
         ],
       ),
       child: Padding(

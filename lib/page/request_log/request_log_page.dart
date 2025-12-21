@@ -81,10 +81,14 @@ class _RequestLogPageState extends State<RequestLogPage> {
               5 => statusCode != 200 ? '-' : tokenText,
               _ => '',
             };
-            return ShadTableCell(
-              alignment: Alignment.centerLeft,
-              child: Text(text ?? 'null'),
-            );
+            Widget child = switch (index.column) {
+              3 =>
+                statusCode == 200
+                    ? ShadBadge.secondary(child: Text(text ?? ''))
+                    : ShadBadge.destructive(child: Text(text ?? '')),
+              _ => Text(text ?? 'null'),
+            };
+            return ShadTableCell(alignment: Alignment.centerLeft, child: child);
           },
           columnCount: 6,
           columnSpanExtent: (column) {
