@@ -107,6 +107,26 @@ flutter:
           weight: 800
         - asset: asset/font/Raleway-Black.ttf
           weight: 900
+    - family: Montserrat
+      fonts:
+        - asset: asset/font/Montserrat-Thin.ttf
+          weight: 100
+        - asset: asset/font/Montserrat-ExtraLight.ttf
+          weight: 200
+        - asset: asset/font/Montserrat-Light.ttf
+          weight: 300
+        - asset: asset/font/Montserrat-Regular.ttf
+          weight: 400
+        - asset: asset/font/Montserrat-Medium.ttf
+          weight: 500
+        - asset: asset/font/Montserrat-SemiBold.ttf
+          weight: 600
+        - asset: asset/font/Montserrat-Bold.ttf
+          weight: 700
+        - asset: asset/font/Montserrat-ExtraBold.ttf
+          weight: 800
+        - asset: asset/font/Montserrat-Black.ttf
+          weight: 900
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package

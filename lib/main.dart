@@ -24,7 +24,7 @@ class CodeProxyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var child = ShadApp.custom(
-      theme: ShadThemeData(textTheme: ShadTextTheme(family: 'Raleway')),
+      theme: ShadThemeData(textTheme: ShadTextTheme(family: 'Montserrat')),
       appBuilder: (context) => Watch(
         (context) => MaterialApp.router(
           title: 'Code Proxy',

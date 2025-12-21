@@ -115,7 +115,8 @@ class _RequestLogPageState extends State<RequestLogPage> {
               5 => 'Token',
               _ => '',
             };
-            return ShadTableCell.header(child: Text(text));
+            var textStyle = const TextStyle(fontWeight: FontWeight.w500);
+            return ShadTableCell.header(child: Text(text, style: textStyle));
           },
           onRowTap: (row) {
             if (row == 0) return;
