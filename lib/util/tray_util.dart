@@ -32,18 +32,22 @@ class TrayUtil with TrayListener {
   Future<void> _setTrayIcon() async {
     try {
       String iconPath;
+      bool isTemplate;
       if (Platform.isWindows) {
         iconPath = 'asset/tray_icon.ico';
+        isTemplate = false;
       } else if (Platform.isMacOS) {
         iconPath = 'asset/tray_icon.png';
+        isTemplate = true;
       } else if (Platform.isLinux) {
         iconPath = 'asset/tray_icon.png';
+        isTemplate = false;
       } else {
         LoggerUtil.instance.w('不支持的平台');
         return;
       }
 
-      await trayManager.setIcon(iconPath, isTemplate: true);
+      await trayManager.setIcon(iconPath, isTemplate: isTemplate);
     } catch (e, stackTrace) {
       LoggerUtil.instance.e(e, stackTrace: stackTrace);
     }
