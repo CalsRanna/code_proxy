@@ -57,6 +57,18 @@ class WindowUtil {
     await windowManager.hide();
   }
 
+  Future<bool> isMaximized() async {
+    return await windowManager.isMaximized();
+  }
+
+  Future<void> maximize() async {
+    await windowManager.maximize();
+  }
+
+  Future<void> minimize() async {
+    await windowManager.minimize();
+  }
+
   Future<void> restore() async {
     if (await windowManager.isMinimized()) {
       await windowManager.restore();
@@ -67,6 +79,14 @@ class WindowUtil {
     await windowManager.setSkipTaskbar(false);
     await windowManager.show();
     await windowManager.focus();
+  }
+
+  Future<void> startDragging() async {
+    await windowManager.startDragging();
+  }
+
+  Future<void> unmaximize() async {
+    await windowManager.unmaximize();
   }
 }
 

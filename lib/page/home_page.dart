@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:code_proxy/page/dashboard/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
@@ -10,6 +12,7 @@ import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
+import 'package:code_proxy/widgets/macos_window_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -94,14 +97,14 @@ class _HomePageState extends State<HomePage> {
     var boxDecoration = BoxDecoration(border: Border(right: borderSide));
     return Watch((context) {
       var children = [
-        const SizedBox(height: ShadcnSpacing.spacing16),
+        if (Platform.isMacOS) const MacOSWindowButtons(),
         ...List.generate(icons.length, (index) {
           return _buildIconButton(index);
         }),
         const Spacer(),
-        const SizedBox(height: ShadcnSpacing.spacing16),
+        const SizedBox(height: ShadcnSpacing.spacing8),
       ];
-      var column = Column(spacing: ShadcnSpacing.spacing16, children: children);
+      var column = Column(spacing: ShadcnSpacing.spacing8, children: children);
       return Container(width: 72, decoration: boxDecoration, child: column);
     });
   }
