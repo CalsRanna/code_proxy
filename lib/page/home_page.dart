@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:auto_route/auto_route.dart';
 import 'package:code_proxy/page/dashboard/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
+import 'package:code_proxy/page/mcp_server/mcp_server_page.dart';
 import 'package:code_proxy/page/request_log/request_log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
 import 'package:code_proxy/themes/shadcn_colors.dart';
@@ -10,6 +11,7 @@ import 'package:code_proxy/themes/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
+import 'package:code_proxy/view_model/mcp_server_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:code_proxy/widgets/macos_window_buttons.dart';
@@ -32,14 +34,16 @@ class _HomePageState extends State<HomePage> {
   final endpointsViewModel = GetIt.instance.get<EndpointViewModel>();
   final logsViewModel = GetIt.instance.get<RequestLogViewModel>();
   final settingsViewModel = GetIt.instance.get<SettingViewModel>();
+  final serverViewModel = GetIt.instance.get<McpServerViewModel>();
 
   final icons = [
     LucideIcons.layoutGrid,
     LucideIcons.shell,
     LucideIcons.arrowUpDown,
+    LucideIcons.server,
     LucideIcons.bolt,
   ];
-  final labels = ['主页', '端点', '日志', '设置'];
+  final labels = ['主页', '端点', '日志', 'MCP服务器', '设置'];
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +58,7 @@ class _HomePageState extends State<HomePage> {
     dashboardViewModel.initSignals();
     endpointsViewModel.initSignals();
     logsViewModel.initSignals();
+    serverViewModel.initSignals();
     settingsViewModel.initSignals();
   }
 
@@ -63,7 +68,8 @@ class _HomePageState extends State<HomePage> {
         0 => DashboardPage(),
         1 => EndpointPage(),
         2 => RequestLogPage(),
-        3 => SettingPage(),
+        3 => McpServerPage(),
+        4 => SettingPage(),
         _ => DashboardPage(),
       };
     });

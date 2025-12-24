@@ -87,26 +87,6 @@ flutter:
   # list giving the asset and other descriptors for the font. For
   # example:
   fonts:
-    - family: Raleway
-      fonts:
-        - asset: asset/font/Raleway-Thin.ttf
-          weight: 100
-        - asset: asset/font/Raleway-ExtraLight.ttf
-          weight: 200
-        - asset: asset/font/Raleway-Light.ttf
-          weight: 300
-        - asset: asset/font/Raleway-Regular.ttf
-          weight: 400
-        - asset: asset/font/Raleway-Medium.ttf
-          weight: 500
-        - asset: asset/font/Raleway-SemiBold.ttf
-          weight: 600
-        - asset: asset/font/Raleway-Bold.ttf
-          weight: 700
-        - asset: asset/font/Raleway-ExtraBold.ttf
-          weight: 800
-        - asset: asset/font/Raleway-Black.ttf
-          weight: 900
     - family: Montserrat
       fonts:
         - asset: asset/font/Montserrat-Thin.ttf
