@@ -179,8 +179,8 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         authTokenController.text.isEmpty ||
         baseUrlController.text.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请填写必填字段：名称、API Key、Base URL')),
+        ShadSonner.of(context).show(
+          const ShadToast(description: Text('请填写必填字段：名称、API Key、Base URL')),
         );
       }
       return;
@@ -190,9 +190,9 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     final baseUrl = baseUrlController.text.trim();
     if (!_isValidUrl(baseUrl)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('请输入有效的 HTTPS URL（如：https://api.example.com）'),
+        ShadSonner.of(context).show(
+          const ShadToast(
+            description: Text('请输入有效的 HTTPS URL（如：https://api.example.com）'),
           ),
         );
       }
@@ -201,9 +201,11 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
 
     if (!_isHttpsUrl(baseUrl)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Base URL 必须是 HTTPS 协议（如：https://api.example.com）'),
+        ShadSonner.of(context).show(
+          const ShadToast(
+            description: Text(
+              'Base URL 必须是 HTTPS 协议（如：https://api.example.com）',
+            ),
           ),
         );
       }

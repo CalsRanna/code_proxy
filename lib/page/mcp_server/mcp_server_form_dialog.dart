@@ -5,14 +5,14 @@ import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/mcp_server_view_model.dart';
 import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// MCP 服务器表单对话框
 class McpServerFormDialog extends StatefulWidget {
   final McpServerEntity? server;
+  final McpServerViewModel viewModel;
 
-  const McpServerFormDialog({super.key, this.server});
+  const McpServerFormDialog({super.key, this.server, required this.viewModel});
 
   @override
   State<McpServerFormDialog> createState() => _McpServerFormDialogState();
@@ -28,6 +28,8 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
 
   String? configError;
   bool get isEditing => widget.server != null;
+  final placeholder =
+      '{\n  "type": "stdio",\n  "command": "npx",\n  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]\n}';
 
   @override
   void initState() {
@@ -94,8 +96,6 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = GetIt.instance.get<McpServerViewModel>();
-
     return ShadDialog(
       title: Text(isEditing ? '编辑 MCP 服务器' : '添加 MCP 服务器'),
       description: const Text('配置 MCP 服务器连接参数'),
@@ -104,10 +104,7 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        ShadButton(
-          onPressed: () => _submit(context, viewModel),
-          child: const Text('保存'),
-        ),
+        ShadButton(onPressed: () => _submit(context), child: const Text('保存')),
       ],
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: ShadcnSpacing.spacing12),
@@ -165,9 +162,7 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
                 maxHeight: 360,
                 resizable: true,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                placeholder: const Text(
-                  '{\n  "type": "stdio",\n  "command": "npx",\n  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]\n}',
-                ),
+                placeholder: Text(placeholder),
               ),
               if (configError != null)
                 Padding(
@@ -184,10 +179,7 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
     );
   }
 
-  Future<void> _submit(
-    BuildContext context,
-    McpServerViewModel viewModel,
-  ) async {
+  Future<void> _submit(BuildContext context) async {
     final id = idController.text.trim();
     final name = nameController.text.trim();
     final description = descriptionController.text.trim();
@@ -215,8 +207,7 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
       }
 
       if (isEditing) {
-        await viewModel.updateServer(
-          context,
+        await widget.viewModel.updateServer(
           id: id,
           name: name.isEmpty ? null : name,
           config: config,
@@ -225,8 +216,7 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
           docs: docs.isEmpty ? null : docs,
         );
       } else {
-        await viewModel.addServer(
-          context,
+        await widget.viewModel.addServer(
           id: id,
           name: name,
           config: config,
@@ -237,29 +227,15 @@ class _McpServerFormDialogState extends State<McpServerFormDialog> {
       }
 
       if (context.mounted) {
-        Navigator.pop(context);
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (!context.mounted) return;
-      _showError(context, '配置解析失败: $e');
+      _showError(context, '操作失败: $e');
     }
   }
 
   void _showError(BuildContext context, String message) {
-    showShadDialog(
-      context: context,
-      builder: (context) {
-        return ShadDialog.alert(
-          title: const Text('错误'),
-          description: Text(message),
-          actions: [
-            ShadButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('确定'),
-            ),
-          ],
-        );
-      },
-    );
+    ShadSonner.of(context).show(ShadToast(description: Text(message)));
   }
 }

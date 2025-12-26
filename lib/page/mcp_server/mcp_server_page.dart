@@ -27,11 +27,13 @@ class _McpServerPageState extends State<McpServerPage> {
       child: const Text('添加服务器'),
     );
 
-    final pageHeader = PageHeader(
-      title: 'MCP 服务器',
-      subtitle: '管理 Model Context Protocol 服务器配置',
-      actions: [addButton],
-    );
+    final pageHeader = Watch((context) {
+      return PageHeader(
+        title: 'MCP 服务器',
+        subtitle: '${viewModel.mcpServers.value.length} 个服务器',
+        actions: [addButton],
+      );
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,8 +102,7 @@ class _McpServerPageState extends State<McpServerPage> {
           server: server,
           onEdit: () => _showEditServerDialog(context, server),
           onDelete: () => _showDeleteDialog(context, server),
-          onToggleEnabled: (value) =>
-              viewModel.toggleEnabled(context, server.id, value),
+          onToggleEnabled: (value) => viewModel.toggleEnabled(server.id, value),
         );
       },
     );
@@ -110,7 +111,7 @@ class _McpServerPageState extends State<McpServerPage> {
   void _showAddServerDialog(BuildContext context) {
     showShadDialog(
       context: context,
-      builder: (context) => McpServerFormDialog(),
+      builder: (context) => McpServerFormDialog(viewModel: viewModel),
     );
   }
 
@@ -130,7 +131,7 @@ class _McpServerPageState extends State<McpServerPage> {
           ),
           ShadButton(
             onPressed: () async {
-              await viewModel.removeServer(context, server.id);
+              await viewModel.removeServer(server.id);
               if (context.mounted) Navigator.pop(context);
             },
             child: const Text('删除'),
@@ -143,7 +144,8 @@ class _McpServerPageState extends State<McpServerPage> {
   void _showEditServerDialog(BuildContext context, McpServerEntity server) {
     showShadDialog(
       context: context,
-      builder: (context) => McpServerFormDialog(server: server),
+      builder: (context) =>
+          McpServerFormDialog(server: server, viewModel: viewModel),
     );
   }
 }
