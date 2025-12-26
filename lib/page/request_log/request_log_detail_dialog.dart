@@ -1,6 +1,6 @@
 import 'package:code_proxy/model/request_log.dart';
-import 'package:code_proxy/themes/shadcn_colors.dart';
-import 'package:code_proxy/themes/shadcn_spacing.dart';
+import 'package:code_proxy/theme/shadcn_colors.dart';
+import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 

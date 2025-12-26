@@ -1,7 +1,7 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/di.dart';
 import 'package:code_proxy/router/router.dart';
-import 'package:code_proxy/themes/app_theme.dart';
+import 'package:code_proxy/theme/app_theme.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';

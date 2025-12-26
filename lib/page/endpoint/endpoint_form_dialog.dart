@@ -1,5 +1,5 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/themes/shadcn_spacing.dart';
+import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';

@@ -1,5 +1,5 @@
 import 'package:code_proxy/model/mcp_server_entity.dart';
-import 'package:code_proxy/services/claude_code_mcp_server_service.dart';
+import 'package:code_proxy/service/claude_code_mcp_server_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';

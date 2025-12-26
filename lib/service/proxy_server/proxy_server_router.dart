@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 

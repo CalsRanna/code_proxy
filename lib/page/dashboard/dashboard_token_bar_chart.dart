@@ -1,4 +1,4 @@
-import 'package:code_proxy/themes/shadcn_colors.dart';
+import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
@@ -65,9 +65,13 @@ class DashboardTokenBarChart extends StatelessWidget {
           series: modelList.map((model) {
             final color = colors[modelList.indexOf(model) % colors.length];
 
-            return StackedColumnSeries<MapEntry<String, Map<String, double>>, String>(
+            return StackedColumnSeries<
+              MapEntry<String, Map<String, double>>,
+              String
+            >(
               dataSource: data,
-              xValueMapper: (MapEntry<String, Map<String, double>> data, _) => data.key,
+              xValueMapper: (MapEntry<String, Map<String, double>> data, _) =>
+                  data.key,
               yValueMapper: (MapEntry<String, Map<String, double>> data, _) =>
                   data.value[model] ?? 0,
               name: model,

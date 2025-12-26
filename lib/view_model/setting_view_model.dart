@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
-import 'package:code_proxy/services/claude_code_setting_service.dart';
+import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/util/app_restart_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';

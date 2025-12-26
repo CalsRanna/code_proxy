@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/request_log.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:uuid/uuid.dart';
 
 /// 请求记录器 - 负责解析请求响应数据并组装 RequestLog 对象
