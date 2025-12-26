@@ -6,12 +6,13 @@ import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/services/claude_code_setting_service.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/services/proxy_server/proxy_server_log_handler.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/services/proxy_server/proxy_server_service.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_log_handler.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
+import 'package:code_proxy/util/window_util.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
@@ -23,6 +24,7 @@ class HomeViewModel {
   final selectedIndex = signal<int>(0);
 
   ProxyServerService? _proxyServer;
+  StreamSubscription<WindowEvent>? _subscription;
   final ProxyServerLogHandler _requestLogger = ProxyServerLogHandler.create();
   final RequestLogRepository _requestLogRepository = RequestLogRepository(
     Database.instance,
@@ -30,30 +32,6 @@ class HomeViewModel {
   final EndpointRepository _endpointRepository = EndpointRepository(
     Database.instance,
   );
-
-  Future<void> handleRequestCompleted(
-    EndpointEntity endpoint,
-    ProxyServerRequest request,
-    ProxyServerResponse response,
-  ) async {
-    // 1. 构建数据库日志对象（使用现有的 LogHandler）
-    final log = _requestLogger.buildRequestLog(
-      endpoint: endpoint,
-      request: request,
-      response: response,
-    );
-
-    // 2. 插入数据库
-    await _requestLogRepository.insert(log);
-
-    // 3. 刷新请求日志页面
-    try {
-      final logViewModel = GetIt.instance.get<RequestLogViewModel>();
-      logViewModel.loadLogs();
-    } catch (e) {
-      // 忽略获取 ViewModel 的错误（可能在某些情况下 ViewModel 还未初始化）
-    }
-  }
 
   /// 处理端点恢复事件（临时禁用到期后自动恢复）
   Future<void> handleEndpointRestored(EndpointEntity endpoint) async {
@@ -105,8 +83,38 @@ class HomeViewModel {
     }
   }
 
+  Future<void> handleRequestCompleted(
+    EndpointEntity endpoint,
+    ProxyServerRequest request,
+    ProxyServerResponse response,
+  ) async {
+    // 1. 构建数据库日志对象（使用现有的 LogHandler）
+    final log = _requestLogger.buildRequestLog(
+      endpoint: endpoint,
+      request: request,
+      response: response,
+    );
+
+    // 2. 插入数据库
+    await _requestLogRepository.insert(log);
+
+    // 3. 刷新请求日志页面
+    try {
+      final logViewModel = GetIt.instance.get<RequestLogViewModel>();
+      logViewModel.loadLogs();
+    } catch (e) {
+      // 忽略获取 ViewModel 的错误（可能在某些情况下 ViewModel 还未初始化）
+    }
+  }
+
   Future<void> initSignals() async {
     _autoStartServer();
+    _subscription ??= WindowUtil.instance.stream.listen((event) {
+      if (event == WindowEvent.shown && selectedIndex.value == 0) {
+        final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
+        dashboardViewModel.refreshData();
+      }
+    });
   }
 
   /// 重启代理服务器（用于端口变更等配置修改）

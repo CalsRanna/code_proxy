@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:code_proxy/util/shared_preference_util.dart';
@@ -5,8 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
+enum WindowEvent { shown }
+
 class WindowUtil {
   static final WindowUtil instance = WindowUtil._();
+
+  final _controller = StreamController<WindowEvent>();
 
   WindowUtil._();
 
@@ -18,6 +23,8 @@ class WindowUtil {
     const SingleActivator(LogicalKeyboardKey.keyW, meta: true):
         const _HideWindowIntent(),
   };
+
+  Stream<WindowEvent> get stream => _controller.stream;
 
   Future<void> destroy() async {
     await windowManager.destroy();
@@ -79,6 +86,7 @@ class WindowUtil {
     await windowManager.setSkipTaskbar(false);
     await windowManager.show();
     await windowManager.focus();
+    _controller.add(WindowEvent.shown);
   }
 
   Future<void> startDragging() async {
