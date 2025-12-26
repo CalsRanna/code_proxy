@@ -1,5 +1,5 @@
 /// 请求日志模型
-class RequestLog {
+class RequestLogEntity {
   /// 日志 ID
   final String id;
 
@@ -33,7 +33,7 @@ class RequestLog {
   /// 输出 token 数量
   final int? outputTokens;
 
-  const RequestLog({
+  const RequestLogEntity({
     required this.id,
     required this.timestamp,
     required this.endpointId,
@@ -48,8 +48,8 @@ class RequestLog {
   });
 
   /// 从 JSON 反序列化
-  factory RequestLog.fromJson(Map<String, dynamic> json) {
-    return RequestLog(
+  factory RequestLogEntity.fromJson(Map<String, dynamic> json) {
+    return RequestLogEntity(
       id: json['id'] as String,
       timestamp: json['timestamp'] as int,
       endpointId: json['endpointId'] as String,
@@ -87,7 +87,7 @@ class RequestLog {
   }
 
   /// 复制并修改部分字段
-  RequestLog copyWith({
+  RequestLogEntity copyWith({
     String? id,
     int? timestamp,
     String? endpointId,
@@ -100,7 +100,7 @@ class RequestLog {
     int? inputTokens,
     int? outputTokens,
   }) {
-    return RequestLog(
+    return RequestLogEntity(
       id: id ?? this.id,
       timestamp: timestamp ?? this.timestamp,
       endpointId: endpointId ?? this.endpointId,
