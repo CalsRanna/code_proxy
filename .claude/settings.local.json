@@ -7,7 +7,9 @@
       "Bash(cat:*)",
       "Bash(sqlite3:*)",
       "WebSearch",
-      "WebFetch(domain:sqlite.org)"
+      "WebFetch(domain:sqlite.org)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ],
     "deny": []
   }

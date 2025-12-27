@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/model/request_log.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
+import 'package:code_proxy/model/request_log_entity.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:uuid/uuid.dart';
 
 /// 请求记录器 - 负责解析请求响应数据并组装 RequestLog 对象
@@ -17,7 +17,7 @@ class ProxyServerLogHandler {
   }
 
   /// 解析请求响应数据并组装 RequestLog 对象
-  RequestLog buildRequestLog({
+  RequestLogEntity buildRequestLog({
     required EndpointEntity endpoint,
     required ProxyServerRequest request,
     required ProxyServerResponse response,
@@ -46,7 +46,7 @@ class ProxyServerLogHandler {
     }
 
     // 构建并返回请求日志对象
-    return RequestLog(
+    return RequestLogEntity(
       id: const Uuid().v4(),
       timestamp: DateTime.now().millisecondsSinceEpoch,
       endpointId: endpoint.id,

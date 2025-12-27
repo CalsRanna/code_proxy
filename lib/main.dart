@@ -1,7 +1,6 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/di.dart';
 import 'package:code_proxy/router/router.dart';
-import 'package:code_proxy/themes/app_theme.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';
@@ -23,16 +22,14 @@ class CodeProxyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var child = ShadApp.custom(
-      theme: ShadThemeData(textTheme: ShadTextTheme(family: 'Montserrat')),
-      appBuilder: (context) => Watch(
-        (context) => MaterialApp.router(
-          title: 'Code Proxy',
-          theme: AppTheme.lightTheme,
-          debugShowCheckedModeBanner: false,
-          routerConfig: router.config(),
-        ),
+    var child = ShadApp.router(
+      debugShowCheckedModeBanner: false,
+      routerConfig: router.config(),
+      theme: ShadThemeData(
+        textTheme: ShadTextTheme(family: 'Montserrat'),
+        sonnerTheme: ShadSonnerTheme(alignment: Alignment.topCenter),
       ),
+      title: 'Code Proxy',
     );
 
     var actions = Actions(actions: WindowUtil.instance.actions, child: child);

@@ -1,9 +1,9 @@
 import 'package:code_proxy/page/dashboard/dashboard_request_line_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_bar_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_heatmap.dart';
-import 'package:code_proxy/themes/shadcn_spacing.dart';
+import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
-import 'package:code_proxy/widgets/page_header.dart';
+import 'package:code_proxy/widget/page_header.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';

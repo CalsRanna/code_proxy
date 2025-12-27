@@ -1,5 +1,5 @@
 import 'package:code_proxy/database/database.dart';
-import 'package:code_proxy/model/request_log.dart';
+import 'package:code_proxy/model/request_log_entity.dart';
 
 /// Request Log Repository
 ///
@@ -17,7 +17,7 @@ class RequestLogRepository {
   }
 
   /// Get all request logs with pagination
-  Future<List<RequestLog>> getAll({int? limit, int? offset}) async {
+  Future<List<RequestLogEntity>> getAll({int? limit, int? offset}) async {
     var query = _database.laconic
         .table('request_logs')
         .orderBy('timestamp', direction: 'desc');
@@ -42,7 +42,9 @@ class RequestLogRepository {
     // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
     // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
     final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0 ? '+$offsetMinutes minutes' : '$offsetMinutes minutes';
+    final offsetModifier = offsetMinutes >= 0
+        ? '+$offsetMinutes minutes'
+        : '$offsetMinutes minutes';
 
     final results = await _database.laconic
         .table('request_logs')
@@ -75,7 +77,9 @@ class RequestLogRepository {
     // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
     // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
     final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0 ? '+$offsetMinutes minutes' : '$offsetMinutes minutes';
+    final offsetModifier = offsetMinutes >= 0
+        ? '+$offsetMinutes minutes'
+        : '$offsetMinutes minutes';
 
     final results = await _database.laconic
         .table('request_logs')
@@ -136,7 +140,9 @@ class RequestLogRepository {
     // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
     // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
     final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0 ? '+$offsetMinutes minutes' : '$offsetMinutes minutes';
+    final offsetModifier = offsetMinutes >= 0
+        ? '+$offsetMinutes minutes'
+        : '$offsetMinutes minutes';
 
     final results = await _database.laconic
         .table('request_logs')
@@ -176,7 +182,7 @@ class RequestLogRepository {
   }
 
   /// Insert a new request log
-  Future<void> insert(RequestLog log) async {
+  Future<void> insert(RequestLogEntity log) async {
     await _database.laconic.table('request_logs').insert([
       {
         'id': log.id,
@@ -195,8 +201,8 @@ class RequestLogRepository {
   }
 
   /// Convert database row to RequestLog
-  RequestLog _fromRow(Map<String, dynamic> row) {
-    return RequestLog(
+  RequestLogEntity _fromRow(Map<String, dynamic> row) {
+    return RequestLogEntity(
       id: row['id'] as String,
       timestamp: row['timestamp'] as int,
       endpointId: row['endpoint_id'] as String,

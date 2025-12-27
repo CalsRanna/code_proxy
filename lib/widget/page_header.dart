@@ -1,5 +1,5 @@
-import 'package:code_proxy/themes/shadcn_colors.dart';
-import 'package:code_proxy/themes/shadcn_spacing.dart';
+import 'package:code_proxy/theme/shadcn_colors.dart';
+import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:flutter/material.dart';
 
 /// 统一的页面头部组件

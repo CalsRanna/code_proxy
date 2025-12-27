@@ -14,7 +14,7 @@ class TrayUtil with TrayListener {
     await trayManager.destroy();
   }
 
-  Future<void> ensureInitialized({Function()? onShow}) async {
+  Future<void> ensureInitialized() async {
     trayManager.addListener(this);
     await _setTrayIcon();
   }

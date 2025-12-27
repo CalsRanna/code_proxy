@@ -1,8 +1,8 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/page/endpoint/endpoint_card.dart';
-import 'package:code_proxy/themes/shadcn_spacing.dart';
+import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
-import 'package:code_proxy/widgets/page_header.dart';
+import 'package:code_proxy/widget/page_header.dart';
 import 'package:code_proxy/page/endpoint/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';

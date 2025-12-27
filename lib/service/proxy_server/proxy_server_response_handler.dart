@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_request.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_response.dart';
-import 'package:code_proxy/services/proxy_server/proxy_server_router.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
@@ -128,15 +128,16 @@ class ProxyServerResponseHandler {
         response,
         cleanHeaders,
         startTime,
-        (Map<String, int> tokenUsage, int responseTime) => _recordRequestWithBody(
-          endpoint: endpoint,
-          request: request,
-          requestBodyBytes: requestBodyBytes,
-          response: response,
-          responseTime: responseTime,
-          mappedRequestBodyBytes: mappedRequestBodyBytes,
-          tokenUsage: tokenUsage,
-        ),
+        (Map<String, int> tokenUsage, int responseTime) =>
+            _recordRequestWithBody(
+              endpoint: endpoint,
+              request: request,
+              requestBodyBytes: requestBodyBytes,
+              response: response,
+              responseTime: responseTime,
+              mappedRequestBodyBytes: mappedRequestBodyBytes,
+              tokenUsage: tokenUsage,
+            ),
         (Object error) => recordException(
           endpoint: endpoint,
           request: request,
@@ -301,9 +302,11 @@ class ResponseProcessor {
                     final json = jsonDecode(jsonStr);
                     if (json is Map<String, dynamic>) {
                       // Extract message_start usage (input tokens)
-                      if (json['type'] == 'message_start' && json.containsKey('message')) {
+                      if (json['type'] == 'message_start' &&
+                          json.containsKey('message')) {
                         final message = json['message'];
-                        if (message is Map<String, dynamic> && message.containsKey('usage')) {
+                        if (message is Map<String, dynamic> &&
+                            message.containsKey('usage')) {
                           final usage = message['usage'];
                           if (usage is Map<String, dynamic>) {
                             inputTokens = usage['input_tokens'] as int? ?? 0;
@@ -311,7 +314,8 @@ class ResponseProcessor {
                         }
                       }
                       // Extract message_delta usage (output tokens)
-                      if (json['type'] == 'message_delta' && json.containsKey('usage')) {
+                      if (json['type'] == 'message_delta' &&
+                          json.containsKey('usage')) {
                         final usage = json['usage'];
                         if (usage is Map<String, dynamic>) {
                           outputTokens += (usage['output_tokens'] as int? ?? 0);
@@ -329,11 +333,12 @@ class ResponseProcessor {
           }
         },
         handleDone: (EventSink<List<int>> sink) {
-          final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
-          recordStats(
-            {'input': inputTokens, 'output': outputTokens},
-            responseTime,
-          );
+          final responseTime =
+              DateTime.now().millisecondsSinceEpoch - startTime;
+          recordStats({
+            'input': inputTokens,
+            'output': outputTokens,
+          }, responseTime);
           sink.close();
         },
         handleError: (error, stackTrace, EventSink<List<int>> sink) {

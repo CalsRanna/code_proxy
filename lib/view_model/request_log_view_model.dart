@@ -1,5 +1,5 @@
 import 'package:code_proxy/database/database.dart';
-import 'package:code_proxy/model/request_log.dart';
+import 'package:code_proxy/model/request_log_entity.dart';
 import 'package:code_proxy/page/request_log/request_log_clear_dialog.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +9,7 @@ import 'package:signals/signals.dart';
 class RequestLogViewModel {
   final _requestLogRepository = RequestLogRepository(Database.instance);
 
-  final logs = listSignal<RequestLog>([]);
+  final logs = listSignal<RequestLogEntity>([]);
 
   final currentPage = signal(1);
   final pageSize = signal(50);
