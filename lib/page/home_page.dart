@@ -6,6 +6,7 @@ import 'package:code_proxy/page/endpoint/endpoint_page.dart';
 import 'package:code_proxy/page/mcp_server/mcp_server_page.dart';
 import 'package:code_proxy/page/request_log/request_log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
+import 'package:code_proxy/page/skill/skill_page.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
@@ -14,6 +15,7 @@ import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:code_proxy/view_model/mcp_server_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
+import 'package:code_proxy/view_model/skill_view_model.dart';
 import 'package:code_proxy/widget/macos_window_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -35,15 +37,17 @@ class _HomePageState extends State<HomePage> {
   final logsViewModel = GetIt.instance.get<RequestLogViewModel>();
   final settingsViewModel = GetIt.instance.get<SettingViewModel>();
   final serverViewModel = GetIt.instance.get<McpServerViewModel>();
+  final skillViewModel = GetIt.instance.get<SkillViewModel>();
 
   final icons = [
     LucideIcons.layoutGrid,
     LucideIcons.shell,
     LucideIcons.arrowUpDown,
     LucideIcons.server,
+    LucideIcons.sparkles,
     LucideIcons.bolt,
   ];
-  final labels = ['主页', '端点', '日志', 'MCP服务器', '设置'];
+  final labels = ['主页', '端点', '日志', 'MCP服务器', 'Skills', '设置'];
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +63,7 @@ class _HomePageState extends State<HomePage> {
     endpointsViewModel.initSignals();
     logsViewModel.initSignals();
     serverViewModel.initSignals();
+    skillViewModel.initSignals();
     settingsViewModel.initSignals();
   }
 
@@ -69,7 +74,8 @@ class _HomePageState extends State<HomePage> {
         1 => EndpointPage(),
         2 => RequestLogPage(),
         3 => McpServerPage(),
-        4 => SettingPage(),
+        4 => SkillPage(),
+        5 => SettingPage(),
         _ => DashboardPage(),
       };
     });
