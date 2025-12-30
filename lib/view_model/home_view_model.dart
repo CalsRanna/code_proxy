@@ -165,7 +165,7 @@ class HomeViewModel {
       final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
       dashboardViewModel.refreshData();
     }
-    if (index == 3 && previousIndex != 3) {
+    if (index == 5 && previousIndex != 5) {
       final settingViewModel = GetIt.instance.get<SettingViewModel>();
       settingViewModel.getSqliteFileSize();
     }
