@@ -5,8 +5,19 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
+
+/// 安全地将动态值转换为 int
+/// 支持 int、double、String 类型，避免类型转换异常
+int? _safeParseInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
 
 /// 响应处理器 - 协调者
 class ProxyServerResponseHandler {
@@ -67,13 +78,13 @@ class ProxyServerResponseHandler {
           final usageData = json['usage'];
           if (usageData is Map<String, dynamic>) {
             usage = {
-              'input': usageData['input_tokens'] as int? ?? 0,
-              'output': usageData['output_tokens'] as int? ?? 0,
+              'input': _safeParseInt(usageData['input_tokens']) ?? 0,
+              'output': _safeParseInt(usageData['output_tokens']) ?? 0,
             };
           }
         }
       } catch (e) {
-        // 忽略解析错误
+        LoggerUtil.instance.d('Token parsing failed in 5xx response: $e');
       }
 
       _recordRequestWithBody(
@@ -249,13 +260,13 @@ class ResponseProcessor {
         final usageData = json['usage'];
         if (usageData is Map<String, dynamic>) {
           usage = {
-            'input': usageData['input_tokens'] as int? ?? 0,
-            'output': usageData['output_tokens'] as int? ?? 0,
+            'input': _safeParseInt(usageData['input_tokens']) ?? 0,
+            'output': _safeParseInt(usageData['output_tokens']) ?? 0,
           };
         }
       }
     } catch (e) {
-      // 忽略 JSON 解析错误（非 JSON 响应或格式不匹配）
+      LoggerUtil.instance.d('Token parsing failed in normal response: $e');
     }
 
     recordStats(responseTime, usage);
@@ -309,7 +320,7 @@ class ResponseProcessor {
                             message.containsKey('usage')) {
                           final usage = message['usage'];
                           if (usage is Map<String, dynamic>) {
-                            inputTokens = usage['input_tokens'] as int? ?? 0;
+                            inputTokens = _safeParseInt(usage['input_tokens']) ?? 0;
                           }
                         }
                       }
@@ -318,18 +329,18 @@ class ResponseProcessor {
                           json.containsKey('usage')) {
                         final usage = json['usage'];
                         if (usage is Map<String, dynamic>) {
-                          outputTokens += (usage['output_tokens'] as int? ?? 0);
+                          outputTokens += (_safeParseInt(usage['output_tokens']) ?? 0);
                         }
                       }
                     }
-                  } catch (_) {
-                    // Ignore JSON parse errors
+                  } catch (e) {
+                    LoggerUtil.instance.d('Token parsing failed in stream: $e');
                   }
                 }
               }
             }
           } catch (e) {
-            // Catch-all for decoding/parsing errors
+            LoggerUtil.instance.d('Stream chunk processing error: $e');
           }
         },
         handleDone: (EventSink<List<int>> sink) {
@@ -342,6 +353,8 @@ class ResponseProcessor {
           sink.close();
         },
         handleError: (error, stackTrace, EventSink<List<int>> sink) {
+          // 上游流的真实错误，透传给客户端
+          LoggerUtil.instance.w('Upstream stream error: $error');
           recordException(error);
           sink.addError(error, stackTrace);
         },
