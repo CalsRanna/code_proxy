@@ -21,8 +21,7 @@ class SkillViewModel {
     error.value = null;
 
     try {
-      final loadedSkills =
-          await ClaudeCodeSkillService.instance.readSkills();
+      final loadedSkills = await ClaudeCodeSkillService.instance.readSkills();
       skills.value = loadedSkills;
     } catch (e) {
       error.value = '加载 Skills 失败: $e';
@@ -45,7 +44,7 @@ class SkillViewModel {
       skills.value = updated;
     } catch (e) {
       if (e is SkillServiceException) {
-        throw e;
+        rethrow;
       }
       throw SkillServiceException('安装失败: $e');
     } finally {

@@ -4,7 +4,6 @@ import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/skill_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:signals/signals_flutter.dart';
 
 /// Skill 安装对话框
 class SkillInstallDialog extends StatefulWidget {
@@ -98,7 +97,9 @@ class _SkillInstallDialogState extends State<SkillInstallDialog> {
                   padding: const EdgeInsets.all(ShadcnSpacing.spacing12),
                   decoration: BoxDecoration(
                     color: ShadcnColors.zinc100.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(ShadcnSpacing.radiusSmall),
+                    borderRadius: BorderRadius.circular(
+                      ShadcnSpacing.radiusSmall,
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -123,16 +124,25 @@ class _SkillInstallDialogState extends State<SkillInstallDialog> {
                   padding: const EdgeInsets.all(ShadcnSpacing.spacing12),
                   decoration: BoxDecoration(
                     color: ShadcnColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(ShadcnSpacing.radiusSmall),
+                    borderRadius: BorderRadius.circular(
+                      ShadcnSpacing.radiusSmall,
+                    ),
                   ),
                   child: Row(
                     children: [
-                      Icon(LucideIcons.circleAlert, size: 16, color: ShadcnColors.error),
+                      Icon(
+                        LucideIcons.circleAlert,
+                        size: 16,
+                        color: ShadcnColors.error,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           errorMessage!,
-                          style: TextStyle(color: ShadcnColors.error, fontSize: 12),
+                          style: TextStyle(
+                            color: ShadcnColors.error,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -164,7 +174,8 @@ class _SkillInstallDialogState extends State<SkillInstallDialog> {
 
     // 预先检查是否已安装
     final skillName = _extractSkillName(url);
-    if (skillName != null && widget.viewModel.skills.value.containsKey(skillName)) {
+    if (skillName != null &&
+        widget.viewModel.skills.value.containsKey(skillName)) {
       setState(() {
         errorMessage = 'Skill "$skillName" 已存在，请先移除后再重新添加';
       });
@@ -186,9 +197,9 @@ class _SkillInstallDialogState extends State<SkillInstallDialog> {
 
       if (context.mounted) {
         Navigator.of(context).pop();
-        ShadSonner.of(context).show(
-          ShadToast(description: const Text('Skill 添加成功')),
-        );
+        ShadSonner.of(
+          context,
+        ).show(ShadToast(description: const Text('Skill 添加成功')));
       }
     } catch (e) {
       if (!context.mounted) return;
@@ -217,7 +228,9 @@ class _SkillInstallDialogState extends State<SkillInstallDialog> {
     }
 
     // 匹配完整仓库 URL
-    final repoRegex = RegExp(r'^https?://github\.com/[^/]+/([^/]+?)(?:\.git)?$');
+    final repoRegex = RegExp(
+      r'^https?://github\.com/[^/]+/([^/]+?)(?:\.git)?$',
+    );
     final repoMatch = repoRegex.firstMatch(url);
     if (repoMatch != null) {
       return repoMatch.group(1);
