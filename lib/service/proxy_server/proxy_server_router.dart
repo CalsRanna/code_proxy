@@ -3,34 +3,6 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/util/logger_util.dart';
-import 'package:http/http.dart' as http;
-
-/// 客户端错误处理器 - 处理4xx响应（无需重试）
-class ClientErrorHandler implements ResponseHandlerStrategy {
-  @override
-  HandleResult handle(http.StreamedResponse response, EndpointEntity endpoint) {
-    // 4xx错误是客户端问题，无需重试，直接返回
-    LoggerUtil.instance.w(
-      'Client error from endpoint ${endpoint.name}: ${response.statusCode}',
-    );
-    return HandleResult.clientError;
-  }
-}
-
-/// 异常处理器 - 处理网络异常等
-class ExceptionHandler implements ExceptionHandlerStrategy {
-  @override
-  HandleResult handle(dynamic error, EndpointEntity endpoint) {
-    LoggerUtil.instance.e('Exception from endpoint ${endpoint.name}: $error');
-    return HandleResult.exception;
-  }
-}
-
-/// 异常处理器策略 - 用于处理异常情况
-abstract class ExceptionHandlerStrategy {
-  /// 处理异常，返回HandleResult
-  HandleResult handle(dynamic error, EndpointEntity endpoint);
-}
 
 /// 响应处理结果
 enum HandleResult {
@@ -213,12 +185,6 @@ class ProxyServerRouter {
   }
 }
 
-/// 响应处理器策略 - 用于处理不同类型的HTTP响应
-abstract class ResponseHandlerStrategy {
-  /// 处理响应，返回HandleResult
-  HandleResult handle(http.StreamedResponse response, EndpointEntity endpoint);
-}
-
 /// 路由状态枚举
 enum RouteState {
   selectingEndpoint, // 选择端点
@@ -226,26 +192,4 @@ enum RouteState {
   failingOver, // 故障转移到下一个端点
   completed, // 完成（成功）
   failed, // 失败（所有端点都用尽）
-}
-
-/// 服务器错误处理器 - 处理5xx响应（需要重试）
-class ServerErrorHandler implements ResponseHandlerStrategy {
-  @override
-  HandleResult handle(http.StreamedResponse response, EndpointEntity endpoint) {
-    LoggerUtil.instance.w(
-      'Server error from endpoint ${endpoint.name}: ${response.statusCode}',
-    );
-    return HandleResult.serverError;
-  }
-}
-
-/// 成功处理器 - 处理2xx响应
-class SuccessHandler implements ResponseHandlerStrategy {
-  @override
-  HandleResult handle(http.StreamedResponse response, EndpointEntity endpoint) {
-    LoggerUtil.instance.i(
-      'Success response from endpoint ${endpoint.name}: ${response.statusCode}',
-    );
-    return HandleResult.success;
-  }
 }
