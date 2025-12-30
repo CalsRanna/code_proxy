@@ -13,7 +13,14 @@
       "Bash(wc:*)",
       "Bash(grep:*)",
       "mcp__dart-mcp-server__add_roots",
-      "mcp__dart-mcp-server__analyze_files"
+      "mcp__dart-mcp-server__analyze_files",
+      "Bash(git ls-remote:*)",
+      "Bash(git config:*)",
+      "Bash(curl:*)",
+      "Skill(skill-creator)",
+      "Bash(python3:*)",
+      "Bash(ls:*)",
+      "Skill(annual-report)"
     ],
     "deny": []
   }

@@ -1,12 +1,11 @@
 import 'dart:io';
 
-import 'package:code_proxy/util/logger_util.dart';
-import 'package:laconic/laconic.dart';
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:code_proxy/database/migration/migration_202512110000.dart';
 import 'package:code_proxy/database/migration/migration_202512150000.dart';
 import 'package:code_proxy/database/migration/migration_202512150001.dart';
+import 'package:code_proxy/util/logger_util.dart';
+import 'package:code_proxy/util/path_util.dart';
+import 'package:laconic/laconic.dart';
 
 class Database {
   static final Database instance = Database._internal();
@@ -25,8 +24,9 @@ SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';
   Database._internal();
 
   Future<void> ensureInitialized() async {
-    final directory = await getApplicationSupportDirectory();
-    path = join(directory.path, 'code_proxy.db');
+    await _migrateFile();
+    path = PathUtil.instance.getNewDatabasePath();
+
     LoggerUtil.instance.d('Sqlite db file path: $path');
 
     final file = File(path);
@@ -54,5 +54,30 @@ SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';
     await Migration202512110000().migrate(laconic);
     await Migration202512150000().migrate(laconic);
     await Migration202512150001().migrate(laconic);
+  }
+
+  Future<void> _migrateFile() async {
+    final pathUtil = PathUtil.instance;
+    final newPath = pathUtil.getNewDatabasePath();
+    final newDir = pathUtil.getNewDatabaseDirectory();
+    final legacyPath = await pathUtil.getLegacyDatabasePath();
+
+    final newDirectory = Directory(newDir);
+    if (!await newDirectory.exists()) {
+      await newDirectory.create(recursive: true);
+    }
+    final newFile = File(newPath);
+    if (await newFile.exists()) return;
+    final legacyFile = File(legacyPath);
+    if (!await legacyFile.exists()) return;
+    try {
+      await legacyFile.copy(newPath);
+      final backupPath = '$legacyPath.bak';
+      await legacyFile.rename(backupPath);
+    } catch (e) {
+      if (await newFile.exists()) {
+        await newFile.delete();
+      }
+    }
   }
 }

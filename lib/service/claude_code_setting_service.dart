@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
@@ -31,22 +32,12 @@ class ClaudeCodeSettingService {
       },
     };
 
-    final home = _getHomeDirectory();
+    final home = PathUtil.instance.getHomeDirectory();
     final path = join(home, '.claude', 'settings.json');
     final file = File(path);
     await file.parent.create(recursive: true);
 
     final json = JsonEncoder.withIndent('  ').convert(setting);
     await file.writeAsString(json);
-  }
-
-  String _getHomeDirectory() {
-    var environment = Platform.environment;
-    if (Platform.isWindows) {
-      return environment['USERPROFILE'] ??
-          '${environment['HOMEDRIVE']}${environment['HOMEPATH']}';
-    } else {
-      return environment['HOME'] ?? '';
-    }
   }
 }
