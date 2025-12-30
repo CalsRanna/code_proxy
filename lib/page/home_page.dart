@@ -108,16 +108,16 @@ class _HomePageState extends State<HomePage> {
     );
     var boxDecoration = BoxDecoration(border: Border(right: borderSide));
     return Watch((context) {
+      var column = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        spacing: ShadcnSpacing.spacing8,
+        children: List.generate(icons.length, _buildIconButton),
+      );
       var children = [
+        Container(width: 72, decoration: boxDecoration, child: column),
         if (Platform.isMacOS) const MacOSWindowButtons(),
-        ...List.generate(icons.length, (index) {
-          return _buildIconButton(index);
-        }),
-        const Spacer(),
-        const SizedBox(height: ShadcnSpacing.spacing8),
       ];
-      var column = Column(spacing: ShadcnSpacing.spacing8, children: children);
-      return Container(width: 72, decoration: boxDecoration, child: column);
+      return Stack(children: children);
     });
   }
 }
