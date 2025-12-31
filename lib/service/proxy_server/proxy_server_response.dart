@@ -15,7 +15,8 @@ class ProxyServerResponse {
 
   /// Token 使用量 {'input': inputTokens, 'output': outputTokens}
   /// 在 ResponseHandler 中统一解析（流式和非流式）
-  final Map<String, int>? usage;
+  /// 值可能为 null 表示解析失败
+  final Map<String, int?>? usage;
 
   const ProxyServerResponse({
     required this.statusCode,
