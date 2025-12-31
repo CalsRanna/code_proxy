@@ -26,6 +26,7 @@ class ProxyServerLogHandler {
     String? model;
     int? inputTokens;
     int? outputTokens;
+    String? errorMessage;
 
     // 从请求体中提取模型信息
     if (request.body.isNotEmpty) {
@@ -45,6 +46,14 @@ class ProxyServerLogHandler {
       outputTokens = response.usage!['output'];
     }
 
+    // 处理错误信息（仅在非成功请求时保存，可选择性截断至 1000 字符）
+    if (!success && response.errorBody != null) {
+      const maxLength = 1000;
+      errorMessage = response.errorBody!.length > maxLength
+          ? '${response.errorBody!.substring(0, maxLength)}... (truncated)'
+          : response.errorBody;
+    }
+
     // 构建并返回请求日志对象
     return RequestLogEntity(
       id: const Uuid().v4(),
@@ -58,6 +67,7 @@ class ProxyServerLogHandler {
       model: model,
       inputTokens: inputTokens,
       outputTokens: outputTokens,
+      errorMessage: errorMessage,
     );
   }
 }

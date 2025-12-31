@@ -59,6 +59,13 @@ class RequestLogDetailDialog extends StatelessWidget {
               label: '输出Token',
               value: '${log.outputTokens}',
             ),
+            // 失败请求显示错误信息
+            if (log.statusCode != 200)
+              _buildListItem(
+                icon: LucideIcons.circleAlert,
+                label: '错误信息',
+                value: '${log.errorMessage}',
+              ),
           ],
         ),
       ),

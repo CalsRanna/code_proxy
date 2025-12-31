@@ -18,11 +18,16 @@ class ProxyServerResponse {
   /// 值可能为 null 表示解析失败
   final Map<String, int?>? usage;
 
+  /// 错误响应体（仅在非成功状态码时保存）
+  /// 包含完整的 API 错误响应或异常信息
+  final String? errorBody;
+
   const ProxyServerResponse({
     required this.statusCode,
     required this.headers,
     required this.responseTime,
     this.timeToFirstByte,
     this.usage,
+    this.errorBody,
   });
 }

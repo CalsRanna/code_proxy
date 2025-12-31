@@ -196,6 +196,7 @@ class RequestLogRepository {
         'model': log.model,
         'input_tokens': log.inputTokens,
         'output_tokens': log.outputTokens,
+        'error_message': log.errorMessage,
       },
     ]);
   }
@@ -214,6 +215,7 @@ class RequestLogRepository {
       model: row['model'] as String?,
       inputTokens: row['input_tokens'] as int?,
       outputTokens: row['output_tokens'] as int?,
+      errorMessage: row['error_message'] as String?,
     );
   }
 }

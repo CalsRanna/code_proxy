@@ -59,13 +59,35 @@ class ProxyServerResponseHandler {
         mappedRequestBodyBytes: mappedRequestBodyBytes,
       );
     } else if (statusCode >= 400 && statusCode < 500) {
-      return await _processAndReturnResponse(
-        response,
-        endpoint,
-        request,
-        requestBodyToLog,
-        startTime,
+      // 客户端错误 → 读取错误响应体，记录日志，返回响应（不重试）
+      final responseBodyBytes = await response.stream.toBytes();
+      final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+
+      // 解码响应体以保存错误信息
+      final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
+
+      // 记录请求日志（包含错误信息）
+      _recordRequestWithBody(
+        endpoint: endpoint,
+        request: request,
+        requestBodyBytes: requestBodyBytes,
+        response: response,
+        responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        errorBody: bodyStr,
+      );
+
+      // 清理响应头
+      final cleanHeaders = Map<String, String>.from(response.headers)
+        ..remove('transfer-encoding')
+        ..remove('content-encoding')
+        ..remove('content-length');
+
+      // 返回错误响应给客户端
+      return shelf.Response(
+        response.statusCode,
+        headers: cleanHeaders,
+        body: responseBodyBytes,
       );
     } else if (statusCode >= 500) {
       // 服务器错误 → 记录日志，返回响应（调用方决定是否重试）
@@ -84,6 +106,7 @@ class ProxyServerResponseHandler {
         responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
         tokenUsage: usage,
+        errorBody: bodyStr,
       );
 
       final cleanHeaders = Map<String, String>.from(response.headers)
@@ -133,6 +156,7 @@ class ProxyServerResponseHandler {
       statusCode: 502, // Bad Gateway - 代理服务器无法从上游端点获得有效响应
       headers: {},
       responseTime: responseTime,
+      errorBody: error.toString(),
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
@@ -206,6 +230,7 @@ class ProxyServerResponseHandler {
     required int responseTime,
     List<int>? mappedRequestBodyBytes,
     Map<String, int?>? tokenUsage,
+    String? errorBody,
   }) {
     final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
     final proxyRequest = ProxyServerRequest(
@@ -221,6 +246,7 @@ class ProxyServerResponseHandler {
       responseTime: responseTime,
       timeToFirstByte: null,
       usage: tokenUsage,
+      errorBody: errorBody,
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);

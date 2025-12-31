@@ -33,6 +33,9 @@ class RequestLogEntity {
   /// 输出 token 数量
   final int? outputTokens;
 
+  /// 错误信息（仅在非成功请求时保存）
+  final String? errorMessage;
+
   const RequestLogEntity({
     required this.id,
     required this.timestamp,
@@ -45,6 +48,7 @@ class RequestLogEntity {
     this.model,
     this.inputTokens,
     this.outputTokens,
+    this.errorMessage,
   });
 
   /// 从 JSON 反序列化
@@ -61,6 +65,7 @@ class RequestLogEntity {
       model: json['model'] as String?,
       inputTokens: json['inputTokens'] as int?,
       outputTokens: json['outputTokens'] as int?,
+      errorMessage: json['errorMessage'] as String?,
     );
   }
 
@@ -78,6 +83,7 @@ class RequestLogEntity {
       'model': model,
       'inputTokens': inputTokens,
       'outputTokens': outputTokens,
+      'errorMessage': errorMessage,
     };
   }
 
@@ -99,6 +105,7 @@ class RequestLogEntity {
     String? model,
     int? inputTokens,
     int? outputTokens,
+    String? errorMessage,
   }) {
     return RequestLogEntity(
       id: id ?? this.id,
@@ -112,6 +119,7 @@ class RequestLogEntity {
       model: model ?? this.model,
       inputTokens: inputTokens ?? this.inputTokens,
       outputTokens: outputTokens ?? this.outputTokens,
+      errorMessage: errorMessage ?? this.errorMessage,
     );
   }
 }
