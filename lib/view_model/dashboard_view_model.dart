@@ -13,11 +13,6 @@ class DashboardViewModel {
     _loadChartData();
   }
 
-  Future<void> refreshData() async {
-    await _loadHeatmapData();
-    await _loadChartData();
-  }
-
   Future<void> _loadChartData() async {
     final repository = RequestLogRepository(Database.instance);
     final endDate = DateTime.now();

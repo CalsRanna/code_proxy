@@ -24,13 +24,13 @@ class _McpServerPageState extends State<McpServerPage> {
     final addButton = ShadButton(
       onPressed: () => _showAddServerDialog(context),
       leading: const Icon(LucideIcons.plus),
-      child: const Text('添加服务器'),
+      child: const Text('添加 MCP 服务器'),
     );
 
     final pageHeader = Watch((context) {
       return PageHeader(
         title: 'MCP 服务器',
-        subtitle: '${viewModel.mcpServers.value.length} 个服务器',
+        subtitle: '${viewModel.mcpServers.value.length} 个 MCP 服务器',
         actions: [addButton],
       );
     });

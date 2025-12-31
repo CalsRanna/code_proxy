@@ -99,7 +99,7 @@ class _SettingPageState extends State<SettingPage> {
         resetTile,
       ],
     );
-    var pageHeader = PageHeader(title: '应用设置', subtitle: '管理代理服务器配置和应用选项');
+    var pageHeader = PageHeader(title: '设置', subtitle: '管理代理服务器配置和应用选项');
     var children = [pageHeader, Expanded(child: listView)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

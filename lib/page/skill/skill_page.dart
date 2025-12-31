@@ -45,13 +45,13 @@ class _SkillPageState extends State<SkillPage> {
     final addButton = ShadButton(
       onPressed: () => _showInstallDialog(context),
       leading: const Icon(LucideIcons.plus),
-      child: const Text('添加 Skill'),
+      child: const Text('添加技能'),
     );
 
     final pageHeader = Watch((context) {
       return PageHeader(
-        title: 'Skills',
-        subtitle: '${viewModel.skills.value.length} 个 Skill',
+        title: '技能',
+        subtitle: '${viewModel.skills.value.length} 个技能',
         actions: [
           refreshButton,
           const SizedBox(width: ShadcnSpacing.spacing8),
@@ -103,14 +103,18 @@ class _SkillPageState extends State<SkillPage> {
           Text(
             '点击右上角按钮从 GitHub 添加 Skill',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 16),
           Text(
             '官方 Skills: github.com/anthropics/skills',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.5),
               fontFamily: 'monospace',
             ),
           ),

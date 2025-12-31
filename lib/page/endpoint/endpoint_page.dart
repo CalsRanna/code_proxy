@@ -27,7 +27,7 @@ class _EndpointPageState extends State<EndpointPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHeader(
-            title: '端点管理',
+            title: '端点',
             subtitle: '${endpoints.length} 个端点',
             actions: [
               ShadButton(

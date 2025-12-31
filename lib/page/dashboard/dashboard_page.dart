@@ -40,7 +40,7 @@ class _DashboardPageState extends State<DashboardPage> {
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       child: column,
     );
-    var pageHeader = const PageHeader(title: '控制面板', subtitle: '请求统计与数据分析');
+    var pageHeader = const PageHeader(title: 'CODE PROXY', subtitle: '控制面板');
     var children = [pageHeader, Expanded(child: singleChildScrollView)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -47,7 +47,7 @@ class _HomePageState extends State<HomePage> {
     LucideIcons.sparkles,
     LucideIcons.bolt,
   ];
-  final labels = ['主页', '端点', '日志', 'MCP服务器', 'Skills', '设置'];
+  final labels = ['控制面板', '端点', '日志', 'MCP服务器', '技能', '设置'];
 
   @override
   Widget build(BuildContext context) {

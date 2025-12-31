@@ -65,6 +65,10 @@ class SettingViewModel {
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();
 
+    var file = File(Database.instance.path);
+    var stats = await file.stat();
+    size.value = stats.size;
+
     auditRetainDays.value = await SharedPreferenceUtil.instance
         .getAuditRetainDays();
     auditRetainDaysController.text = auditRetainDays.value.toString();
@@ -331,12 +335,6 @@ class SettingViewModel {
     );
   }
 
-  Future<void> getSqliteFileSize() async {
-    var file = File(Database.instance.path);
-    var stats = await file.stat();
-    size.value = stats.size;
-  }
-
   Future<void> clearDatabase(BuildContext context) async {
     try {
       final database = Database.instance;
@@ -346,7 +344,9 @@ class SettingViewModel {
       await endpointRepo.clearAll();
       await requestLogRepo.clearAll();
 
-      await getSqliteFileSize();
+      var file = File(Database.instance.path);
+      var stats = await file.stat();
+      size.value = stats.size;
 
       if (!context.mounted) return;
 

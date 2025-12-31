@@ -34,7 +34,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
     var pageHeader = Watch((context) {
       return PageHeader(
         title: '请求日志',
-        subtitle: '$total 条记录',
+        subtitle: '$total 条请求日志',
         actions: [shadButton],
       );
     });

@@ -16,8 +16,10 @@ import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
+import 'package:code_proxy/view_model/mcp_server_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
+import 'package:code_proxy/view_model/skill_view_model.dart';
 import 'package:get_it/get_it.dart';
 import 'package:signals/signals.dart';
 
@@ -115,7 +117,7 @@ class HomeViewModel {
     _subscription ??= WindowUtil.instance.stream.listen((event) {
       if (event == WindowEvent.shown && selectedIndex.value == 0) {
         final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
-        dashboardViewModel.refreshData();
+        dashboardViewModel.initSignals();
       }
     });
   }
@@ -166,11 +168,27 @@ class HomeViewModel {
     selectedIndex.value = index;
     if (index == 0 && previousIndex != 0) {
       final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
-      dashboardViewModel.refreshData();
+      dashboardViewModel.initSignals();
+    }
+    if (index == 1 && previousIndex != 1) {
+      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+      endpointViewModel.initSignals();
+    }
+    if (index == 2 && previousIndex != 2) {
+      final logViewModel = GetIt.instance.get<RequestLogViewModel>();
+      logViewModel.initSignals();
+    }
+    if (index == 3 && previousIndex != 3) {
+      final serverViewModel = GetIt.instance.get<McpServerViewModel>();
+      serverViewModel.initSignals();
+    }
+    if (index == 4 && previousIndex != 4) {
+      final skillViewModel = GetIt.instance.get<SkillViewModel>();
+      skillViewModel.initSignals();
     }
     if (index == 5 && previousIndex != 5) {
       final settingViewModel = GetIt.instance.get<SettingViewModel>();
-      settingViewModel.getSqliteFileSize();
+      settingViewModel.initSignals();
     }
   }
 
