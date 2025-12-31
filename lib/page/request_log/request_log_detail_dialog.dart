@@ -49,21 +49,24 @@ class RequestLogDetailDialog extends StatelessWidget {
               label: '模型',
               value: log.model ?? 'unknown',
             ),
-            _buildListItem(
-              icon: LucideIcons.cloudUpload,
-              label: '输入Token',
-              value: '${log.inputTokens}',
-            ),
-            _buildListItem(
-              icon: LucideIcons.cloudDownload,
-              label: '输出Token',
-              value: '${log.outputTokens}',
-            ),
+            if (log.statusCode == 200) ...[
+              _buildListItem(
+                icon: LucideIcons.cloudUpload,
+                label: '输入Token',
+                value: '${log.inputTokens}',
+              ),
+              _buildListItem(
+                icon: LucideIcons.cloudDownload,
+                label: '输出Token',
+                value: '${log.outputTokens}',
+              ),
+            ],
             // 失败请求显示错误信息
             if (log.statusCode != 200)
               _buildListItem(
                 icon: LucideIcons.circleAlert,
                 label: '错误信息',
+                maxLines: null,
                 value: '${log.errorMessage}',
               ),
           ],
@@ -75,6 +78,7 @@ class RequestLogDetailDialog extends StatelessWidget {
   Widget _buildListItem({
     IconData? icon,
     required String label,
+    int? maxLines = 1,
     required String value,
   }) {
     return Padding(
@@ -100,7 +104,11 @@ class RequestLogDetailDialog extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Text(
+              value,
+              maxLines: maxLines,
+              overflow: maxLines == null ? null : TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),

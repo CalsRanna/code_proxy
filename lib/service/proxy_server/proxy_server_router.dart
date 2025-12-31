@@ -179,8 +179,9 @@ class ProxyServerRouter {
       }
     }
 
-    // 过滤掉临时禁用的端点
-    _endpoints = _endpoints.where((e) => e.enabled && !e.forbidden).toList();
+    // 从数据库重新获取最新状态，确保使用更新后的 forbidden 值
+    final freshEndpoints = await _repository.getEnabled();
+    _endpoints = freshEndpoints.where((e) => !e.forbidden).toList();
   }
 }
 
