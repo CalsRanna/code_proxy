@@ -5,7 +5,6 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
-import 'package:code_proxy/service/proxy_server/token_extractor.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
@@ -75,7 +74,7 @@ class ProxyServerResponseHandler {
 
       // 尝试提取 token（服务器错误也可能包含 usage）
       final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
-      final usage = _tokenExtractor.extractFromResponse(bodyStr);
+      final usage = _tokenExtractor.extractUsage(bodyStr);
 
       _recordRequestWithBody(
         endpoint: endpoint,
@@ -238,7 +237,7 @@ class ResponseProcessor {
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
     int startTime,
-    TokenExtractor tokenExtractor,
+    TokenExtractor extractor,
     void Function(int responseTime, Map<String, int?>? usage) recordStats,
   ) async {
     final responseBodyBytes = await response.stream.toBytes();
@@ -246,7 +245,7 @@ class ResponseProcessor {
 
     // 提取 token 使用量（非流式响应）
     final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
-    final usage = tokenExtractor.extractFromResponse(bodyStr);
+    final usage = extractor.extractUsage(bodyStr);
 
     recordStats(responseTime, usage);
 
@@ -261,81 +260,31 @@ class ResponseProcessor {
     http.StreamedResponse response,
     Map<String, String> cleanHeaders,
     int startTime,
-    TokenExtractor tokenExtractor,
+    TokenExtractor extractor,
     void Function(Map<String, int?>? tokenUsage, int responseTime) recordStats,
     void Function(Object error) recordException,
   ) {
     int? inputTokens;
     int? outputTokens;
-    bool parseError = false;
-    String pendingData = '';
 
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
-        handleData: (List<int> chunk, EventSink<List<int>> sink) {
-          try {
-            sink.add(chunk);
-
-            final chunkStr = utf8.decode(chunk, allowMalformed: true);
-            final fullData = pendingData + chunkStr;
-            final lines = fullData.split('\n');
-
-            if (!fullData.endsWith('\n')) {
-              pendingData = lines.removeLast();
-            } else {
-              pendingData = '';
-            }
-
-            for (final line in lines) {
-              if (line.startsWith('data: ')) {
-                final jsonStr = line.substring(6).trim();
-                if (jsonStr.isNotEmpty && jsonStr != '[DONE]') {
-                  try {
-                    final json = jsonDecode(jsonStr);
-                    if (json is Map<String, dynamic>) {
-                      // Extract message_start usage (input tokens)
-                      final extractedInput =
-                          tokenExtractor.extractInputFromMessageStart(json);
-                      if (extractedInput != null) {
-                        inputTokens = extractedInput;
-                      }
-
-                      // Extract message_delta usage (output tokens)
-                      final extractedOutput =
-                          tokenExtractor.extractOutputFromMessageDelta(json);
-                      if (extractedOutput != null) {
-                        outputTokens = (outputTokens ?? 0) + extractedOutput;
-                      }
-                    }
-                  } catch (e) {
-                    LoggerUtil.instance.e('Token parsing failed in stream: $e');
-                    parseError = true;
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            LoggerUtil.instance.e('Stream chunk processing error: $e');
-            parseError = true;
-          }
+        handleData: (chunk, sink) {
+          sink.add(chunk);
+          final text = utf8.decode(chunk, allowMalformed: true);
+          inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
+          outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
         },
-        handleDone: (EventSink<List<int>> sink) {
+        handleDone: (sink) {
           final responseTime =
               DateTime.now().millisecondsSinceEpoch - startTime;
-
-          // 如果解析出错，返回 null
-          if (parseError) {
-            recordStats(null, responseTime);
-          } else {
-            recordStats({
-              'input': inputTokens,
-              'output': outputTokens,
-            }, responseTime);
-          }
+          recordStats({
+            'input': inputTokens,
+            'output': outputTokens,
+          }, responseTime);
           sink.close();
         },
-        handleError: (error, stackTrace, EventSink<List<int>> sink) {
-          // 上游流的真实错误，透传给客户端
+        handleError: (error, stackTrace, sink) {
           LoggerUtil.instance.w('Upstream stream error: $error');
           recordException(error);
           sink.addError(error, stackTrace);
@@ -348,5 +297,34 @@ class ResponseProcessor {
       headers: cleanHeaders,
       body: transformedStream,
     );
+  }
+}
+
+/// Token 提取器 - 使用正则从 API 响应中提取 token 使用量
+class TokenExtractor {
+  static final _inputPattern = RegExp(r'"input_tokens"\s*:\s*(\d+)');
+  static final _outputPattern = RegExp(r'"output_tokens"\s*:\s*(\d+)');
+
+  const TokenExtractor();
+
+  /// 从文本中提取 input_tokens
+  int? extractInputTokens(String text) {
+    final match = _inputPattern.firstMatch(text);
+    return match != null ? int.tryParse(match.group(1)!) : null;
+  }
+
+  /// 从文本中提取 output_tokens（取最后一个匹配，因为是累积值）
+  int? extractOutputTokens(String text) {
+    final matches = _outputPattern.allMatches(text);
+    if (matches.isEmpty) return null;
+    return int.tryParse(matches.last.group(1)!);
+  }
+
+  /// 从文本中提取完整的 usage
+  Map<String, int?>? extractUsage(String text) {
+    final input = extractInputTokens(text);
+    final output = extractOutputTokens(text);
+    if (input == null && output == null) return null;
+    return {'input': input, 'output': output};
   }
 }
