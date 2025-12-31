@@ -10,25 +10,9 @@ import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
-class HeaderCleaner {
-  static const Set<String> _headersToRemove = {
-    'transfer-encoding',
-    'content-encoding',
-    'content-length',
-  };
-
-  const HeaderCleaner();
-
-  Map<String, String> clean(Map<String, String> headers) {
-    return Map.from(headers)
-      ..removeWhere((key, _) => _headersToRemove.contains(key));
-  }
-}
-
 /// 响应处理器 - 协调者
 class ProxyServerResponseHandler {
   final ResponseProcessor _processor;
-  final HeaderCleaner _headerCleaner;
   final TokenExtractor _tokenExtractor;
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   _onRequestCompleted;
@@ -37,7 +21,6 @@ class ProxyServerResponseHandler {
     void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
     onRequestCompleted,
   }) : _processor = const ResponseProcessor(),
-       _headerCleaner = const HeaderCleaner(),
        _tokenExtractor = const TokenExtractor(),
        _onRequestCompleted = onRequestCompleted;
 
@@ -152,7 +135,10 @@ class ProxyServerResponseHandler {
     List<int>? mappedRequestBodyBytes,
   }) async {
     final isStream = _processor.isStream(response.headers);
-    final cleanHeaders = _headerCleaner.clean(response.headers);
+    final cleanHeaders = Map<String, String>.from(response.headers)
+      ..remove('transfer-encoding')
+      ..remove('content-encoding')
+      ..remove('content-length');
 
     if (isStream) {
       // 流式响应：在流完成时才计算响应时间
