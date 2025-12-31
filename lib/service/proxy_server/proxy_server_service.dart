@@ -85,7 +85,7 @@ class ProxyServerService {
     while (await _router.hasNext(previousResult)) {
       final endpoint = _router.currentEndpoint;
       if (endpoint == null) break;
-      final startTime = DateTime.now().millisecondsSinceEpoch;
+      int? startTime;
       http.Request? preparedRequest;
       try {
         // 1. 构建请求
@@ -94,7 +94,8 @@ class ProxyServerService {
           endpoint,
           rawBody,
         );
-        // 2. 发送请求
+        // 2. 发送请求（在此处开始计时，确保 responseTime 是真实的服务器响应时间）
+        startTime = DateTime.now().millisecondsSinceEpoch;
         final response = await _requestHandler.forwardRequest(preparedRequest);
         // 3. 处理响应并判断是否需要继续
         finalResponse = await _responseHandler.handleResponse(

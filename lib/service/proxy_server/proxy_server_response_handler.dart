@@ -112,11 +112,14 @@ class ProxyServerResponseHandler {
     required EndpointEntity endpoint,
     required shelf.Request request,
     required List<int> requestBodyBytes,
-    required int startTime,
+    required int? startTime,
     required Object error,
     List<int>? mappedRequestBodyBytes,
   }) {
-    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+    // 如果 startTime 为 null，说明在请求准备阶段就失败了，没有真正发起 API 请求
+    final responseTime = startTime != null
+        ? DateTime.now().millisecondsSinceEpoch - startTime
+        : 0;
     final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
 
     final proxyRequest = ProxyServerRequest(
