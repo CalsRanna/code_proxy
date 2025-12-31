@@ -69,7 +69,7 @@ class ProxyServerResponseHandler {
         mappedRequestBodyBytes: mappedRequestBodyBytes,
       );
     } else if (statusCode >= 500) {
-      // 服务器错误 → 记录日志后继续循环（重试或转移）
+      // 服务器错误 → 记录日志，返回响应（调用方决定是否重试）
       final responseBodyBytes = await response.stream.toBytes();
       final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
@@ -86,7 +86,17 @@ class ProxyServerResponseHandler {
         mappedRequestBodyBytes: mappedRequestBodyBytes,
         tokenUsage: usage,
       );
-      return null;
+
+      final cleanHeaders = Map<String, String>.from(response.headers)
+        ..remove('transfer-encoding')
+        ..remove('content-encoding')
+        ..remove('content-length');
+
+      return shelf.Response(
+        response.statusCode,
+        headers: cleanHeaders,
+        body: responseBodyBytes,
+      );
     } else {
       return await _processAndReturnResponse(
         response,

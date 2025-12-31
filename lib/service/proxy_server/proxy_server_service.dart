@@ -106,16 +106,13 @@ class ProxyServerService {
           mappedRequestBodyBytes: preparedRequest.bodyBytes,
         );
 
-        // 如果返回非null，这是最终响应
-        if (finalResponse != null) {
-          // 获取HandleResult并设置previousResult
-          previousResult = _responseHandler.getHandleResult(response);
+        // 根据响应结果判断是否继续尝试
+        previousResult = _responseHandler.getHandleResult(response);
+        if (previousResult == HandleResult.success ||
+            previousResult == HandleResult.clientError) {
           break;
         }
-
-        // 如果返回null，继续循环
-        // 设置previousResult为serverError，触发重试或转移逻辑
-        previousResult = HandleResult.serverError;
+        // 服务器错误，继续尝试下一个端点（finalResponse 已保存）
       } catch (e) {
         // 异常：设置previousResult为exception，触发重试或转移
         previousResult = HandleResult.exception;
