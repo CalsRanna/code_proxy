@@ -47,7 +47,7 @@ class DashboardViewModel {
     final repository = RequestLogRepository(Database.instance);
     final now = DateTime.now();
     final startDate = DateTime(now.year, 1, 1);
-    final endDate = DateTime(now.year, 12, 31);
+    final endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
     final stats = await repository.getDailySuccessRequestStats(
       startTimestamp: startDate.millisecondsSinceEpoch,
       endTimestamp: endDate.millisecondsSinceEpoch,
