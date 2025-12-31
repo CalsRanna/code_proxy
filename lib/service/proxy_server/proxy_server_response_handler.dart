@@ -75,6 +75,7 @@ class ProxyServerResponseHandler {
         responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
         errorBody: bodyStr,
+        responseBody: bodyStr,
       );
 
       // 清理响应头
@@ -107,6 +108,7 @@ class ProxyServerResponseHandler {
         mappedRequestBodyBytes: mappedRequestBodyBytes,
         tokenUsage: usage,
         errorBody: bodyStr,
+        responseBody: bodyStr,
       );
 
       final cleanHeaders = Map<String, String>.from(response.headers)
@@ -183,7 +185,7 @@ class ProxyServerResponseHandler {
         cleanHeaders,
         startTime,
         _tokenExtractor,
-        (Map<String, int?>? tokenUsage, int responseTime) =>
+        (Map<String, int?>? tokenUsage, int responseTime, String responseBody) =>
             _recordRequestWithBody(
               endpoint: endpoint,
               request: request,
@@ -192,6 +194,7 @@ class ProxyServerResponseHandler {
               responseTime: responseTime,
               mappedRequestBodyBytes: mappedRequestBodyBytes,
               tokenUsage: tokenUsage,
+              responseBody: responseBody,
             ),
         (Object error) => recordException(
           endpoint: endpoint,
@@ -209,7 +212,8 @@ class ProxyServerResponseHandler {
         cleanHeaders,
         startTime,
         _tokenExtractor,
-        (int responseTime, Map<String, int?>? usage) => _recordRequestWithBody(
+        (int responseTime, Map<String, int?>? usage, String responseBody) =>
+            _recordRequestWithBody(
           endpoint: endpoint,
           request: request,
           requestBodyBytes: requestBodyBytes,
@@ -217,6 +221,7 @@ class ProxyServerResponseHandler {
           responseTime: responseTime,
           mappedRequestBodyBytes: mappedRequestBodyBytes,
           tokenUsage: usage,
+          responseBody: responseBody,
         ),
       );
     }
@@ -231,6 +236,7 @@ class ProxyServerResponseHandler {
     List<int>? mappedRequestBodyBytes,
     Map<String, int?>? tokenUsage,
     String? errorBody,
+    String? responseBody,
   }) {
     final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
     final proxyRequest = ProxyServerRequest(
@@ -247,6 +253,7 @@ class ProxyServerResponseHandler {
       timeToFirstByte: null,
       usage: tokenUsage,
       errorBody: errorBody,
+      responseBody: responseBody,
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
@@ -267,7 +274,8 @@ class ResponseProcessor {
     Map<String, String> cleanHeaders,
     int startTime,
     TokenExtractor extractor,
-    void Function(int responseTime, Map<String, int?>? usage) recordStats,
+    void Function(int responseTime, Map<String, int?>? usage, String responseBody)
+        recordStats,
   ) async {
     final responseBodyBytes = await response.stream.toBytes();
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
@@ -276,7 +284,7 @@ class ResponseProcessor {
     final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
     final usage = extractor.extractUsage(bodyStr);
 
-    recordStats(responseTime, usage);
+    recordStats(responseTime, usage, bodyStr);
 
     return shelf.Response(
       response.statusCode,
@@ -290,27 +298,31 @@ class ResponseProcessor {
     Map<String, String> cleanHeaders,
     int startTime,
     TokenExtractor extractor,
-    void Function(Map<String, int?>? tokenUsage, int responseTime) recordStats,
+    void Function(Map<String, int?>? tokenUsage, int responseTime, String responseBody)
+        recordStats,
     void Function(Object error) recordException,
   ) {
     int? inputTokens;
     int? outputTokens;
+    final responseChunks = <String>[];
 
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
         handleData: (chunk, sink) {
           sink.add(chunk);
           final text = utf8.decode(chunk, allowMalformed: true);
+          responseChunks.add(text);
           inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
           outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
         },
         handleDone: (sink) {
           final responseTime =
               DateTime.now().millisecondsSinceEpoch - startTime;
+          final responseBody = responseChunks.join();
           recordStats({
             'input': inputTokens,
             'output': outputTokens,
-          }, responseTime);
+          }, responseTime, responseBody);
           sink.close();
         },
         handleError: (error, stackTrace, sink) {

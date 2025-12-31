@@ -4,6 +4,7 @@ import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
+import 'package:code_proxy/service/claude_code_audit_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
@@ -97,9 +98,19 @@ class HomeViewModel {
     } catch (e) {
       // 忽略获取 ViewModel 的错误（可能在某些情况下 ViewModel 还未初始化）
     }
+
+    // 4. 异步写入审计日志文件
+    if (response.responseBody != null) {
+      ClaudeCodeAuditService.instance.writeAuditLog(
+        id: log.id,
+        request: request.body,
+        response: response.responseBody!,
+      );
+    }
   }
 
   Future<void> initSignals() async {
+    ClaudeCodeAuditService.instance.cleanExpiredLogs();
     _autoStartServer();
     _subscription ??= WindowUtil.instance.stream.listen((event) {
       if (event == WindowEvent.shown && selectedIndex.value == 0) {

@@ -20,11 +20,13 @@ class SettingViewModel {
   final disableDuration = signal(60000);
   final disableNonessentialTraffic = signal(true);
   final size = signal(0);
+  final auditRetainDays = signal(14);
 
   final controller = TextEditingController();
   final maxRetriesController = TextEditingController();
   final apiTimeoutController = TextEditingController();
   final disableDurationController = TextEditingController();
+  final auditRetainDaysController = TextEditingController();
 
   Future<void> editListenPort(BuildContext context) async {
     showShadDialog(context: context, builder: _buildEditDialog);
@@ -40,6 +42,10 @@ class SettingViewModel {
 
   Future<void> editDisableDuration(BuildContext context) async {
     showShadDialog(context: context, builder: _buildDisableDurationDialog);
+  }
+
+  Future<void> editAuditRetainDays(BuildContext context) async {
+    showShadDialog(context: context, builder: _buildAuditRetainDaysDialog);
   }
 
   Future<void> initSignals() async {
@@ -58,6 +64,10 @@ class SettingViewModel {
 
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();
+
+    auditRetainDays.value = await SharedPreferenceUtil.instance
+        .getAuditRetainDays();
+    auditRetainDaysController.text = auditRetainDays.value.toString();
   }
 
   bool isValidHealthCheckPath(String path) {
@@ -180,6 +190,27 @@ class SettingViewModel {
     );
   }
 
+  Future<void> updateAuditRetainDays(BuildContext context) async {
+    var newDays = int.tryParse(auditRetainDaysController.text);
+    if (newDays == null || newDays < 1 || newDays > 30) {
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return _buildAlertDialog(context, '保留天数必须在 1-30 之间');
+        },
+      );
+      return;
+    }
+    if (newDays == auditRetainDays.value) {
+      Navigator.of(context).pop();
+      return;
+    }
+    await SharedPreferenceUtil.instance.setAuditRetainDays(newDays);
+    auditRetainDays.value = newDays;
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+  }
+
   Future<void> toggleDisableNonessentialTraffic(bool value) async {
     disableNonessentialTraffic.value = value;
     await SharedPreferenceUtil.instance.setDisableNonessentialTraffic(value);
@@ -274,6 +305,27 @@ class SettingViewModel {
       ],
       child: ShadInput(
         controller: disableDurationController,
+        keyboardType: TextInputType.number,
+      ),
+    );
+  }
+
+  Widget _buildAuditRetainDaysDialog(BuildContext context) {
+    return ShadDialog(
+      title: const Text('审计日志保留天数'),
+      description: const Text('设置审计日志保留天数 (1-30)'),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        ShadButton(
+          onPressed: () => updateAuditRetainDays(context),
+          child: const Text('保存'),
+        ),
+      ],
+      child: ShadInput(
+        controller: auditRetainDaysController,
         keyboardType: TextInputType.number,
       ),
     );

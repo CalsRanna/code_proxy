@@ -20,7 +20,8 @@
       "Skill(skill-creator)",
       "Bash(python3:*)",
       "Bash(ls:*)",
-      "Skill(annual-report)"
+      "Skill(annual-report)",
+      "WebFetch(domain:docs.anthropic.com)"
     ],
     "deny": []
   }

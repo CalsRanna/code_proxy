@@ -13,11 +13,16 @@ class SharedPreferenceUtil {
   final String _keyApiTimeout = 'api_timeout';
   final String _keyDisableNonessentialTraffic = 'disable_nonessential_traffic';
   final String _keyDisableDuration = 'disable_duration';
+  final String _keyAuditRetainDays = 'audit_retain_days';
 
   SharedPreferenceUtil._();
 
   Future<int> getApiTimeout() async {
     return (await _preferences).getInt(_keyApiTimeout) ?? 10 * 60 * 1000;
+  }
+
+  Future<int> getAuditRetainDays() async {
+    return (await _preferences).getInt(_keyAuditRetainDays) ?? 14;
   }
 
   Future<String> getBrightness() async {
@@ -50,6 +55,10 @@ class SharedPreferenceUtil {
 
   Future<void> setApiTimeout(int timeout) async {
     await (await _preferences).setInt(_keyApiTimeout, timeout);
+  }
+
+  Future<void> setAuditRetainDays(int days) async {
+    await (await _preferences).setInt(_keyAuditRetainDays, days);
   }
 
   Future<void> setBrightness(String brightness) async {

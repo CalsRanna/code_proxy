@@ -22,6 +22,9 @@ class ProxyServerResponse {
   /// 包含完整的 API 错误响应或异常信息
   final String? errorBody;
 
+  /// 完整响应体（用于审计日志）
+  final String? responseBody;
+
   const ProxyServerResponse({
     required this.statusCode,
     required this.headers,
@@ -29,5 +32,6 @@ class ProxyServerResponse {
     this.timeToFirstByte,
     this.usage,
     this.errorBody,
+    this.responseBody,
   });
 }

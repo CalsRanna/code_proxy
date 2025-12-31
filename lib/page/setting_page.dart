@@ -72,6 +72,14 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => _showClearDatabaseDialog(context),
       );
     });
+    var auditRetainDaysTile = Watch((context) {
+      return ListTile(
+        title: const Text('审计日志保留天数'),
+        subtitle: Text('保留最近 ${viewModel.auditRetainDays.value} 天的审计日志'),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => viewModel.editAuditRetainDays(context),
+      );
+    });
     var resetTile = ListTile(
       title: const Text('恢复默认设置'),
       subtitle: const Text('清空所有数据和设置,应用将自动重启'),
@@ -87,6 +95,7 @@ class _SettingPageState extends State<SettingPage> {
         disableDurationTile,
         disableNonessentialTrafficTile,
         sizeTile,
+        auditRetainDaysTile,
         resetTile,
       ],
     );
