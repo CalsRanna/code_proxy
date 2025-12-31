@@ -130,7 +130,7 @@ class ProxyServerResponseHandler {
     );
 
     final proxyResponse = ProxyServerResponse(
-      statusCode: 0,
+      statusCode: 502, // Bad Gateway - 代理服务器无法从上游端点获得有效响应
       headers: {},
       responseTime: responseTime,
     );
