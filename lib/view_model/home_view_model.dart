@@ -54,24 +54,16 @@ class HomeViewModel {
       'Endpoint ${endpoint.name} exhausted retries, triggering temporary disable',
     );
 
-    // 获取配置以获取临时禁用时长
-    final instance = SharedPreferenceUtil.instance;
-    final config = ProxyServerConfig(
-      address: '127.0.0.1',
-      port: await instance.getPort(),
-      maxRetries: await instance.getMaxRetries(),
-      apiTimeoutMs: await instance.getApiTimeout(),
-    );
+    // 获取临时禁用时长配置
+    final disableDurationMs = await SharedPreferenceUtil.instance
+        .getDisableDuration();
 
     // 触发临时禁用
-    await _endpointRepository.forbid(
-      endpoint.id,
-      config.defaultTempDisableDurationMs,
-    );
+    await _endpointRepository.forbid(endpoint.id, disableDurationMs);
 
     LoggerUtil.instance.i(
       'Endpoint ${endpoint.name} temporarily disabled for '
-      '${config.defaultTempDisableDurationMs ~/ 60000} minutes',
+      '${disableDurationMs ~/ 1000} seconds',
     );
 
     // 刷新端点列表以更新状态

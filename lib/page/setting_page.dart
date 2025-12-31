@@ -42,6 +42,14 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editApiTimeout(context),
       );
     });
+    var disableDurationTile = Watch((context) {
+      return ListTile(
+        title: const Text('端点禁用时长'),
+        subtitle: Text('端点失败后禁用 ${viewModel.disableDuration.value} 毫秒'),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => viewModel.editDisableDuration(context),
+      );
+    });
     var disableNonessentialTrafficTile = Watch((context) {
       return ListTile(
         title: const Text('禁用非必要网络请求'),
@@ -76,6 +84,7 @@ class _SettingPageState extends State<SettingPage> {
         portListTile,
         maxRetriesTile,
         apiTimeoutTile,
+        disableDurationTile,
         disableNonessentialTrafficTile,
         sizeTile,
         resetTile,

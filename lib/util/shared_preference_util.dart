@@ -12,23 +12,28 @@ class SharedPreferenceUtil {
   final String _keyMaxRetries = 'max_retries';
   final String _keyApiTimeout = 'api_timeout';
   final String _keyDisableNonessentialTraffic = 'disable_nonessential_traffic';
+  final String _keyDisableDuration = 'disable_duration';
 
   SharedPreferenceUtil._();
+
+  Future<int> getApiTimeout() async {
+    return (await _preferences).getInt(_keyApiTimeout) ?? 10 * 60 * 1000;
+  }
 
   Future<String> getBrightness() async {
     return (await _preferences).getString(_keyBrightness) ?? 'light';
   }
 
-  Future<int> getMaxRetries() async {
-    return (await _preferences).getInt(_keyMaxRetries) ?? 5;
-  }
-
-  Future<int> getApiTimeout() async {
-    return (await _preferences).getInt(_keyApiTimeout) ?? 600000; // 默认 600000ms (10分钟)
+  Future<int> getDisableDuration() async {
+    return (await _preferences).getInt(_keyDisableDuration) ?? 60 * 1000;
   }
 
   Future<bool> getDisableNonessentialTraffic() async {
-    return (await _preferences).getBool(_keyDisableNonessentialTraffic) ?? true; // 默认启用
+    return (await _preferences).getBool(_keyDisableNonessentialTraffic) ?? true;
+  }
+
+  Future<int> getMaxRetries() async {
+    return (await _preferences).getInt(_keyMaxRetries) ?? 5;
   }
 
   Future<int> getPort() async {
@@ -43,20 +48,24 @@ class SharedPreferenceUtil {
     return (await _preferences).getDouble(_keyWindowWidth) ?? 1080.0;
   }
 
-  Future<void> setBrightness(String brightness) async {
-    await (await _preferences).setString(_keyBrightness, brightness);
-  }
-
-  Future<void> setMaxRetries(int maxRetries) async {
-    await (await _preferences).setInt(_keyMaxRetries, maxRetries);
-  }
-
   Future<void> setApiTimeout(int timeout) async {
     await (await _preferences).setInt(_keyApiTimeout, timeout);
   }
 
+  Future<void> setBrightness(String brightness) async {
+    await (await _preferences).setString(_keyBrightness, brightness);
+  }
+
+  Future<void> setDisableDuration(int duration) async {
+    await (await _preferences).setInt(_keyDisableDuration, duration);
+  }
+
   Future<void> setDisableNonessentialTraffic(bool disable) async {
     await (await _preferences).setBool(_keyDisableNonessentialTraffic, disable);
+  }
+
+  Future<void> setMaxRetries(int maxRetries) async {
+    await (await _preferences).setInt(_keyMaxRetries, maxRetries);
   }
 
   Future<void> setPort(int port) async {

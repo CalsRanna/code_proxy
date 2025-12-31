@@ -17,12 +17,14 @@ class SettingViewModel {
   final port = signal(9000);
   final maxRetries = signal(5);
   final apiTimeout = signal(600000);
+  final disableDuration = signal(60000);
   final disableNonessentialTraffic = signal(true);
   final size = signal(0);
 
   final controller = TextEditingController();
   final maxRetriesController = TextEditingController();
   final apiTimeoutController = TextEditingController();
+  final disableDurationController = TextEditingController();
 
   Future<void> editListenPort(BuildContext context) async {
     showShadDialog(context: context, builder: _buildEditDialog);
@@ -36,6 +38,10 @@ class SettingViewModel {
     showShadDialog(context: context, builder: _buildApiTimeoutDialog);
   }
 
+  Future<void> editDisableDuration(BuildContext context) async {
+    showShadDialog(context: context, builder: _buildDisableDurationDialog);
+  }
+
   Future<void> initSignals() async {
     port.value = await SharedPreferenceUtil.instance.getPort();
     controller.text = port.value.toString();
@@ -45,6 +51,10 @@ class SettingViewModel {
 
     apiTimeout.value = await SharedPreferenceUtil.instance.getApiTimeout();
     apiTimeoutController.text = apiTimeout.value.toString();
+
+    disableDuration.value = await SharedPreferenceUtil.instance
+        .getDisableDuration();
+    disableDurationController.text = disableDuration.value.toString();
 
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();
@@ -143,6 +153,33 @@ class SettingViewModel {
     );
   }
 
+  Future<void> updateTempDisableDuration(BuildContext context) async {
+    var newDuration = int.tryParse(disableDurationController.text);
+    if (newDuration == null || newDuration < 1000 || newDuration > 3600000) {
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return _buildAlertDialog(context, '禁用时长必须在 1000-3600000 毫秒之间');
+        },
+      );
+      return;
+    }
+    if (newDuration == disableDuration.value) {
+      Navigator.of(context).pop();
+      return;
+    }
+    await SharedPreferenceUtil.instance.setDisableDuration(newDuration);
+    disableDuration.value = newDuration;
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    showShadDialog(
+      context: context,
+      builder: (context) {
+        return _buildAlertDialog(context, '禁用时长已更新,重启代理服务器后生效。');
+      },
+    );
+  }
+
   Future<void> toggleDisableNonessentialTraffic(bool value) async {
     disableNonessentialTraffic.value = value;
     await SharedPreferenceUtil.instance.setDisableNonessentialTraffic(value);
@@ -216,6 +253,27 @@ class SettingViewModel {
       ],
       child: ShadInput(
         controller: apiTimeoutController,
+        keyboardType: TextInputType.number,
+      ),
+    );
+  }
+
+  Widget _buildDisableDurationDialog(BuildContext context) {
+    return ShadDialog(
+      title: const Text('端点禁用时长'),
+      description: const Text('端点失败后禁用的时长(毫秒), 范围 1000-3600000'),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        ShadButton(
+          onPressed: () => updateTempDisableDuration(context),
+          child: const Text('保存'),
+        ),
+      ],
+      child: ShadInput(
+        controller: disableDurationController,
         keyboardType: TextInputType.number,
       ),
     );

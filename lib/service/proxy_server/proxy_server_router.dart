@@ -55,16 +55,15 @@ class ProxyServerRouter {
   /// 计算重试延迟时间（支持指数退避）
   /// attempt: 当前尝试次数（从1开始）
   int _calculateRetryDelay(int attempt) {
-    if (attempt <= 1) {
-      return 0;
-    }
-
+    if (attempt <= 1) return 0;
+    var base = 1000;
+    var max = 10 * 1000;
     // 指数退避：base * 2^(attempt-2)
     // attempt=2: 第一次重试，使用 base
     // attempt=3: 第二次重试，使用 base * 2
     // attempt=4: 第三次重试，使用 base * 4
-    final delay = _config.exponentialBackoffBaseMs * (1 << (attempt - 2));
-    return delay.clamp(0, _config.exponentialBackoffMaxMs);
+    final delay = base * (1 << (attempt - 2));
+    return delay.clamp(0, max);
   }
 
   /// 判断是否还有下一个端点或需要重试
