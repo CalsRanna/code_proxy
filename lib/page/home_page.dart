@@ -94,9 +94,10 @@ class _HomePageState extends State<HomePage> {
       overlayAlignment: Alignment.centerRight,
       childAlignment: Alignment.centerLeft,
     );
+    var textStyle = TextStyle(color: ShadcnColors.lightBackground);
     return ShadTooltip(
       anchor: anchor,
-      builder: (context) => Text(labels[index]),
+      builder: (context) => Text(labels[index], style: textStyle),
       child: shadIconButton,
     );
   }

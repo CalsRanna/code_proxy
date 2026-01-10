@@ -67,17 +67,25 @@ class DashboardTokenHeatmap extends StatelessWidget {
         ? dateStr
         : '$dateStr\n${dayData.requests}次请求';
 
-    return Tooltip(
-      message: tooltipMessage,
-      child: Container(
-        width: cellSize,
-        height: cellSize,
-        margin: const EdgeInsets.all(_cellMargin),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_borderRadius),
-          color: color,
-        ),
-      ),
+    var anchor = ShadAnchor(
+      overlayAlignment: Alignment.topCenter,
+      childAlignment: Alignment.bottomCenter,
+    );
+    var boxDecoration = BoxDecoration(
+      borderRadius: BorderRadius.circular(_borderRadius),
+      color: color,
+    );
+    var container = Container(
+      decoration: boxDecoration,
+      height: cellSize,
+      margin: const EdgeInsets.all(_cellMargin),
+      width: cellSize,
+    );
+    var textStyle = TextStyle(color: ShadcnColors.lightBackground);
+    return ShadTooltip(
+      anchor: anchor,
+      builder: (context) => Text(tooltipMessage, style: textStyle),
+      child: ShadGestureDetector(child: container),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/di.dart';
 import 'package:code_proxy/router/router.dart';
+import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';
@@ -22,13 +23,16 @@ class CodeProxyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    var shadDecoration = ShadDecoration(color: ShadcnColors.zinc950);
+    var shadThemeData = ShadThemeData(
+      textTheme: ShadTextTheme(family: 'Montserrat'),
+      sonnerTheme: ShadSonnerTheme(alignment: Alignment.topCenter),
+      tooltipTheme: ShadTooltipTheme(decoration: shadDecoration),
+    );
     var child = ShadApp.router(
       debugShowCheckedModeBanner: false,
       routerConfig: router.config(),
-      theme: ShadThemeData(
-        textTheme: ShadTextTheme(family: 'Montserrat'),
-        sonnerTheme: ShadSonnerTheme(alignment: Alignment.topCenter),
-      ),
+      theme: shadThemeData,
       title: 'Code Proxy',
     );
 
