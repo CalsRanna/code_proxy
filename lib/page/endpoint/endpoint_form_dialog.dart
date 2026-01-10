@@ -212,37 +212,12 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       return;
     }
 
-    if (widget.endpoint == null) {
-      // 添加新端点
-      await widget.viewModel.addEndpoint(
-        name: nameController.text,
-        note: noteController.text.isEmpty ? null : noteController.text,
-        anthropicAuthToken: authTokenController.text,
-        anthropicBaseUrl: baseUrlController.text,
-        anthropicModel: modelController.text.isEmpty
-            ? null
-            : modelController.text,
-        anthropicSmallFastModel: smallFastModelController.text.isEmpty
-            ? null
-            : smallFastModelController.text,
-        anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
-            ? null
-            : haikuModelController.text,
-        anthropicDefaultSonnetModel: sonnetModelController.text.isEmpty
-            ? null
-            : sonnetModelController.text,
-        anthropicDefaultOpusModel: opusModelController.text.isEmpty
-            ? null
-            : opusModelController.text,
-      );
-    } else {
-      // 更新端点
-      await widget.viewModel.updateEndpoint(
-        widget.endpoint!.copyWith(
+    try {
+      if (widget.endpoint == null) {
+        // 添加新端点
+        await widget.viewModel.addEndpoint(
           name: nameController.text,
           note: noteController.text.isEmpty ? null : noteController.text,
-          weight:
-              int.tryParse(weightController.text) ?? widget.endpoint!.weight,
           anthropicAuthToken: authTokenController.text,
           anthropicBaseUrl: baseUrlController.text,
           anthropicModel: modelController.text.isEmpty
@@ -260,12 +235,42 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           anthropicDefaultOpusModel: opusModelController.text.isEmpty
               ? null
               : opusModelController.text,
-        ),
-      );
-    }
+        );
+      } else {
+        // 更新端点
+        await widget.viewModel.updateEndpoint(
+          widget.endpoint!.copyWith(
+            name: nameController.text,
+            note: noteController.text.isEmpty ? null : noteController.text,
+            weight:
+                int.tryParse(weightController.text) ?? widget.endpoint!.weight,
+            anthropicAuthToken: authTokenController.text,
+            anthropicBaseUrl: baseUrlController.text,
+            anthropicModel: modelController.text.isEmpty
+                ? null
+                : modelController.text,
+            anthropicSmallFastModel: smallFastModelController.text.isEmpty
+                ? null
+                : smallFastModelController.text,
+            anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
+                ? null
+                : haikuModelController.text,
+            anthropicDefaultSonnetModel: sonnetModelController.text.isEmpty
+                ? null
+                : sonnetModelController.text,
+            anthropicDefaultOpusModel: opusModelController.text.isEmpty
+                ? null
+                : opusModelController.text,
+          ),
+        );
+      }
 
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ShadSonner.of(context).show(ShadToast(description: Text('保存失败：$e')));
     }
   }
 
