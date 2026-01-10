@@ -37,6 +37,7 @@ dependencies:
   laconic: ^1.0.0
   logger: ^2.6.2
   lucide_icons_flutter: ^3.1.7
+  package_info_plus: ^8.3.0
   path: ^1.8.0
   path_provider: ^2.1.0
   shadcn_ui: ^0.40.5

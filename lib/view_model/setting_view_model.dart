@@ -9,6 +9,7 @@ import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
@@ -21,6 +22,7 @@ class SettingViewModel {
   final disableNonessentialTraffic = signal(true);
   final size = signal(0);
   final auditRetainDays = signal(14);
+  final version = signal('');
 
   final controller = TextEditingController();
   final maxRetriesController = TextEditingController();
@@ -72,6 +74,9 @@ class SettingViewModel {
     auditRetainDays.value = await SharedPreferenceUtil.instance
         .getAuditRetainDays();
     auditRetainDaysController.text = auditRetainDays.value.toString();
+
+    final packageInfo = await PackageInfo.fromPlatform();
+    version.value = 'v${packageInfo.version} (${packageInfo.buildNumber})';
   }
 
   bool isValidHealthCheckPath(String path) {

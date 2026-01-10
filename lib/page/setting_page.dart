@@ -1,3 +1,4 @@
+import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:code_proxy/widget/page_header.dart';
@@ -86,6 +87,17 @@ class _SettingPageState extends State<SettingPage> {
       trailing: const Icon(LucideIcons.chevronRight),
       onTap: () => _showResetToDefaultDialog(context),
     );
+    var versionTile = Watch((context) {
+      return Padding(
+        padding: const EdgeInsets.only(top: ShadcnSpacing.spacing24),
+        child: Center(
+          child: Text(
+            'Code Proxy ${viewModel.version.value}',
+            style: TextStyle(fontSize: 12, color: ShadcnColors.zinc400),
+          ),
+        ),
+      );
+    });
     var listView = ListView(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       children: [
@@ -97,6 +109,7 @@ class _SettingPageState extends State<SettingPage> {
         sizeTile,
         auditRetainDaysTile,
         resetTile,
+        versionTile,
       ],
     );
     var pageHeader = PageHeader(title: '设置', subtitle: '管理代理服务器配置和应用选项');
