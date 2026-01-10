@@ -21,9 +21,9 @@ class DashboardTokenBarChart extends StatelessWidget {
         }
         final modelList = models.toList()..sort();
 
-        // 生成最近7天的日期列表
+        // 生成最近15天的日期列表
         final now = DateTime.now();
-        for (int i = 6; i >= 0; i--) {
+        for (int i = 14; i >= 0; i--) {
           final date = now.subtract(Duration(days: i));
           final dateKey =
               '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -39,16 +39,16 @@ class DashboardTokenBarChart extends StatelessWidget {
 
         // ShadcnUI风格的配色方案
         final colors = [
-          ShadcnColors.primary, // 蓝色
-          ShadcnColors.success, // 绿色
-          ShadcnColors.warning, // 橙色
-          ShadcnColors.secondary, // 紫色
-          ShadcnColors.error, // 红色
-          const Color(0xFF06B6D4), // 青色
-          const Color(0xFFEC4899), // 粉色
-          const Color(0xFF8B5CF6), // 紫罗兰色
-          const Color(0xFF14B8A6), // 青绿色
-          const Color(0xFFF97316), // 橙红色
+          ShadcnColors.blue500,
+          ShadcnColors.emerald500,
+          ShadcnColors.amber500,
+          ShadcnColors.violet500,
+          ShadcnColors.rose500,
+          ShadcnColors.cyan500,
+          ShadcnColors.pink500,
+          ShadcnColors.teal500,
+          ShadcnColors.orange500,
+          ShadcnColors.indigo500,
         ];
 
         return SfCartesianChart(

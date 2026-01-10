@@ -16,7 +16,7 @@ class DashboardViewModel {
   Future<void> _loadChartData() async {
     final repository = RequestLogRepository(Database.instance);
     final endDate = DateTime.now();
-    final startDate = endDate.subtract(const Duration(days: 7));
+    final startDate = endDate.subtract(const Duration(days: 15));
 
     final results = await Future.wait([
       repository.getDailyRequestStats(
