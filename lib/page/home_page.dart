@@ -42,12 +42,12 @@ class _HomePageState extends State<HomePage> {
   final icons = [
     LucideIcons.layoutGrid,
     LucideIcons.shell,
-    LucideIcons.arrowUpDown,
     LucideIcons.server,
     LucideIcons.sparkles,
+    LucideIcons.arrowUpDown,
     LucideIcons.bolt,
   ];
-  final labels = ['控制面板', '端点', '日志', 'MCP服务器', '技能', '设置'];
+  final labels = ['控制面板', '端点', 'MCP服务器', '技能', '日志', '设置'];
 
   @override
   Widget build(BuildContext context) {
@@ -72,9 +72,9 @@ class _HomePageState extends State<HomePage> {
       return switch (viewModel.selectedIndex.value) {
         0 => DashboardPage(),
         1 => EndpointPage(),
-        2 => RequestLogPage(),
-        3 => McpServerPage(),
-        4 => SkillPage(),
+        2 => McpServerPage(),
+        3 => SkillPage(),
+        4 => RequestLogPage(),
         5 => SettingPage(),
         _ => DashboardPage(),
       };
