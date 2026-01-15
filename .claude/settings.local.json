@@ -21,7 +21,8 @@
       "Bash(python3:*)",
       "Bash(ls:*)",
       "Skill(annual-report)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:developers.openai.com)"
     ],
     "deny": []
   }

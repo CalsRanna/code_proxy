@@ -27,6 +27,9 @@ class ProxyServerResponseHandler {
     final statusCode = response.statusCode;
     if (statusCode >= 200 && statusCode < 300) {
       return HandleResult.success;
+    } else if (statusCode == 429) {
+      // 429 速率限制/余额不足，需要特殊处理
+      return HandleResult.rateLimited;
     } else if (statusCode >= 400 && statusCode < 500) {
       return HandleResult.clientError;
     } else if (statusCode >= 500) {

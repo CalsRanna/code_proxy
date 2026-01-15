@@ -7,7 +7,8 @@ import 'package:code_proxy/util/logger_util.dart';
 /// 响应处理结果
 enum HandleResult {
   success, // 成功响应（2xx）
-  clientError, // 客户端错误（4xx）
+  clientError, // 客户端错误（4xx，不包括429）
+  rateLimited, // 速率限制或余额不足（429）
   serverError, // 服务器错误（5xx）
   exception, // 网络异常
 }
@@ -81,6 +82,28 @@ class ProxyServerRouter {
       case HandleResult.clientError:
         // 成功或客户端错误，不需要继续
         return false;
+
+      case HandleResult.rateLimited:
+        // 429 速率限制/余额不足 → 直接禁用端点并故障转移（不重试）
+        final endpoint = currentEndpoint;
+        if (endpoint != null) {
+          LoggerUtil.instance.w(
+            'Endpoint ${endpoint.name} returned 429, disabling and failing over',
+          );
+          _onEndpointUnavailable?.call(endpoint);
+        }
+
+        await _moveToNextEndpoint();
+
+        if (_currentEndpointIndex < _endpoints.length) {
+          _state = RouteState.failingOver;
+          LoggerUtil.instance.i('Failing over to next endpoint due to 429');
+          return true;
+        } else {
+          // 所有端点都用尽
+          _state = RouteState.failed;
+          return false;
+        }
 
       case HandleResult.serverError:
       case HandleResult.exception:
