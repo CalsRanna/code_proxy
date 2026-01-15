@@ -22,7 +22,8 @@
       "Bash(ls:*)",
       "Skill(annual-report)",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebFetch(domain:developers.openai.com)"
+      "WebFetch(domain:developers.openai.com)",
+      "Bash(where /r \"D:\\\\Code\\\\code_proxy\" tray_manager_plugin.cpp)"
     ],
     "deny": []
   }

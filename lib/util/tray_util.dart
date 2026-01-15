@@ -48,6 +48,7 @@ class TrayUtil with TrayListener {
       }
 
       await trayManager.setIcon(iconPath, isTemplate: isTemplate);
+      await trayManager.setToolTip('Code Proxy');
     } catch (e, stackTrace) {
       LoggerUtil.instance.e(e, stackTrace: stackTrace);
     }
