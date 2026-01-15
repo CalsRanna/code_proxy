@@ -161,7 +161,7 @@ class ProxyServerRouter {
   /// 移动到下一个端点
   Future<void> _moveToNextEndpoint() async {
     _currentEndpointIndex++;
-    _currentAttempt = 0;
+    _currentAttempt = 1;
 
     // 检查下一个端点是否过期，如果是则自动恢复
     while (_currentEndpointIndex < _endpoints.length) {
@@ -187,7 +187,7 @@ class ProxyServerRouter {
   /// 重置路由状态
   Future<void> _resetForNewRequest() async {
     _currentEndpointIndex = 0;
-    _currentAttempt = 0;
+    _currentAttempt = 1;
     _state = RouteState.selectingEndpoint;
 
     // 主动检查所有端点的过期状态
