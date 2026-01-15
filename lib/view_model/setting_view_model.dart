@@ -18,7 +18,7 @@ class SettingViewModel {
   final port = signal(9000);
   final maxRetries = signal(5);
   final apiTimeout = signal(600000);
-  final disableDuration = signal(60000);
+  final disableDuration = signal(1800000);
   final disableNonessentialTraffic = signal(true);
   final size = signal(0);
   final auditRetainDays = signal(14);
@@ -62,7 +62,7 @@ class SettingViewModel {
 
     disableDuration.value = await SharedPreferenceUtil.instance
         .getDisableDuration();
-    disableDurationController.text = disableDuration.value.toString();
+    disableDurationController.text = (disableDuration.value ~/ 60000).toString();
 
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();
@@ -173,16 +173,17 @@ class SettingViewModel {
   }
 
   Future<void> updateTempDisableDuration(BuildContext context) async {
-    var newDuration = int.tryParse(disableDurationController.text);
-    if (newDuration == null || newDuration < 1000 || newDuration > 3600000) {
+    var newMinutes = int.tryParse(disableDurationController.text);
+    if (newMinutes == null || newMinutes < 10 || newMinutes > 60) {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, '禁用时长必须在 1000-3600000 毫秒之间');
+          return _buildAlertDialog(context, '禁用时长必须在 10-60 分钟之间');
         },
       );
       return;
     }
+    final newDuration = newMinutes * 60000;
     if (newDuration == disableDuration.value) {
       Navigator.of(context).pop();
       return;
@@ -301,7 +302,7 @@ class SettingViewModel {
   Widget _buildDisableDurationDialog(BuildContext context) {
     return ShadDialog(
       title: const Text('端点禁用时长'),
-      description: const Text('端点失败后禁用的时长(毫秒), 范围 1000-3600000'),
+      description: const Text('端点失败后禁用的时长(分钟), 范围 10-60'),
       actions: [
         ShadButton.outline(
           onPressed: () => Navigator.pop(context),

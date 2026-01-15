@@ -30,7 +30,7 @@ class SharedPreferenceUtil {
   }
 
   Future<int> getDisableDuration() async {
-    return (await _preferences).getInt(_keyDisableDuration) ?? 60 * 1000;
+    return (await _preferences).getInt(_keyDisableDuration) ?? 30 * 60 * 1000;
   }
 
   Future<bool> getDisableNonessentialTraffic() async {

@@ -44,9 +44,10 @@ class _SettingPageState extends State<SettingPage> {
       );
     });
     var disableDurationTile = Watch((context) {
+      final minutes = viewModel.disableDuration.value ~/ 60000;
       return ListTile(
         title: const Text('端点禁用时长'),
-        subtitle: Text('端点失败后禁用 ${viewModel.disableDuration.value} 毫秒'),
+        subtitle: Text('端点失败后禁用 $minutes 分钟'),
         trailing: const Icon(LucideIcons.chevronRight),
         onTap: () => viewModel.editDisableDuration(context),
       );
