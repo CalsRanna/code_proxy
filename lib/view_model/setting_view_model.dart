@@ -9,6 +9,7 @@ import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +24,7 @@ class SettingViewModel {
   final size = signal(0);
   final auditRetainDays = signal(14);
   final version = signal('');
+  final autoLaunch = signal(false);
 
   final controller = TextEditingController();
   final maxRetriesController = TextEditingController();
@@ -74,6 +76,8 @@ class SettingViewModel {
     auditRetainDays.value = await SharedPreferenceUtil.instance
         .getAuditRetainDays();
     auditRetainDaysController.text = auditRetainDays.value.toString();
+
+    autoLaunch.value = await SharedPreferenceUtil.instance.getLaunchAtStartup();
 
     final packageInfo = await PackageInfo.fromPlatform();
     version.value = 'v${packageInfo.version} (${packageInfo.buildNumber})';
@@ -225,6 +229,16 @@ class SettingViewModel {
     disableNonessentialTraffic.value = value;
     await SharedPreferenceUtil.instance.setDisableNonessentialTraffic(value);
     await ClaudeCodeSettingService().updateProxySetting();
+  }
+
+  Future<void> toggleLaunchAtStartup(bool value) async {
+    autoLaunch.value = value;
+    await SharedPreferenceUtil.instance.setLaunchAtStartup(value);
+    if (value) {
+      await launchAtStartup.enable();
+    } else {
+      await launchAtStartup.disable();
+    }
   }
 
   ShadDialog _buildAlertDialog(BuildContext context, String message) {

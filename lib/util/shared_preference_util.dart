@@ -14,6 +14,7 @@ class SharedPreferenceUtil {
   final String _keyDisableNonessentialTraffic = 'disable_nonessential_traffic';
   final String _keyDisableDuration = 'disable_duration';
   final String _keyAuditRetainDays = 'audit_retain_days';
+  final String _keyLaunchAtStartup = 'launch_at_startup';
 
   SharedPreferenceUtil._();
 
@@ -87,5 +88,13 @@ class SharedPreferenceUtil {
 
   Future<void> setWindowWidth(double width) async {
     await (await _preferences).setDouble(_keyWindowWidth, width);
+  }
+
+  Future<bool> getLaunchAtStartup() async {
+    return (await _preferences).getBool(_keyLaunchAtStartup) ?? false;
+  }
+
+  Future<void> setLaunchAtStartup(bool value) async {
+    await (await _preferences).setBool(_keyLaunchAtStartup, value);
   }
 }

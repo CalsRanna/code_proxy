@@ -66,6 +66,19 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
+    var launchAtStartupTile = Watch((context) {
+      return ListTile(
+        title: const Text('开机自启动'),
+        subtitle: const Text('系统启动时自动运行应用'),
+        trailing: ShadSwitch(
+          value: viewModel.autoLaunch.value,
+          onChanged: (value) => viewModel.toggleLaunchAtStartup(value),
+        ),
+        onTap: () => viewModel.toggleLaunchAtStartup(
+          !viewModel.autoLaunch.value,
+        ),
+      );
+    });
     var sizeTile = Watch((context) {
       return ListTile(
         title: const Text('数据库文件大小'),
@@ -107,6 +120,7 @@ class _SettingPageState extends State<SettingPage> {
         apiTimeoutTile,
         disableDurationTile,
         disableNonessentialTrafficTile,
+        launchAtStartupTile,
         sizeTile,
         auditRetainDaysTile,
         resetTile,

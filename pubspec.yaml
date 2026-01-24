@@ -34,6 +34,7 @@ dependencies:
   auto_route: ^9.2.2
   get_it: ^9.2.0
   http: ^1.2.0
+  launch_at_startup: ^0.5.1
   laconic: ^1.0.0
   logger: ^2.6.2
   lucide_icons_flutter: ^3.1.7
