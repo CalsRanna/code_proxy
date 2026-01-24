@@ -49,6 +49,10 @@ class CodeProxyApp extends StatelessWidget {
     );
 
     var actions = Actions(actions: WindowUtil.instance.actions, child: child);
-    return Shortcuts(shortcuts: WindowUtil.instance.shortcuts, child: actions);
+    var shortcuts = Shortcuts(shortcuts: WindowUtil.instance.shortcuts, child: actions);
+    return Focus(
+      onKeyEvent: (node, event) => KeyEventResult.ignored,
+      child: shortcuts,
+    );
   }
 }
