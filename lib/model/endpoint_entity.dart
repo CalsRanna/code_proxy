@@ -139,6 +139,26 @@ class EndpointEntity {
     );
   }
 
+  /// 克隆端点，创建一个用于新建对话框的副本（id为空字符串）
+  EndpointEntity clone({String? name}) {
+    return EndpointEntity(
+      id: '',
+      name: name ?? this.name,
+      note: note,
+      enabled: enabled,
+      weight: weight,
+      anthropicAuthToken: anthropicAuthToken,
+      anthropicBaseUrl: anthropicBaseUrl,
+      anthropicModel: anthropicModel,
+      anthropicSmallFastModel: anthropicSmallFastModel,
+      anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
+      anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
+      anthropicDefaultOpusModel: anthropicDefaultOpusModel,
+      forbidden: false,
+      forbiddenUntil: null,
+    );
+  }
+
   @override
   String toString() {
     return 'EndpointEntity(id: $id, name: $name, enabled: $enabled)';

@@ -8,6 +8,7 @@ class EndpointCard extends StatefulWidget {
   final EndpointEntity endpoint;
   final void Function()? onDelete;
   final void Function()? onEdit;
+  final void Function()? onClone;
   final void Function(bool)? onToggleEnabled;
   final int index;
   const EndpointCard({
@@ -15,6 +16,7 @@ class EndpointCard extends StatefulWidget {
     required this.endpoint,
     this.onEdit,
     this.onDelete,
+    this.onClone,
     this.onToggleEnabled,
     required this.index,
   });
@@ -118,6 +120,16 @@ class _EndpointCardState extends State<EndpointCard> {
                           Icon(LucideIcons.pencil),
                           SizedBox(width: 8),
                           Text('编辑'),
+                        ],
+                      ),
+                    ),
+                    ShadContextMenuItem(
+                      onPressed: widget.onClone,
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.copy),
+                          SizedBox(width: 8),
+                          Text('克隆'),
                         ],
                       ),
                     ),

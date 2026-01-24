@@ -29,57 +29,10 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController weightController;
 
   @override
-  void initState() {
-    super.initState();
-
-    nameController = TextEditingController(text: widget.endpoint?.name);
-    noteController = TextEditingController(text: widget.endpoint?.note);
-    authTokenController = TextEditingController(
-      text: widget.endpoint?.anthropicAuthToken,
-    );
-    baseUrlController = TextEditingController(
-      text: widget.endpoint?.anthropicBaseUrl,
-    );
-    modelController = TextEditingController(
-      text: widget.endpoint?.anthropicModel,
-    );
-    smallFastModelController = TextEditingController(
-      text: widget.endpoint?.anthropicSmallFastModel,
-    );
-    haikuModelController = TextEditingController(
-      text: widget.endpoint?.anthropicDefaultHaikuModel,
-    );
-    sonnetModelController = TextEditingController(
-      text: widget.endpoint?.anthropicDefaultSonnetModel,
-    );
-    opusModelController = TextEditingController(
-      text: widget.endpoint?.anthropicDefaultOpusModel,
-    );
-    weightController = TextEditingController(
-      text: widget.endpoint?.weight.toString() ?? '1',
-    );
-  }
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    noteController.dispose();
-    authTokenController.dispose();
-    baseUrlController.dispose();
-    modelController.dispose();
-    smallFastModelController.dispose();
-    haikuModelController.dispose();
-    sonnetModelController.dispose();
-    opusModelController.dispose();
-    weightController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return ShadDialog(
       actions: [ShadButton(onPressed: _handleSave, child: const Text('保存更改'))],
-      title: Text(widget.endpoint == null ? '添加端点' : '编辑端点'),
+      title: Text(_buildTitle()),
       description: Text('在这里配置端点信息，完成后点击保存。'),
       child: Padding(
         padding: EdgeInsetsGeometry.symmetric(
@@ -174,6 +127,59 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     );
   }
 
+  @override
+  void dispose() {
+    nameController.dispose();
+    noteController.dispose();
+    authTokenController.dispose();
+    baseUrlController.dispose();
+    modelController.dispose();
+    smallFastModelController.dispose();
+    haikuModelController.dispose();
+    sonnetModelController.dispose();
+    opusModelController.dispose();
+    weightController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    nameController = TextEditingController(text: widget.endpoint?.name);
+    noteController = TextEditingController(text: widget.endpoint?.note);
+    authTokenController = TextEditingController(
+      text: widget.endpoint?.anthropicAuthToken,
+    );
+    baseUrlController = TextEditingController(
+      text: widget.endpoint?.anthropicBaseUrl,
+    );
+    modelController = TextEditingController(
+      text: widget.endpoint?.anthropicModel,
+    );
+    smallFastModelController = TextEditingController(
+      text: widget.endpoint?.anthropicSmallFastModel,
+    );
+    haikuModelController = TextEditingController(
+      text: widget.endpoint?.anthropicDefaultHaikuModel,
+    );
+    sonnetModelController = TextEditingController(
+      text: widget.endpoint?.anthropicDefaultSonnetModel,
+    );
+    opusModelController = TextEditingController(
+      text: widget.endpoint?.anthropicDefaultOpusModel,
+    );
+    weightController = TextEditingController(
+      text: widget.endpoint?.weight.toString() ?? '1',
+    );
+  }
+
+  String _buildTitle() {
+    if (widget.endpoint == null) return '添加端点';
+    if (widget.endpoint!.id.isEmpty) return '克隆端点';
+    return '编辑端点';
+  }
+
   Future<void> _handleSave() async {
     if (nameController.text.isEmpty ||
         authTokenController.text.isEmpty ||
@@ -213,7 +219,8 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     }
 
     try {
-      if (widget.endpoint == null) {
+      final isNew = widget.endpoint == null || widget.endpoint!.id.isEmpty;
+      if (isNew) {
         // 添加新端点
         await widget.viewModel.addEndpoint(
           name: nameController.text,
@@ -274,21 +281,21 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     }
   }
 
-  /// 验证 URL 是否有效
-  bool _isValidUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.hasScheme && uri.hasAuthority;
-    } catch (e) {
-      return false;
-    }
-  }
-
   /// 验证 URL 是否为 HTTPS
   bool _isHttpsUrl(String url) {
     try {
       final uri = Uri.parse(url);
       return uri.scheme == 'https';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 验证 URL 是否有效
+  bool _isValidUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return uri.hasScheme && uri.hasAuthority;
     } catch (e) {
       return false;
     }

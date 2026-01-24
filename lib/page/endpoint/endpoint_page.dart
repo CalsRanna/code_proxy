@@ -65,6 +65,7 @@ class _EndpointPageState extends State<EndpointPage> {
           index: index,
           endpoint: endpoint,
           onEdit: () => _showEditEndpointDialog(context, endpoint),
+          onClone: () => _showCloneEndpointDialog(context, endpoint),
           onDelete: () => _showDeleteDialog(context, endpoint),
           onToggleEnabled: (value) => viewModel.toggleEnabled(endpoint.id),
         );
@@ -86,6 +87,12 @@ class _EndpointPageState extends State<EndpointPage> {
 
   void _showEditEndpointDialog(BuildContext context, EndpointEntity endpoint) {
     _showEndpointDialog(context, endpoint);
+  }
+
+  void _showCloneEndpointDialog(BuildContext context, EndpointEntity endpoint) {
+    // 创建一个克隆的端点实体，id为空字符串表示新建，名称添加"副本"后缀
+    final clonedEndpoint = endpoint.clone(name: '${endpoint.name} (副本)');
+    _showEndpointDialog(context, clonedEndpoint);
   }
 
   void _showEndpointDialog(BuildContext context, EndpointEntity? endpoint) {
