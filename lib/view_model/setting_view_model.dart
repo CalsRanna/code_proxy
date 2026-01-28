@@ -21,6 +21,7 @@ class SettingViewModel {
   final apiTimeout = signal(600000);
   final disableDuration = signal(1800000);
   final disableNonessentialTraffic = signal(true);
+  final attributionHeader = signal(true);
   final size = signal(0);
   final auditRetainDays = signal(14);
   final version = signal('');
@@ -68,6 +69,9 @@ class SettingViewModel {
 
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();
+
+    attributionHeader.value = await SharedPreferenceUtil.instance
+        .getAttributionHeader();
 
     var file = File(Database.instance.path);
     var stats = await file.stat();
@@ -228,6 +232,12 @@ class SettingViewModel {
   Future<void> toggleDisableNonessentialTraffic(bool value) async {
     disableNonessentialTraffic.value = value;
     await SharedPreferenceUtil.instance.setDisableNonessentialTraffic(value);
+    await ClaudeCodeSettingService().updateProxySetting();
+  }
+
+  Future<void> toggleAttributionHeader(bool value) async {
+    attributionHeader.value = value;
+    await SharedPreferenceUtil.instance.setAttributionHeader(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 

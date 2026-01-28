@@ -66,6 +66,19 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
+    var attributionHeaderTile = Watch((context) {
+      return ListTile(
+        title: const Text('发送遥测数据'),
+        subtitle: const Text('允许发送匿名使用数据以改进产品'),
+        trailing: ShadSwitch(
+          value: viewModel.attributionHeader.value,
+          onChanged: (value) => viewModel.toggleAttributionHeader(value),
+        ),
+        onTap: () => viewModel.toggleAttributionHeader(
+          !viewModel.attributionHeader.value,
+        ),
+      );
+    });
     var launchAtStartupTile = Watch((context) {
       return ListTile(
         title: const Text('开机自启动'),
@@ -120,6 +133,7 @@ class _SettingPageState extends State<SettingPage> {
         apiTimeoutTile,
         disableDurationTile,
         disableNonessentialTrafficTile,
+        attributionHeaderTile,
         launchAtStartupTile,
         sizeTile,
         auditRetainDaysTile,

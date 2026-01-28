@@ -12,6 +12,7 @@ class SharedPreferenceUtil {
   final String _keyMaxRetries = 'max_retries';
   final String _keyApiTimeout = 'api_timeout';
   final String _keyDisableNonessentialTraffic = 'disable_nonessential_traffic';
+  final String _keyAttributionHeader = 'attribution_header';
   final String _keyDisableDuration = 'disable_duration';
   final String _keyAuditRetainDays = 'audit_retain_days';
   final String _keyLaunchAtStartup = 'launch_at_startup';
@@ -72,6 +73,14 @@ class SharedPreferenceUtil {
 
   Future<void> setDisableNonessentialTraffic(bool disable) async {
     await (await _preferences).setBool(_keyDisableNonessentialTraffic, disable);
+  }
+
+  Future<bool> getAttributionHeader() async {
+    return (await _preferences).getBool(_keyAttributionHeader) ?? true;
+  }
+
+  Future<void> setAttributionHeader(bool value) async {
+    await (await _preferences).setBool(_keyAttributionHeader, value);
   }
 
   Future<void> setMaxRetries(int maxRetries) async {
