@@ -35,6 +35,15 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editMaxRetries(context),
       );
     });
+    var disableDurationTile = Watch((context) {
+      final minutes = viewModel.disableDuration.value ~/ 60000;
+      return ListTile(
+        title: const Text('端点禁用时长'),
+        subtitle: Text('端点失败后禁用 $minutes 分钟'),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => viewModel.editDisableDuration(context),
+      );
+    });
     var apiTimeoutTile = Watch((context) {
       return ListTile(
         title: const Text('API 超时时间'),
@@ -43,13 +52,51 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editApiTimeout(context),
       );
     });
-    var disableDurationTile = Watch((context) {
-      final minutes = viewModel.disableDuration.value ~/ 60000;
+    var launchAtStartupTile = Watch((context) {
       return ListTile(
-        title: const Text('端点禁用时长'),
-        subtitle: Text('端点失败后禁用 $minutes 分钟'),
+        title: const Text('开机自启动'),
+        subtitle: const Text('系统启动时自动运行应用'),
+        trailing: ShadSwitch(
+          value: viewModel.autoLaunch.value,
+          onChanged: (value) => viewModel.toggleLaunchAtStartup(value),
+        ),
+        onTap: () =>
+            viewModel.toggleLaunchAtStartup(!viewModel.autoLaunch.value),
+      );
+    });
+    var auditRetainDaysTile = Watch((context) {
+      return ListTile(
+        title: const Text('审计日志保留天数'),
+        subtitle: Text('保留最近 ${viewModel.auditRetainDays.value} 天的审计日志'),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editDisableDuration(context),
+        onTap: () => viewModel.editAuditRetainDays(context),
+      );
+    });
+    var sizeTile = Watch((context) {
+      return ListTile(
+        title: const Text('数据库文件大小'),
+        subtitle: Text(_getFileSize(viewModel.size.value)),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => _showClearDatabaseDialog(context),
+      );
+    });
+    var resetTile = ListTile(
+      title: const Text('恢复默认设置'),
+      subtitle: const Text('清空所有数据和设置,应用将自动重启'),
+      trailing: const Icon(LucideIcons.chevronRight),
+      onTap: () => _showResetToDefaultDialog(context),
+    );
+    var attributionHeaderTile = Watch((context) {
+      return ListTile(
+        title: const Text('归属提示头'),
+        subtitle: const Text('在请求里自动加上归属提示头'),
+        trailing: ShadSwitch(
+          value: viewModel.attributionHeader.value,
+          onChanged: (value) => viewModel.toggleAttributionHeader(value),
+        ),
+        onTap: () => viewModel.toggleAttributionHeader(
+          !viewModel.attributionHeader.value,
+        ),
       );
     });
     var disableNonessentialTrafficTile = Watch((context) {
@@ -66,54 +113,6 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
-    var attributionHeaderTile = Watch((context) {
-      return ListTile(
-        title: const Text('发送遥测数据'),
-        subtitle: const Text('允许发送匿名使用数据以改进产品'),
-        trailing: ShadSwitch(
-          value: viewModel.attributionHeader.value,
-          onChanged: (value) => viewModel.toggleAttributionHeader(value),
-        ),
-        onTap: () => viewModel.toggleAttributionHeader(
-          !viewModel.attributionHeader.value,
-        ),
-      );
-    });
-    var launchAtStartupTile = Watch((context) {
-      return ListTile(
-        title: const Text('开机自启动'),
-        subtitle: const Text('系统启动时自动运行应用'),
-        trailing: ShadSwitch(
-          value: viewModel.autoLaunch.value,
-          onChanged: (value) => viewModel.toggleLaunchAtStartup(value),
-        ),
-        onTap: () => viewModel.toggleLaunchAtStartup(
-          !viewModel.autoLaunch.value,
-        ),
-      );
-    });
-    var sizeTile = Watch((context) {
-      return ListTile(
-        title: const Text('数据库文件大小'),
-        subtitle: Text(_getFileSize(viewModel.size.value)),
-        trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => _showClearDatabaseDialog(context),
-      );
-    });
-    var auditRetainDaysTile = Watch((context) {
-      return ListTile(
-        title: const Text('审计日志保留天数'),
-        subtitle: Text('保留最近 ${viewModel.auditRetainDays.value} 天的审计日志'),
-        trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editAuditRetainDays(context),
-      );
-    });
-    var resetTile = ListTile(
-      title: const Text('恢复默认设置'),
-      subtitle: const Text('清空所有数据和设置,应用将自动重启'),
-      trailing: const Icon(LucideIcons.chevronRight),
-      onTap: () => _showResetToDefaultDialog(context),
-    );
     var versionTile = Watch((context) {
       return Padding(
         padding: const EdgeInsets.only(top: ShadcnSpacing.spacing24),
@@ -125,19 +124,23 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
+    var proxyGroupTitle = _buildGroupTitle('代理服务器');
+    var claudeCodeGroupTitle = _buildGroupTitle('Claude Code');
     var listView = ListView(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       children: [
+        proxyGroupTitle,
         portListTile,
         maxRetriesTile,
-        apiTimeoutTile,
         disableDurationTile,
-        disableNonessentialTrafficTile,
-        attributionHeaderTile,
         launchAtStartupTile,
-        sizeTile,
         auditRetainDaysTile,
+        sizeTile,
         resetTile,
+        claudeCodeGroupTitle,
+        apiTimeoutTile,
+        attributionHeaderTile,
+        disableNonessentialTrafficTile,
         versionTile,
       ],
     );
@@ -146,6 +149,20 @@ class _SettingPageState extends State<SettingPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
+    );
+  }
+
+  Widget _buildGroupTitle(String title) {
+    var textStyle = TextStyle(
+      fontWeight: FontWeight.w500,
+      color: ShadcnColors.zinc500,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ShadcnSpacing.spacing16,
+        vertical: ShadcnSpacing.spacing8,
+      ),
+      child: Text(title, style: textStyle),
     );
   }
 

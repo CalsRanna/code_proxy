@@ -27,10 +27,10 @@ class ClaudeCodeSettingService {
         'ANTHROPIC_MODEL': 'ANTHROPIC_MODEL',
         'ANTHROPIC_SMALL_FAST_MODEL': 'ANTHROPIC_SMALL_FAST_MODEL',
         'API_TIMEOUT_MS': apiTimeout,
+        'CLAUDE_CODE_ATTRIBUTION_HEADER': attributionHeader ? 1 : 0,
         'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': disableNonessentialTraffic
             ? 1
             : 0,
-        'CLAUDE_CODE_ATTRIBUTION_HEADER': attributionHeader ? 1 : 0,
       },
     };
 
