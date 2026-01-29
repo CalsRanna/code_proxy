@@ -23,20 +23,11 @@ class _RequestLogPageState extends State<RequestLogPage> {
     final logs = viewModel.logs.value;
     final total = viewModel.total.value;
 
-    var shadButton = ShadButton.destructive(
-      onPressed: () => viewModel.clearLogs(context),
-      leading: const Icon(LucideIcons.trash2),
-      child: const Text('清空日志'),
-    );
     var body = Watch((context) {
       return logs.isEmpty ? _buildEmpty() : _buildTable();
     });
     var pageHeader = Watch((context) {
-      return PageHeader(
-        title: '请求日志',
-        subtitle: '$total 条请求日志',
-        actions: [shadButton],
-      );
+      return PageHeader(title: '请求日志', subtitle: '$total 条请求日志');
     });
     var children = [pageHeader, Expanded(child: body)];
     return Column(

@@ -1,9 +1,6 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/request_log_entity.dart';
-import 'package:code_proxy/page/request_log/request_log_clear_dialog.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
-import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 
 class RequestLogViewModel {
@@ -20,11 +17,6 @@ class RequestLogViewModel {
     if (pages == 0) pages = 1;
     return pages;
   });
-
-  void clearLogs(BuildContext context) {
-    var dialog = RequestLogClearDialog(onClear: _clearLogs);
-    showShadDialog(context: context, builder: (context) => dialog);
-  }
 
   void initSignals() {
     loadLogs();
@@ -72,11 +64,6 @@ class RequestLogViewModel {
     if (size < 1) return;
     pageSize.value = size;
     currentPage.value = 1;
-    loadLogs();
-  }
-
-  Future<void> _clearLogs() async {
-    await _requestLogRepository.clearAll();
     loadLogs();
   }
 }
