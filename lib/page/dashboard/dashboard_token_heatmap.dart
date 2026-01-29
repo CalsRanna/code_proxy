@@ -163,11 +163,14 @@ class DashboardTokenHeatmap extends StatelessWidget {
           labels.add(
             Positioned(
               left: offset,
-              child: Text(
-                monthStr,
-                style: const TextStyle(
-                  fontSize: _monthLabelFontSize,
-                  color: ShadcnColors.zinc500,
+              width: cellWidth,
+              child: Center(
+                child: Text(
+                  monthStr,
+                  style: const TextStyle(
+                    fontSize: _monthLabelFontSize,
+                    color: ShadcnColors.zinc500,
+                  ),
                 ),
               ),
             ),
