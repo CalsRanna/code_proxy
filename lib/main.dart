@@ -7,6 +7,7 @@ import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -30,8 +31,35 @@ void main() async {
   runApp(const CodeProxyApp());
 }
 
-class CodeProxyApp extends StatelessWidget {
+class CodeProxyApp extends StatefulWidget {
   const CodeProxyApp({super.key});
+
+  @override
+  State<CodeProxyApp> createState() => _CodeProxyAppState();
+}
+
+class _CodeProxyAppState extends State<CodeProxyApp> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.keyW &&
+        HardwareKeyboard.instance.isMetaPressed) {
+      WindowUtil.instance.hide();
+      return true;
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,18 +69,11 @@ class CodeProxyApp extends StatelessWidget {
       sonnerTheme: ShadSonnerTheme(alignment: Alignment.topCenter),
       tooltipTheme: ShadTooltipTheme(decoration: shadDecoration),
     );
-    var child = ShadApp.router(
+    return ShadApp.router(
       debugShowCheckedModeBanner: false,
       routerConfig: router.config(),
       theme: shadThemeData,
       title: 'Code Proxy',
-    );
-
-    var actions = Actions(actions: WindowUtil.instance.actions, child: child);
-    var shortcuts = Shortcuts(shortcuts: WindowUtil.instance.shortcuts, child: actions);
-    return Focus(
-      onKeyEvent: (node, event) => KeyEventResult.ignored,
-      child: shortcuts,
     );
   }
 }

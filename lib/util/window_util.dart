@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -16,15 +15,6 @@ class WindowUtil {
   final _controller = StreamController<WindowEvent>();
 
   WindowUtil._();
-
-  Map<Type, Action<Intent>> get actions => {
-    _HideWindowIntent: _HideWindowAction(),
-  };
-
-  Map<ShortcutActivator, Intent> get shortcuts => {
-    const SingleActivator(LogicalKeyboardKey.keyW, meta: true):
-        const _HideWindowIntent(),
-  };
 
   Stream<WindowEvent> get stream => _controller.stream;
 
@@ -116,19 +106,4 @@ class WindowUtil {
       // 忽略日志写入失败
     }
   }
-}
-
-class _HideWindowAction extends Action<_HideWindowIntent> {
-  @override
-  Future<void> invoke(_HideWindowIntent intent) async {
-    try {
-      await WindowUtil.instance.hide();
-    } catch (e, stackTrace) {
-      await WindowUtil.instance._logHideError(e, stackTrace);
-    }
-  }
-}
-
-class _HideWindowIntent extends Intent {
-  const _HideWindowIntent();
 }
