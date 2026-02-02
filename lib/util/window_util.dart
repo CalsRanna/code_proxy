@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart';
 import 'package:window_manager/window_manager.dart';
 
 enum WindowEvent { shown }
@@ -91,19 +89,5 @@ class WindowUtil {
 
   Future<void> unmaximize() async {
     await windowManager.unmaximize();
-  }
-
-  /// 写入隐藏窗口错误日志
-  Future<void> _logHideError(dynamic error, StackTrace stackTrace) async {
-    try {
-      final logFile = File(
-        join(PathUtil.instance.getNewDatabaseDirectory(), 'hide_window_error.log'),
-      );
-      final timestamp = DateTime.now().toIso8601String();
-      final logEntry = '[$timestamp] $error\n$stackTrace\n---\n';
-      await logFile.writeAsString(logEntry, mode: FileMode.append, flush: true);
-    } catch (_) {
-      // 忽略日志写入失败
-    }
   }
 }
