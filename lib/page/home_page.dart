@@ -58,7 +58,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    viewModel.initSignals();
+    viewModel.initSignals(context);
     dashboardViewModel.initSignals();
     endpointsViewModel.initSignals();
     logsViewModel.initSignals();

@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:code_proxy/database/database.dart';
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/claude_code_audit_service.dart';
+import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
@@ -20,7 +22,10 @@ import 'package:code_proxy/view_model/mcp_server_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:code_proxy/view_model/skill_view_model.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 
 class HomeViewModel {
@@ -111,7 +116,19 @@ class HomeViewModel {
     }
   }
 
-  Future<void> initSignals() async {
+  Future<void> initSignals(BuildContext context) async {
+    // 加载模型配置
+    try {
+      await ClaudeCodeModelConfigService.instance.load();
+    } on ModelConfigException catch (e) {
+      LoggerUtil.instance.e('模型配置加载失败: ${e.message}');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showConfigErrorDialog(context, e.message);
+      });
+      // 配置错误时不启动代理服务器
+      return;
+    }
+
     ClaudeCodeAuditService.instance.cleanExpiredLogs();
     _autoStartServer();
     _subscription ??= WindowUtil.instance.stream.listen((event) {
@@ -120,6 +137,60 @@ class HomeViewModel {
         dashboardViewModel.initSignals();
       }
     });
+  }
+
+  void _showConfigErrorDialog(BuildContext context, String error) {
+    final configPath = ClaudeCodeModelConfigService.instance.getConfigPath();
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog.alert(
+        title: Text('模型配置文件错误'),
+        description: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 8),
+            Text(error),
+            SizedBox(height: 16),
+            Text('配置文件路径:', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    configPath,
+                    style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  ),
+                ),
+                ShadIconButton.ghost(
+                  icon: Icon(LucideIcons.copy, size: 16),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: configPath));
+                    ShadToaster.of(context).show(
+                      ShadToast(title: Text('已复制配置文件路径')),
+                    );
+                  },
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Text(
+              '请修改配置文件后重启应用',
+              style: TextStyle(
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ShadButton(
+            child: Text('确定'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 重启代理服务器（用于端口变更等配置修改）
