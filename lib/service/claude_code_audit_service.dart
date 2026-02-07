@@ -18,6 +18,10 @@ class ClaudeCodeAuditService {
     required String id,
     required String request,
     required String response,
+    Map<String, String>? requestHeaders,
+    Map<String, String>? forwardedHeaders,
+    Map<String, String>? responseHeaders,
+    Map<String, String>? forwardedResponseHeaders,
   }) async {
     try {
       final date = DateTime.now().toIso8601String().substring(0, 10);
@@ -28,9 +32,40 @@ class ClaudeCodeAuditService {
       }
 
       final file = File('${dir.path}/$id');
+      final requestHeadersStr = requestHeaders != null
+          ? requestHeaders.entries.map((e) => '${e.key}: ${e.value}').join('\n')
+          : '';
+      final forwardedHeadersStr = forwardedHeaders != null
+          ? forwardedHeaders.entries
+                .map((e) => '${e.key}: ${e.value}')
+                .join('\n')
+          : '';
+      final responseHeadersStr = responseHeaders != null
+          ? responseHeaders.entries
+                .map((e) => '${e.key}: ${e.value}')
+                .join('\n')
+          : '';
+      final forwardedResponseHeadersStr = forwardedResponseHeaders != null
+          ? forwardedResponseHeaders.entries
+                .map((e) => '${e.key}: ${e.value}')
+                .join('\n')
+          : '';
+
       final content =
-          '''=== REQUEST ===
+          '''=== REQUEST HEADERS (Original) ===
+$requestHeadersStr
+
+=== REQUEST HEADERS (Forwarded) ===
+$forwardedHeadersStr
+
+=== REQUEST ===
 $request
+
+=== RESPONSE HEADERS (Original) ===
+$responseHeadersStr
+
+=== RESPONSE HEADERS (Forwarded) ===
+$forwardedResponseHeadersStr
 
 === RESPONSE ===
 $response''';

@@ -27,7 +27,10 @@
       "mcp__dart-mcp-server__pub_dev_search",
       "mcp__context7__query-docs",
       "mcp__dart-mcp-server__pub",
-      "Bash(pod install:*)"
+      "Bash(pod install:*)",
+      "Bash(xxd:*)",
+      "Bash(dd:*)",
+      "mcp__dart-mcp-server__dart_format"
     ],
     "deny": []
   }
