@@ -65,6 +65,7 @@ class ProxyServerLogHandler {
       statusCode: response.statusCode,
       responseTime: response.responseTime,
       model: model,
+      originalModel: request.originalModel,
       inputTokens: inputTokens,
       outputTokens: outputTokens,
       errorMessage: errorMessage,

@@ -15,11 +15,15 @@ class ProxyServerRequest {
   /// 请求体
   final String body;
 
+  /// 客户端请求的原始模型（映射前）
+  final String? originalModel;
+
   const ProxyServerRequest({
     required this.method,
     required this.path,
     required this.headers,
     required this.body,
+    this.originalModel,
     this.forwardedHeaders,
   });
 }

@@ -44,6 +44,13 @@ class RequestLogDetailDialog extends StatelessWidget {
               label: '响应时间',
               value: '${log.responseTime ?? 0}ms',
             ),
+            if (log.originalModel != null &&
+                log.originalModel!.isNotEmpty)
+              _buildListItem(
+                icon: LucideIcons.tag,
+                label: '原始模型',
+                value: log.originalModel!,
+              ),
             _buildListItem(
               icon: LucideIcons.brain,
               label: '模型',

@@ -62,6 +62,7 @@ class ProxyServerResponseHandler {
         requestBodyToLog,
         startTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        originalRequestBodyBytes: requestBodyBytes,
         forwardedHeaders: forwardedHeaders,
       );
     } else if (statusCode >= 400 && statusCode < 500) {
@@ -90,6 +91,7 @@ class ProxyServerResponseHandler {
         endpoint: endpoint,
         request: request,
         requestBodyBytes: requestBodyBytes,
+        originalRequestBodyBytes: requestBodyBytes,
         response: response,
         responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
@@ -130,6 +132,7 @@ class ProxyServerResponseHandler {
         endpoint: endpoint,
         request: request,
         requestBodyBytes: requestBodyBytes,
+        originalRequestBodyBytes: requestBodyBytes,
         response: response,
         responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
@@ -154,6 +157,7 @@ class ProxyServerResponseHandler {
         requestBodyToLog,
         startTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        originalRequestBodyBytes: requestBodyBytes,
         forwardedHeaders: forwardedHeaders,
       );
     }
@@ -178,6 +182,7 @@ class ProxyServerResponseHandler {
       path: request.url.path,
       method: request.method,
       body: utf8.decode(bodyBytesToUse, allowMalformed: true),
+      originalModel: _extractOriginalModel(requestBodyBytes),
       headers: request.headers,
       forwardedHeaders: forwardedHeaders,
     );
@@ -199,6 +204,7 @@ class ProxyServerResponseHandler {
     List<int> requestBodyBytes,
     int startTime, {
     List<int>? mappedRequestBodyBytes,
+    required List<int> originalRequestBodyBytes,
     Map<String, String>? forwardedHeaders,
   }) async {
     final isStream = _processor.isStream(response.headers);
@@ -225,6 +231,7 @@ class ProxyServerResponseHandler {
           endpoint: endpoint,
           request: request,
           requestBodyBytes: requestBodyBytes,
+          originalRequestBodyBytes: originalRequestBodyBytes,
           response: response,
           responseTime: responseTime,
           mappedRequestBodyBytes: mappedRequestBodyBytes,
@@ -256,6 +263,7 @@ class ProxyServerResponseHandler {
               endpoint: endpoint,
               request: request,
               requestBodyBytes: requestBodyBytes,
+              originalRequestBodyBytes: originalRequestBodyBytes,
               response: response,
               responseTime: responseTime,
               mappedRequestBodyBytes: mappedRequestBodyBytes,
@@ -268,10 +276,23 @@ class ProxyServerResponseHandler {
     }
   }
 
+  /// 从原始请求体字节中提取客户端发送的原始模型名称
+  String? _extractOriginalModel(List<int> requestBodyBytes) {
+    try {
+      final bodyString = utf8.decode(requestBodyBytes, allowMalformed: true);
+      if (bodyString.isEmpty) return null;
+      final bodyJson = jsonDecode(bodyString) as Map<String, dynamic>;
+      return bodyJson['model'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _recordRequestWithBody({
     required EndpointEntity endpoint,
     required shelf.Request request,
     required List<int> requestBodyBytes,
+    required List<int> originalRequestBodyBytes,
     required http.StreamedResponse response,
     required int responseTime,
     List<int>? mappedRequestBodyBytes,
@@ -286,6 +307,7 @@ class ProxyServerResponseHandler {
       path: request.url.path,
       method: request.method,
       body: utf8.decode(bodyBytesToUse, allowMalformed: true),
+      originalModel: _extractOriginalModel(originalRequestBodyBytes),
       headers: request.headers,
       forwardedHeaders: forwardedHeaders,
     );

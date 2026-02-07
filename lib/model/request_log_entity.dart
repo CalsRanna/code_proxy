@@ -27,6 +27,9 @@ class RequestLogEntity {
   /// 实际使用的模型
   final String? model;
 
+  /// 客户端请求的原始模型（映射前）
+  final String? originalModel;
+
   /// 输入 token 数量
   final int? inputTokens;
 
@@ -46,6 +49,7 @@ class RequestLogEntity {
     this.statusCode,
     this.responseTime,
     this.model,
+    this.originalModel,
     this.inputTokens,
     this.outputTokens,
     this.errorMessage,
@@ -63,6 +67,7 @@ class RequestLogEntity {
       statusCode: json['statusCode'] as int?,
       responseTime: json['responseTime'] as int?,
       model: json['model'] as String?,
+      originalModel: json['originalModel'] as String?,
       inputTokens: json['inputTokens'] as int?,
       outputTokens: json['outputTokens'] as int?,
       errorMessage: json['errorMessage'] as String?,
@@ -81,6 +86,7 @@ class RequestLogEntity {
       'statusCode': statusCode,
       'responseTime': responseTime,
       'model': model,
+      'originalModel': originalModel,
       'inputTokens': inputTokens,
       'outputTokens': outputTokens,
       'errorMessage': errorMessage,
@@ -103,6 +109,7 @@ class RequestLogEntity {
     int? statusCode,
     int? responseTime,
     String? model,
+    String? originalModel,
     int? inputTokens,
     int? outputTokens,
     String? errorMessage,
@@ -117,6 +124,7 @@ class RequestLogEntity {
       statusCode: statusCode ?? this.statusCode,
       responseTime: responseTime ?? this.responseTime,
       model: model ?? this.model,
+      originalModel: originalModel ?? this.originalModel,
       inputTokens: inputTokens ?? this.inputTokens,
       outputTokens: outputTokens ?? this.outputTokens,
       errorMessage: errorMessage ?? this.errorMessage,
