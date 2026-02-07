@@ -112,6 +112,10 @@ class HomeViewModel {
         id: log.id,
         request: request.body,
         response: response.responseBody!,
+        requestHeaders: request.headers,
+        forwardedHeaders: request.forwardedHeaders,
+        responseHeaders: response.headers,
+        forwardedResponseHeaders: response.forwardedHeaders,
       );
     }
   }
@@ -166,9 +170,9 @@ class HomeViewModel {
                   icon: Icon(LucideIcons.copy, size: 16),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: configPath));
-                    ShadToaster.of(context).show(
-                      ShadToast(title: Text('已复制配置文件路径')),
-                    );
+                    ShadToaster.of(
+                      context,
+                    ).show(ShadToast(title: Text('已复制配置文件路径')));
                   },
                 ),
               ],

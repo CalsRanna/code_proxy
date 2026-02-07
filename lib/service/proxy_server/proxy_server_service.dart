@@ -105,6 +105,7 @@ class ProxyServerService {
           rawBody,
           startTime,
           mappedRequestBodyBytes: preparedRequest.bodyBytes,
+          forwardedHeaders: preparedRequest.headers,
         );
 
         // 根据响应结果判断是否继续尝试
@@ -127,6 +128,7 @@ class ProxyServerService {
           startTime: startTime,
           error: e,
           mappedRequestBodyBytes: preparedRequest?.bodyBytes,
+          forwardedHeaders: preparedRequest?.headers,
         );
       }
     }

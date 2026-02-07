@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
@@ -47,6 +48,7 @@ class ProxyServerResponseHandler {
     List<int> requestBodyBytes,
     int startTime, {
     List<int>? mappedRequestBodyBytes,
+    Map<String, String>? forwardedHeaders,
   }) async {
     final statusCode = response.statusCode;
     final requestBodyToLog = mappedRequestBodyBytes ?? requestBodyBytes;
@@ -60,14 +62,28 @@ class ProxyServerResponseHandler {
         requestBodyToLog,
         startTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        forwardedHeaders: forwardedHeaders,
       );
     } else if (statusCode >= 400 && statusCode < 500) {
       // 客户端错误 → 读取错误响应体，记录日志，返回响应（不重试）
       final responseBodyBytes = await response.stream.toBytes();
       final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
-      // 解码响应体以保存错误信息
-      final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
+      // 解压并解码响应体以保存错误信息
+      final contentEncoding = response.headers['content-encoding'];
+      final decompressedBytes = ResponseDecompressor.decompress(
+        responseBodyBytes,
+        contentEncoding,
+      );
+      final bodyStr = utf8.decode(decompressedBytes, allowMalformed: true);
+
+      // 转发响应头（移除 transfer-encoding 因为 http 包已自动解码 chunked，
+      // 保留 content-encoding 让客户端自行解压）
+      final forwardedResponseHeaders = Map<String, String>.from(
+        response.headers,
+      )
+        ..remove('transfer-encoding')
+        ..remove('content-length');
 
       // 记录请求日志（包含错误信息）
       _recordRequestWithBody(
@@ -77,20 +93,16 @@ class ProxyServerResponseHandler {
         response: response,
         responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        forwardedHeaders: forwardedHeaders,
+        forwardedResponseHeaders: forwardedResponseHeaders,
         errorBody: bodyStr,
         responseBody: bodyStr,
       );
 
-      // 清理响应头
-      final cleanHeaders = Map<String, String>.from(response.headers)
-        ..remove('transfer-encoding')
-        ..remove('content-encoding')
-        ..remove('content-length');
-
-      // 返回错误响应给客户端
+      // 返回原始压缩数据给客户端
       return shelf.Response(
         response.statusCode,
-        headers: cleanHeaders,
+        headers: forwardedResponseHeaders,
         body: responseBodyBytes,
       );
     } else if (statusCode >= 500) {
@@ -98,9 +110,21 @@ class ProxyServerResponseHandler {
       final responseBodyBytes = await response.stream.toBytes();
       final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
-      // 尝试提取 token（服务器错误也可能包含 usage）
-      final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
+      // 解压并解码以提取 token
+      final contentEncoding = response.headers['content-encoding'];
+      final decompressedBytes = ResponseDecompressor.decompress(
+        responseBodyBytes,
+        contentEncoding,
+      );
+      final bodyStr = utf8.decode(decompressedBytes, allowMalformed: true);
       final usage = _tokenExtractor.extractUsage(bodyStr);
+
+      // 转发响应头
+      final forwardedResponseHeaders = Map<String, String>.from(
+        response.headers,
+      )
+        ..remove('transfer-encoding')
+        ..remove('content-length');
 
       _recordRequestWithBody(
         endpoint: endpoint,
@@ -109,19 +133,17 @@ class ProxyServerResponseHandler {
         response: response,
         responseTime: responseTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        forwardedHeaders: forwardedHeaders,
+        forwardedResponseHeaders: forwardedResponseHeaders,
         tokenUsage: usage,
         errorBody: bodyStr,
         responseBody: bodyStr,
       );
 
-      final cleanHeaders = Map<String, String>.from(response.headers)
-        ..remove('transfer-encoding')
-        ..remove('content-encoding')
-        ..remove('content-length');
-
+      // 返回原始压缩数据给客户端
       return shelf.Response(
         response.statusCode,
-        headers: cleanHeaders,
+        headers: forwardedResponseHeaders,
         body: responseBodyBytes,
       );
     } else {
@@ -132,6 +154,7 @@ class ProxyServerResponseHandler {
         requestBodyToLog,
         startTime,
         mappedRequestBodyBytes: mappedRequestBodyBytes,
+        forwardedHeaders: forwardedHeaders,
       );
     }
   }
@@ -143,6 +166,7 @@ class ProxyServerResponseHandler {
     required int? startTime,
     required Object error,
     List<int>? mappedRequestBodyBytes,
+    Map<String, String>? forwardedHeaders,
   }) {
     // 如果 startTime 为 null，说明在请求准备阶段就失败了，没有真正发起 API 请求
     final responseTime = startTime != null
@@ -155,6 +179,7 @@ class ProxyServerResponseHandler {
       method: request.method,
       body: utf8.decode(bodyBytesToUse, allowMalformed: true),
       headers: request.headers,
+      forwardedHeaders: forwardedHeaders,
     );
 
     final proxyResponse = ProxyServerResponse(
@@ -174,31 +199,40 @@ class ProxyServerResponseHandler {
     List<int> requestBodyBytes,
     int startTime, {
     List<int>? mappedRequestBodyBytes,
+    Map<String, String>? forwardedHeaders,
   }) async {
     final isStream = _processor.isStream(response.headers);
-    final cleanHeaders = Map<String, String>.from(response.headers)
+    final contentEncoding = response.headers['content-encoding'];
+    // 转发响应头（移除 transfer-encoding 因为 http 包已自动解码 chunked，
+    // 保留 content-encoding 让客户端自行解压）
+    final forwardedResponseHeaders = Map<String, String>.from(response.headers)
       ..remove('transfer-encoding')
-      ..remove('content-encoding')
       ..remove('content-length');
 
     if (isStream) {
       // 流式响应：在流完成时才计算响应时间
       return _processor.processStreamResponse(
         response,
-        cleanHeaders,
+        forwardedResponseHeaders,
         startTime,
         _tokenExtractor,
-        (Map<String, int?>? tokenUsage, int responseTime, String responseBody) =>
-            _recordRequestWithBody(
-              endpoint: endpoint,
-              request: request,
-              requestBodyBytes: requestBodyBytes,
-              response: response,
-              responseTime: responseTime,
-              mappedRequestBodyBytes: mappedRequestBodyBytes,
-              tokenUsage: tokenUsage,
-              responseBody: responseBody,
-            ),
+        contentEncoding,
+        (
+          Map<String, int?>? tokenUsage,
+          int responseTime,
+          String responseBody,
+        ) => _recordRequestWithBody(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          response: response,
+          responseTime: responseTime,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
+          forwardedHeaders: forwardedHeaders,
+          forwardedResponseHeaders: forwardedResponseHeaders,
+          tokenUsage: tokenUsage,
+          responseBody: responseBody,
+        ),
         (Object error) => recordException(
           endpoint: endpoint,
           request: request,
@@ -206,26 +240,30 @@ class ProxyServerResponseHandler {
           startTime: startTime,
           error: error,
           mappedRequestBodyBytes: mappedRequestBodyBytes,
+          forwardedHeaders: forwardedHeaders,
         ),
       );
     } else {
       // 非流式响应：在读取完响应体后计算响应时间并提取 token
       return await _processor.processNormalResponse(
         response,
-        cleanHeaders,
+        forwardedResponseHeaders,
         startTime,
         _tokenExtractor,
+        contentEncoding,
         (int responseTime, Map<String, int?>? usage, String responseBody) =>
             _recordRequestWithBody(
-          endpoint: endpoint,
-          request: request,
-          requestBodyBytes: requestBodyBytes,
-          response: response,
-          responseTime: responseTime,
-          mappedRequestBodyBytes: mappedRequestBodyBytes,
-          tokenUsage: usage,
-          responseBody: responseBody,
-        ),
+              endpoint: endpoint,
+              request: request,
+              requestBodyBytes: requestBodyBytes,
+              response: response,
+              responseTime: responseTime,
+              mappedRequestBodyBytes: mappedRequestBodyBytes,
+              forwardedHeaders: forwardedHeaders,
+              forwardedResponseHeaders: forwardedResponseHeaders,
+              tokenUsage: usage,
+              responseBody: responseBody,
+            ),
       );
     }
   }
@@ -237,6 +275,8 @@ class ProxyServerResponseHandler {
     required http.StreamedResponse response,
     required int responseTime,
     List<int>? mappedRequestBodyBytes,
+    Map<String, String>? forwardedHeaders,
+    Map<String, String>? forwardedResponseHeaders,
     Map<String, int?>? tokenUsage,
     String? errorBody,
     String? responseBody,
@@ -247,11 +287,13 @@ class ProxyServerResponseHandler {
       method: request.method,
       body: utf8.decode(bodyBytesToUse, allowMalformed: true),
       headers: request.headers,
+      forwardedHeaders: forwardedHeaders,
     );
 
     final proxyResponse = ProxyServerResponse(
       statusCode: response.statusCode,
       headers: response.headers,
+      forwardedHeaders: forwardedResponseHeaders,
       responseTime: responseTime,
       timeToFirstByte: null,
       usage: tokenUsage,
@@ -260,6 +302,41 @@ class ProxyServerResponseHandler {
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
+  }
+}
+
+/// 响应体解压工具
+class ResponseDecompressor {
+  /// 根据 content-encoding 解压响应体字节
+  /// 返回解压后的字节，如果不需要解压或不支持的格式则返回原始字节
+  static List<int> decompress(List<int> bytes, String? contentEncoding) {
+    if (contentEncoding == null || contentEncoding.isEmpty) return bytes;
+
+    try {
+      switch (contentEncoding.toLowerCase()) {
+        case 'gzip':
+          return gzip.decode(bytes);
+        case 'deflate':
+          return zlib.decode(bytes);
+        case 'br':
+          LoggerUtil.instance.w(
+            'Brotli decompression not supported, raw bytes used for logging',
+          );
+          return bytes;
+        case 'zstd':
+          LoggerUtil.instance.w(
+            'Zstd decompression not supported, raw bytes used for logging',
+          );
+          return bytes;
+        default:
+          return bytes;
+      }
+    } catch (e) {
+      LoggerUtil.instance.w(
+        'Failed to decompress response body ($contentEncoding): $e',
+      );
+      return bytes;
+    }
   }
 }
 
@@ -274,58 +351,97 @@ class ResponseProcessor {
 
   Future<shelf.Response> processNormalResponse(
     http.StreamedResponse response,
-    Map<String, String> cleanHeaders,
+    Map<String, String> responseHeaders,
     int startTime,
     TokenExtractor extractor,
-    void Function(int responseTime, Map<String, int?>? usage, String responseBody)
-        recordStats,
+    String? contentEncoding,
+    void Function(
+      int responseTime,
+      Map<String, int?>? usage,
+      String responseBody,
+    )
+    recordStats,
   ) async {
     final responseBodyBytes = await response.stream.toBytes();
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
-    // 提取 token 使用量（非流式响应）
-    final bodyStr = utf8.decode(responseBodyBytes, allowMalformed: true);
+    // 解压后提取 token 使用量（非流式响应）
+    final decompressedBytes = ResponseDecompressor.decompress(
+      responseBodyBytes,
+      contentEncoding,
+    );
+    final bodyStr = utf8.decode(decompressedBytes, allowMalformed: true);
     final usage = extractor.extractUsage(bodyStr);
 
     recordStats(responseTime, usage, bodyStr);
 
+    // 返回原始压缩数据给客户端
     return shelf.Response(
       response.statusCode,
-      headers: cleanHeaders,
+      headers: responseHeaders,
       body: responseBodyBytes,
     );
   }
 
   shelf.Response processStreamResponse(
     http.StreamedResponse response,
-    Map<String, String> cleanHeaders,
+    Map<String, String> responseHeaders,
     int startTime,
     TokenExtractor extractor,
-    void Function(Map<String, int?>? tokenUsage, int responseTime, String responseBody)
-        recordStats,
+    String? contentEncoding,
+    void Function(
+      Map<String, int?>? tokenUsage,
+      int responseTime,
+      String responseBody,
+    )
+    recordStats,
     void Function(Object error) recordException,
   ) {
     int? inputTokens;
     int? outputTokens;
     final responseChunks = <String>[];
+    final isCompressed = contentEncoding != null && contentEncoding.isNotEmpty;
+    final rawChunks = isCompressed ? <List<int>>[] : null;
 
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
         handleData: (chunk, sink) {
+          // 原始数据原封不动转发给客户端
           sink.add(chunk);
-          final text = utf8.decode(chunk, allowMalformed: true);
-          responseChunks.add(text);
-          inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
-          outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
+
+          if (isCompressed) {
+            // 压缩数据先收集，流结束后统一解压
+            rawChunks!.add(chunk);
+          } else {
+            final text = utf8.decode(chunk, allowMalformed: true);
+            responseChunks.add(text);
+            inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
+            outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
+          }
         },
         handleDone: (sink) {
           final responseTime =
               DateTime.now().millisecondsSinceEpoch - startTime;
+
+          if (isCompressed && rawChunks != null) {
+            // 将所有块合并后统一解压
+            final allBytes = rawChunks.expand((c) => c).toList();
+            final decompressed = ResponseDecompressor.decompress(
+              allBytes,
+              contentEncoding,
+            );
+            final text = utf8.decode(decompressed, allowMalformed: true);
+            responseChunks.add(text);
+            inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
+            outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
+          }
+
           final responseBody = responseChunks.join();
-          recordStats({
-            'input': inputTokens,
-            'output': outputTokens,
-          }, responseTime, responseBody);
+          recordStats(
+            {'input': inputTokens, 'output': outputTokens},
+            responseTime,
+            responseBody,
+          );
           sink.close();
         },
         handleError: (error, stackTrace, sink) {
@@ -338,7 +454,7 @@ class ResponseProcessor {
 
     return shelf.Response(
       response.statusCode,
-      headers: cleanHeaders,
+      headers: responseHeaders,
       body: transformedStream,
     );
   }

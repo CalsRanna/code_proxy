@@ -63,6 +63,19 @@ class ProxyServerRequestHandler {
     headers.remove('authorization');
     headers.remove('host');
     headers.remove('content-length');
+    // 将 accept-encoding 限制为 gzip, deflate
+    //
+    // 原因：Dart 标准库仅支持 gzip/deflate 解压，不支持 brotli(br)/zstd。
+    // 客户端（如 Claude Code CLI）原始请求中携带 accept-encoding: gzip, deflate, br, zstd，
+    // 当上游 API 返回 brotli 压缩的响应时，代理无法解压以提取 token 使用量和记录审计日志。
+    // 修改此头不会影响上游处理请求，accept-encoding 是标准的 HTTP 内容协商头，
+    // 各类代理和 CDN 在链路中修改它是常规行为。
+    //
+    // 替代方案：引入第三方包支持 brotli/zstd 解压，保持请求头不变：
+    //   - brotli (pub.dev/packages/brotli): 纯 Dart 实现，推荐，无 FFI 依赖
+    //   - es_compression (pub.dev/packages/es_compression): FFI 实现，
+    //     同时支持 brotli/lz4/zstd，性能更好但需要预编译二进制
+    headers['accept-encoding'] = 'gzip, deflate';
     return headers;
   }
 

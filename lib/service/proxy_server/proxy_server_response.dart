@@ -3,8 +3,11 @@ class ProxyServerResponse {
   /// HTTP 状态码
   final int statusCode;
 
-  /// 响应头
+  /// 原始响应头（上游 API 返回的）
   final Map<String, String> headers;
+
+  /// 转发响应头（代理返回给客户端的，移除了 transfer-encoding 等）
+  final Map<String, String>? forwardedHeaders;
 
   /// 响应时间（毫秒）- 总时间
   final int responseTime;
@@ -29,6 +32,7 @@ class ProxyServerResponse {
     required this.statusCode,
     required this.headers,
     required this.responseTime,
+    this.forwardedHeaders,
     this.timeToFirstByte,
     this.usage,
     this.errorBody,
