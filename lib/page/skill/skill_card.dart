@@ -8,11 +8,7 @@ class SkillCard extends StatefulWidget {
   final SkillEntity skill;
   final void Function()? onUninstall;
 
-  const SkillCard({
-    super.key,
-    required this.skill,
-    this.onUninstall,
-  });
+  const SkillCard({super.key, required this.skill, this.onUninstall});
 
   @override
   State<SkillCard> createState() => _SkillCardState();

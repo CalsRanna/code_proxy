@@ -42,8 +42,10 @@ class DefaultModelMapperEntity {
     }
 
     return DefaultModelMapperEntity(
-      anthropicDefaultHaikuModel: yaml['anthropic_default_haiku_model'] as String,
-      anthropicDefaultSonnetModel: yaml['anthropic_default_sonnet_model'] as String,
+      anthropicDefaultHaikuModel:
+          yaml['anthropic_default_haiku_model'] as String,
+      anthropicDefaultSonnetModel:
+          yaml['anthropic_default_sonnet_model'] as String,
       anthropicDefaultOpusModel: yaml['anthropic_default_opus_model'] as String,
       anthropicModel: yaml['anthropic_model'] as String,
       anthropicSmallFastModel: yaml['anthropic_small_fast_model'] as String,

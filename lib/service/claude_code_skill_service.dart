@@ -103,7 +103,10 @@ class ClaudeCodeSkillService {
   /// 返回 frontmatter 中的 name 和 description
   Map<String, String>? _parseSkillMd(String content) {
     // 匹配 YAML frontmatter
-    final frontmatterRegex = RegExp(r'^---\s*\n([\s\S]*?)\n---', multiLine: true);
+    final frontmatterRegex = RegExp(
+      r'^---\s*\n([\s\S]*?)\n---',
+      multiLine: true,
+    );
     final match = frontmatterRegex.firstMatch(content);
 
     if (match == null) {
@@ -167,7 +170,8 @@ class ClaudeCodeSkillService {
     } else {
       // 完整仓库：直接 clone
       await _cloneRepository(
-        url: 'https://github.com/${parsedUrl['owner']}/${parsedUrl['repo']}.git',
+        url:
+            'https://github.com/${parsedUrl['owner']}/${parsedUrl['repo']}.git',
         targetDir: targetDir,
       );
     }
@@ -225,7 +229,9 @@ class ClaudeCodeSkillService {
     }
 
     // 匹配完整仓库 URL: https://github.com/owner/repo
-    final repoRegex = RegExp(r'^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?$');
+    final repoRegex = RegExp(
+      r'^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?$',
+    );
     final repoMatch = repoRegex.firstMatch(url);
 
     if (repoMatch != null) {
@@ -281,27 +287,30 @@ class ClaudeCodeSkillService {
 
     try {
       // 初始化空仓库
-      var result = await Process.run('git', ['init'], workingDirectory: tempDir.path);
+      var result = await Process.run('git', [
+        'init',
+      ], workingDirectory: tempDir.path);
       if (result.exitCode != 0) {
         throw SkillServiceException('初始化仓库失败');
       }
 
       // 添加远程仓库
-      result = await Process.run(
-        'git',
-        ['remote', 'add', 'origin', 'https://github.com/$owner/$repo.git'],
-        workingDirectory: tempDir.path,
-      );
+      result = await Process.run('git', [
+        'remote',
+        'add',
+        'origin',
+        'https://github.com/$owner/$repo.git',
+      ], workingDirectory: tempDir.path);
       if (result.exitCode != 0) {
         throw SkillServiceException('添加远程仓库失败');
       }
 
       // 配置 sparse checkout
-      result = await Process.run(
-        'git',
-        ['config', 'core.sparseCheckout', 'true'],
-        workingDirectory: tempDir.path,
-      );
+      result = await Process.run('git', [
+        'config',
+        'core.sparseCheckout',
+        'true',
+      ], workingDirectory: tempDir.path);
       if (result.exitCode != 0) {
         throw SkillServiceException('配置 sparse checkout 失败');
       }
@@ -314,11 +323,13 @@ class ClaudeCodeSkillService {
       await sparseCheckoutFile.writeAsString('$subPath/\n');
 
       // 拉取指定分支
-      result = await Process.run(
-        'git',
-        ['pull', '--depth', '1', 'origin', branch],
-        workingDirectory: tempDir.path,
-      );
+      result = await Process.run('git', [
+        'pull',
+        '--depth',
+        '1',
+        'origin',
+        branch,
+      ], workingDirectory: tempDir.path);
       if (result.exitCode != 0) {
         throw SkillServiceException('拉取代码失败: ${result.stderr}');
       }

@@ -15,11 +15,7 @@ class AppRestartUtil {
 
     // 3. 启动新进程
     // mode: ProcessStartMode.detached 确保新进程独立运行
-    await Process.start(
-      executable,
-      args,
-      mode: ProcessStartMode.detached,
-    );
+    await Process.start(executable, args, mode: ProcessStartMode.detached);
 
     // 4. 退出当前进程
     exit(0);

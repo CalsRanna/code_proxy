@@ -65,7 +65,8 @@ class SettingViewModel {
 
     disableDuration.value = await SharedPreferenceUtil.instance
         .getDisableDuration();
-    disableDurationController.text = (disableDuration.value ~/ 60000).toString();
+    disableDurationController.text = (disableDuration.value ~/ 60000)
+        .toString();
 
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();

@@ -374,7 +374,11 @@ class ShadcnColors {
   // ==================== 辅助方法 ====================
 
   /// 根据亮度模式获取对应的颜色
-  static Color getColor(Brightness brightness, Color lightColor, Color darkColor) {
+  static Color getColor(
+    Brightness brightness,
+    Color lightColor,
+    Color darkColor,
+  ) {
     return brightness == Brightness.light ? lightColor : darkColor;
   }
 
@@ -400,7 +404,9 @@ class ShadcnColors {
 
   /// 获取弱化前景色
   static Color mutedForeground(Brightness brightness) {
-    return brightness == Brightness.light ? lightMutedForeground : darkMutedForeground;
+    return brightness == Brightness.light
+        ? lightMutedForeground
+        : darkMutedForeground;
   }
 
   /// 获取边框色

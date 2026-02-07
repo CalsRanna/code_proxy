@@ -18,8 +18,8 @@ class McpServerViewModel {
     error.value = null;
 
     try {
-      final servers =
-          await ClaudeCodeMcpServerService.instance.readMcpServers();
+      final servers = await ClaudeCodeMcpServerService.instance
+          .readMcpServers();
       mcpServers.value = servers;
     } catch (e) {
       error.value = '加载 MCP 配置失败: $e';
@@ -42,8 +42,9 @@ class McpServerViewModel {
       name: name.trim().isEmpty ? id.trim() : name.trim(),
       config: config,
       enabled: true,
-      description:
-          description?.trim().isEmpty == true ? null : description?.trim(),
+      description: description?.trim().isEmpty == true
+          ? null
+          : description?.trim(),
       homepage: homepage?.trim().isEmpty == true ? null : homepage?.trim(),
       docs: docs?.trim().isEmpty == true ? null : docs?.trim(),
     );
@@ -71,8 +72,9 @@ class McpServerViewModel {
       name: name,
       config: config,
       enabled: enabled,
-      description:
-          description?.trim().isEmpty == true ? null : description?.trim(),
+      description: description?.trim().isEmpty == true
+          ? null
+          : description?.trim(),
       homepage: homepage?.trim().isEmpty == true ? null : homepage?.trim(),
       docs: docs?.trim().isEmpty == true ? null : docs?.trim(),
     );
