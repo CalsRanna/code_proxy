@@ -124,45 +124,59 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
-    var proxyGroupTitle = _buildGroupTitle('代理服务器');
-    var claudeCodeGroupTitle = _buildGroupTitle('Claude Code');
-    var listView = ListView(
-      padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
-      children: [
-        proxyGroupTitle,
-        portListTile,
-        maxRetriesTile,
-        disableDurationTile,
-        launchAtStartupTile,
-        auditRetainDaysTile,
-        sizeTile,
-        resetTile,
-        claudeCodeGroupTitle,
-        apiTimeoutTile,
-        attributionHeaderTile,
-        disableNonessentialTrafficTile,
-        versionTile,
+    var pageHeader = PageHeader(title: '设置', subtitle: '管理代理服务器配置和应用选项');
+    var tabs = ShadTabs<String>(
+      value: 'proxy',
+      maintainState: false,
+      tabs: [
+        ShadTab(
+          value: 'proxy',
+          expandContent: true,
+          content: ListView(
+            padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
+            children: [
+              portListTile,
+              maxRetriesTile,
+              disableDurationTile,
+              launchAtStartupTile,
+              auditRetainDaysTile,
+              sizeTile,
+              resetTile,
+              versionTile,
+            ],
+          ),
+          child: const Text('代理服务器'),
+        ),
+        ShadTab(
+          value: 'claude_code',
+          expandContent: true,
+          content: ListView(
+            padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
+            children: [
+              apiTimeoutTile,
+              attributionHeaderTile,
+              disableNonessentialTrafficTile,
+              versionTile,
+            ],
+          ),
+          child: const Text('Claude Code'),
+        ),
       ],
     );
-    var pageHeader = PageHeader(title: '设置', subtitle: '管理代理服务器配置和应用选项');
-    var children = [pageHeader, Expanded(child: listView)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: children,
-    );
-  }
-
-  Widget _buildGroupTitle(String title) {
-    var textStyle = TextStyle(
-      fontWeight: FontWeight.w500,
-      color: ShadcnColors.zinc500,
-    );
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: ShadcnSpacing.spacing16,
-        vertical: ShadcnSpacing.spacing8,
-      ),
-      child: Text(title, style: textStyle),
+      children: [
+        pageHeader,
+        SizedBox(height: ShadcnSpacing.spacing24),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: ShadcnSpacing.spacing24,
+            ),
+            child: tabs,
+          ),
+        ),
+      ],
     );
   }
 
