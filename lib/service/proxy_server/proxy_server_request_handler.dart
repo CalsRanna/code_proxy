@@ -59,8 +59,8 @@ class ProxyServerRequestHandler {
     EndpointEntity endpoint,
   ) {
     final headers = Map<String, String>.from(request.headers);
-    headers['x-api-key'] = endpoint.anthropicAuthToken ?? '';
-    headers.remove('authorization');
+    // 保留客户端原始的认证方式，只替换 key 值
+    _replaceAuthToken(headers, endpoint);
     headers.remove('host');
     headers.remove('content-length');
     // 将 accept-encoding 限制为 gzip, deflate
@@ -77,6 +77,25 @@ class ProxyServerRequestHandler {
     //     同时支持 brotli/lz4/zstd，性能更好但需要预编译二进制
     headers['accept-encoding'] = 'gzip, deflate';
     return headers;
+  }
+
+  /// 根据客户端原始的认证方式替换 key 值
+  ///
+  /// 如果客户端使用 x-api-key，则替换 x-api-key 的值；
+  /// 如果客户端使用 Authorization: Bearer，则替换 Bearer token；
+  /// 如果两者都没有，则默认使用 x-api-key。
+  void _replaceAuthToken(
+    Map<String, String> headers,
+    EndpointEntity endpoint,
+  ) {
+    final token = endpoint.anthropicAuthToken ?? '';
+    if (headers.containsKey('x-api-key')) {
+      headers['x-api-key'] = token;
+    } else if (headers.containsKey('authorization')) {
+      headers['authorization'] = 'Bearer $token';
+    } else {
+      headers['x-api-key'] = token;
+    }
   }
 
   /// 处理请求体中的模型映射
