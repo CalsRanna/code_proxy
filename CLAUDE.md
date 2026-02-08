@@ -4,242 +4,87 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-**Code Proxy** 是一个 Flutter 桌面应用程序，用于管理多个 Anthropic API 端点，实现智能负载均衡、故障转移和请求路由。该应用支持 macOS、Windows 和 Linux 平台。
+Code Proxy 是一个 Flutter 桌面应用，为 Claude Code 提供本地 Anthropic API 代理服务。支持配置多个 API 端点，采用主备故障转移策略（请求始终发往优先级最高的端点，仅在失败时切换），最大化 prompt cache 命中率。同时提供模型映射、请求审计、MCP 服务器管理和技能安装等功能。
 
-## 技术栈
-
-- **框架**: Flutter 3.10+
-- **状态管理**: signals (signals_flutter)
-- **依赖注入**: get_it
-- **路由**: auto_route
-- **UI 框架**: shadcn_ui
-- **数据库**: sqlite3 + laconic ORM
-- **Web 服务器**: shelf (Dart 原生 HTTP 服务器)
-- **图标**: lucide_icons_flutter
-- **图表**: syncfusion_flutter_charts
-- **桌面集成**: tray_manager, window_manager
+支持 macOS、Windows、Linux。
 
 ## 常用命令
 
-### 开发命令
-
 ```bash
-# 运行应用程序（开发模式）
-flutter run
+# 开发
+flutter run -d macos                # 运行（macos/windows/linux）
+flutter analyze                      # 代码分析
+flutter test                         # 运行全部测试
+flutter test test/widget_test.dart   # 运行单个测试
 
-# 在指定平台运行
-flutter run -d macos
-flutter run -d windows
-flutter run -d linux
+# 代码生成（修改路由后必须执行）
+dart run build_runner build --delete-conflicting-outputs
 
-# 代码分析
-flutter analyze
-
-# 运行测试
-flutter test
-
-# 运行特定测试文件
-flutter test test/widget_test.dart
+# 构建
+flutter build macos                  # 构建（macos/windows/linux）
 ```
 
-### 构建命令
+## 架构
 
-```bash
-# 构建当前平台的发布版本
-flutter build
-
-# 构建特定平台
-flutter build macos
-flutter build windows
-flutter build linux
-
-# 构建 web 版本
-flutter build web
-
-# 清理构建文件
-flutter clean
-```
-
-### 依赖管理
-
-```bash
-# 获取依赖
-flutter pub get
-
-# 升级依赖（自动处理主版本）
-flutter pub upgrade --major-versions
-
-# 查看过时依赖
-flutter pub outdated
-```
-
-## 项目架构
-
-### 目录结构
+### MVVM 分层
 
 ```
-lib/
-├── database/          # 数据库相关
-│   ├── database.dart
-│   └── migration/     # 数据库迁移脚本
-├── di.dart           # 依赖注入配置
-├── main.dart         # 应用程序入口
-├── model/            # 数据模型
-│   ├── endpoint_entity.dart
-│   └── request_log.dart
-├── page/             # 页面组件
-│   ├── dashboard/    # 仪表盘页面
-│   ├── endpoint/     # 端点管理页面
-│   ├── request_log/  # 请求日志页面
-│   ├── home_page.dart
-│   └── setting_page.dart
-├── repository/       # 数据访问层
-│   ├── endpoint_repository.dart
-│   └── request_log_repository.dart
-├── router/           # 路由配置
-│   └── router.dart
-├── services/         # 业务服务
-│   ├── claude_code_setting_service.dart
-│   └── proxy_server/ # 代理服务器核心
-│       ├── proxy_server_service.dart     # 主服务
-│       ├── proxy_server_config.dart      # 配置
-│       ├── proxy_server_router.dart      # 路由逻辑
-│       ├── proxy_server_request_handler.dart
-│       ├── proxy_server_response_handler.dart
-│       └── ... (其他处理器)
-├── themes/           # 主题和样式
-├── util/             # 工具类
-│   ├── logger_util.dart
-│   ├── window_util.dart
-│   └── tray_util.dart
-├── view_model/       # 视图模型
-│   ├── dashboard_view_model.dart
-│   ├── endpoint_view_model.dart
-│   ├── home_view_model.dart
-│   ├── request_log_view_model.dart
-│   └── setting_view_model.dart
-└── widgets/          # 共享组件
+View (lib/page/)          UI 页面，用 Watch() 包裹实现信号响应
+  ↓
+ViewModel (lib/view_model/)  业务逻辑，用 signal / listSignal 管理状态
+  ↓
+Service (lib/service/)     核心服务（代理服务器、Claude Code 配置）
+  ↓
+Repository (lib/repository/)  数据访问，封装 Laconic ORM 查询
+  ↓
+Model (lib/model/)         数据实体
 ```
 
-### 架构模式
+ViewModel 通过 `GetIt.instance.get<T>()` 获取，全部在 `lib/di.dart` 注册为懒加载单例。
 
-项目采用 **MVVM (Model-View-ViewModel)** 架构：
+### 状态管理（signals）
 
-- **Model**: `lib/model/` - 数据模型和实体
-- **View**: `lib/page/` - UI 页面和组件
-- **ViewModel**: `lib/view_model/` - 状态管理和业务逻辑
-- **Repository**: `lib/repository/` - 数据访问层
-- **Services**: `lib/services/` - 核心业务服务（代理服务器）
+ViewModel 中定义信号，页面在 `initState()` 调用 `initSignals()` 初始化，UI 用 `Watch((context) => ...)` 包裹以响应变化。
 
-### 依赖注入
+### 初始化流程（main.dart）
 
-使用 **get_it** 进行依赖注入，配置在 `lib/di.dart`：
+Database → DI → WindowUtil → TrayUtil → LaunchAtStartup → runApp
 
-```dart
-class DI {
-  static void ensureInitialized() {
-    final instance = GetIt.instance;
-    instance.registerLazySingleton<HomeViewModel>(() => HomeViewModel());
-    instance.registerLazySingleton<DashboardViewModel>(() => DashboardViewModel());
-    instance.registerLazySingleton<EndpointViewModel>(() => EndpointViewModel());
-    instance.registerLazySingleton<RequestLogViewModel>(() => RequestLogViewModel());
-    instance.registerLazySingleton<SettingViewModel>(() => SettingViewModel());
-  }
-}
+### 代理服务器（lib/service/proxy_server/）
+
+核心请求处理流程：
+
+```
+接收请求 → Router 选择端点 → RequestHandler 构建并转发请求 → ResponseHandler 处理响应 → LogHandler 记录日志 → 返回响应或故障转移
 ```
 
-### 代理服务器架构
+- **ProxyServerService** — 主编排器，基于 shelf HTTP 服务器，实现请求重试循环
+- **ProxyServerRouter** — 状态机实现端点选择。5xx/异常按指数退避重试同一端点（上限 maxRetries 次），耗尽后故障转移到下一个；429 立即禁用端点并切换；4xx 直接返回不重试
+- **ProxyServerRequestHandler** — 构建转发请求，处理认证方式保留（`x-api-key` vs `Authorization: Bearer`）和模型名称映射
+- **ProxyServerResponseHandler** — 处理流式/非流式响应，提取 Token 用量，处理响应解压（gzip/deflate）
+- **ProxyServerModelMapper** — 将环境变量模型名（`ANTHROPIC_DEFAULT_SONNET_MODEL` 等）映射到端点配置的实际模型
 
-代理服务器 (`lib/services/proxy_server/`) 是应用的核心功能：
+### Claude Code 集成服务
 
-1. **ProxyServerService** - 主服务，协调整个代理流程
-2. **ProxyServerRouter** - 路由逻辑，处理端点选择和故障转移
-3. **ProxyServerRequestHandler** - 请求处理，构建和转发 HTTP 请求
-4. **ProxyServerResponseHandler** - 响应处理，记录日志和判断是否需要重试
-5. **ProxyServerConfig** - 配置管理（端口、重试策略等）
-
-代理流程：
-1. 接收请求 → 2. 路由到下一个端点 → 3. 发送请求 → 4. 处理响应 → 5. 记录日志 → 6. 返回响应或重试下一个端点
+- **ClaudeCodeSettingService** — 启动代理时自动写入 `~/.claude/settings.json`，生成 `cp-<uuid>` 格式的会话 Token
+- **ClaudeCodeAuditService** — 审计日志记录到 `~/.code_proxy/audit/`，按天分目录，支持自动过期清理
+- **ClaudeCodeModelConfigService** — 管理全局默认模型映射（`~/.code_proxy/default_model.yaml`）
+- **ClaudeCodeMcpServerService** — 管理 `~/.claude.json` 中的 MCP 服务器配置
+- **ClaudeCodeSkillService** — 从 GitHub 安装技能到 `~/.claude/skills/`
 
 ### 数据库
 
-使用 **sqlite3 + laconic ORM**，数据库文件位于：
-- macOS: `~/Library/Application Support/code_proxy/code_proxy.db`
-- Linux: `~/.local/share/code_proxy/code_proxy.db`
-- Windows: `%APPDATA%\code_proxy\code_proxy.db`
+SQLite3 + Laconic ORM。数据库文件位于 `~/.code_proxy/code_proxy.db`。
 
-主要表：
-- `endpoints` - 存储端点配置
-- `request_logs` - 存储请求日志
+迁移文件在 `lib/database/migration/`，命名格式 `migration_YYYYMMDDHHMM.dart`。新增迁移后需在 `database.dart` 的 `_migrate()` 方法中按顺序调用。
 
-## 关键文件
+### UI
 
-### 入口和初始化
+使用 shadcn_ui 组件库，Montserrat 字体，lucide_icons_flutter 图标。自定义颜色和间距定义在 `lib/theme/`。
 
-- `lib/main.dart` - 应用程序入口，初始化数据库、DI、窗口和系统托盘
-- `lib/di.dart` - 依赖注入配置
-- `lib/database/database.dart` - 数据库初始化和迁移
+主页面（`home_page.dart`）包含 6 个导航标签：控制面板、端点、MCP 服务器、技能、日志、设置。
 
-### 核心服务
+### 桌面集成
 
-- `lib/services/proxy_server/proxy_server_service.dart` - 代理服务器主服务
-- `lib/services/proxy_server/proxy_server_config.dart` - 代理服务器配置
-- `lib/services/proxy_server/proxy_server_router.dart` - 端点路由和故障转移逻辑
-
-### 主要页面
-
-- `lib/page/home_page.dart` - 主页面，包含侧边栏导航
-- `lib/page/dashboard/dashboard_page.dart` - 仪表盘，显示统计数据
-- `lib/page/endpoint/endpoint_page.dart` - 端点管理页面
-- `lib/page/request_log/request_log_page.dart` - 请求日志页面
-
-## 开发注意事项
-
-1. **代码生成**: 项目使用 `auto_route_generator` 和 `build_runner`，修改路由或模型后需要运行 `dart run build_runner build --delete-conflicting-outputs`
-
-2. **状态管理**: 使用 signals 进行响应式状态管理，在 `initState()` 中调用 `initSignals()` 初始化信号
-
-3. **依赖注入**: 通过 `GetIt.instance.get<T>()` 获取 ViewModel 或服务实例
-
-4. **日志系统**: 使用 `LoggerUtil.instance` 进行日志记录
-
-5. **数据库迁移**: 新增表或字段时，在 `lib/database/migration/` 目录下创建新的迁移文件
-
-6. **UI 主题**: 使用 Shadcn UI 组件库，自定义主题在 `lib/themes/` 目录下
-
-## 测试
-
-项目包含基本的 widget 测试：
-- `test/widget_test.dart` - 主应用 widget 测试
-
-运行测试：
-```bash
-flutter test
-```
-
-## 构建和发布
-
-### 本地构建
-
-```bash
-# macOS
-flutter build macos
-
-# Windows
-flutter build windows
-
-# Linux
-flutter build linux
-```
-
-构建完成后，可执行文件位于：
-- macOS: `build/macos/Build/Products/Release/code_proxy.app`
-- Windows: `build\windows\x64\runner\Release\code_proxy.exe`
-- Linux: `build/linux/x64/release/bundle/code_proxy`
-
-## 平台支持
-
-- ✅ macOS (Intel & Apple Silicon)
-- ✅ Windows (x64)
-- ✅ Linux (x64)
-- ✅ Web (实验性支持)
+- **WindowUtil** — 窗口管理，macOS 隐藏标题栏 + 自定义按钮，最小窗口 1080x720，`Cmd+W` 隐藏到托盘
+- **TrayUtil** — 系统托盘，平台各异的图标格式（macOS: PNG template, Windows: ICO, Linux: PNG）
