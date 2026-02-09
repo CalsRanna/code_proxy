@@ -2,12 +2,12 @@
 
 <div align="center">
 
-![Code Proxy Logo](asset/logo.png)
+<img src="asset/logo.png" alt="Code Proxy Logo" width="128">
 
 **Anthropic API 多端点代理管理器**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.10+-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev/)
-[![License](https://img.shields.io/badge/License-Private-red?style=flat-square)](#)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat-square)](#)
 
 </div>
@@ -174,4 +174,4 @@ flutter build macos    # 或 windows / linux
 
 ## 许可证
 
-本项目为私有仓库，版权归作者所有。
+本项目基于 [MIT License](LICENSE) 开源。
