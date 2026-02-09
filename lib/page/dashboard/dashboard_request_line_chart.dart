@@ -60,6 +60,7 @@ class DashboardRequestsChart extends StatelessWidget {
             series: <CartesianSeries<MapEntry<String, double>, String>>[
               SplineAreaSeries<MapEntry<String, double>, String>(
                 dataSource: data,
+                splineType: SplineType.monotonic,
                 xValueMapper: (MapEntry<String, double> data, _) => data.key,
                 yValueMapper: (MapEntry<String, double> data, _) => data.value,
                 gradient: gradient,
