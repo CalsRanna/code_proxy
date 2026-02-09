@@ -62,6 +62,8 @@ class ProxyServerService {
       config.port,
       poweredByHeader: null,
     );
+    // 禁用自动压缩，代理透传上游已压缩的响应，避免双重压缩导致客户端 ZlibError
+    _server!.autoCompress = false;
     LoggerUtil.instance.d(
       'Proxy server started on ${config.address}:${config.port}',
     );
