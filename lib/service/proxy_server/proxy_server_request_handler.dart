@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 /// 请求处理器 - 负责请求准备和转发
@@ -12,7 +14,10 @@ class ProxyServerRequestHandler {
   final http.Client _httpClient;
   final ProxyServerConfig config;
 
-  ProxyServerRequestHandler(this.config) : _httpClient = http.Client();
+  // 禁用 HttpClient 的自动解压，代理透传上游原始压缩数据，
+  // 避免自动解压时遇到异常数据抛出 Zlib error
+  ProxyServerRequestHandler(this.config)
+      : _httpClient = IOClient(HttpClient()..autoUncompress = false);
 
   void close() {
     _httpClient.close();
