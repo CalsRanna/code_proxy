@@ -68,6 +68,15 @@ class ClaudeCodeModelConfigService {
     }
   }
 
+  /// 保存配置到文件并更新内存
+  Future<void> save(DefaultModelMapperEntity config) async {
+    final path = getConfigPath();
+    final file = File(path);
+    await file.parent.create(recursive: true);
+    await file.writeAsString(config.toYamlString());
+    _config = config;
+  }
+
   /// 创建默认配置文件
   Future<void> _createDefaultConfig(File file) async {
     await file.parent.create(recursive: true);

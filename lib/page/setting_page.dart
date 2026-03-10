@@ -113,6 +113,14 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
+    var defaultModelMappingTile = Watch((context) {
+      return ListTile(
+        title: const Text('默认模型'),
+        subtitle: Text('端点没有配置模型时使用的默认模型'),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => viewModel.editDefaultModelMapping(context),
+      );
+    });
     var versionTile = Watch((context) {
       return Padding(
         padding: const EdgeInsets.only(top: ShadcnSpacing.spacing24),
@@ -153,6 +161,7 @@ class _SettingPageState extends State<SettingPage> {
           content: ListView(
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
+              defaultModelMappingTile,
               apiTimeoutTile,
               attributionHeaderTile,
               disableNonessentialTrafficTile,

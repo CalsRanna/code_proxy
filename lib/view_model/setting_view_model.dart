@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:code_proxy/database/database.dart';
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
+import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/util/app_restart_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
@@ -32,6 +34,19 @@ class SettingViewModel {
   final apiTimeoutController = TextEditingController();
   final disableDurationController = TextEditingController();
   final auditRetainDaysController = TextEditingController();
+
+  // 默认模型映射
+  final defaultHaikuModel = signal('');
+  final defaultSonnetModel = signal('');
+  final defaultOpusModel = signal('');
+  final defaultModel = signal('');
+  final defaultSmallFastModel = signal('');
+
+  final defaultHaikuModelController = TextEditingController();
+  final defaultSonnetModelController = TextEditingController();
+  final defaultOpusModelController = TextEditingController();
+  final defaultModelController = TextEditingController();
+  final defaultSmallFastModelController = TextEditingController();
 
   Future<void> editListenPort(BuildContext context) async {
     showShadDialog(context: context, builder: _buildEditDialog);
@@ -86,6 +101,18 @@ class SettingViewModel {
 
     final packageInfo = await PackageInfo.fromPlatform();
     version.value = 'v${packageInfo.version} (${packageInfo.buildNumber})';
+
+    // 加载默认模型映射
+    final configService = ClaudeCodeModelConfigService.instance;
+    try {
+      await configService.load();
+    } catch (_) {}
+    final modelConfig = configService.config;
+    defaultHaikuModel.value = modelConfig.anthropicDefaultHaikuModel;
+    defaultSonnetModel.value = modelConfig.anthropicDefaultSonnetModel;
+    defaultOpusModel.value = modelConfig.anthropicDefaultOpusModel;
+    defaultModel.value = modelConfig.anthropicModel;
+    defaultSmallFastModel.value = modelConfig.anthropicSmallFastModel;
   }
 
   bool isValidHealthCheckPath(String path) {
@@ -439,5 +466,125 @@ class SettingViewModel {
       // 如果出错,至少尝试重启
       await AppRestartUtil.restart();
     }
+  }
+
+  Future<void> editDefaultModelMapping(BuildContext context) async {
+    // 同步控制器到当前信号值
+    defaultModelController.text = defaultModel.value;
+    defaultSmallFastModelController.text = defaultSmallFastModel.value;
+    defaultHaikuModelController.text = defaultHaikuModel.value;
+    defaultSonnetModelController.text = defaultSonnetModel.value;
+    defaultOpusModelController.text = defaultOpusModel.value;
+    showShadDialog(
+      context: context,
+      builder: _buildDefaultModelMappingDialog,
+    );
+  }
+
+  Future<void> updateDefaultModelMapping(BuildContext context) async {
+    final newConfig = DefaultModelMapperEntity(
+      anthropicDefaultHaikuModel: defaultHaikuModelController.text.trim(),
+      anthropicDefaultSonnetModel: defaultSonnetModelController.text.trim(),
+      anthropicDefaultOpusModel: defaultOpusModelController.text.trim(),
+      anthropicModel: defaultModelController.text.trim(),
+      anthropicSmallFastModel: defaultSmallFastModelController.text.trim(),
+    );
+
+    try {
+      await ClaudeCodeModelConfigService.instance.save(newConfig);
+      defaultHaikuModel.value = newConfig.anthropicDefaultHaikuModel;
+      defaultSonnetModel.value = newConfig.anthropicDefaultSonnetModel;
+      defaultOpusModel.value = newConfig.anthropicDefaultOpusModel;
+      defaultModel.value = newConfig.anthropicModel;
+      defaultSmallFastModel.value = newConfig.anthropicSmallFastModel;
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!context.mounted) return;
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return ShadDialog.alert(
+            title: const Text('错误'),
+            description: Text('保存配置失败: $e'),
+            actions: [
+              ShadButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
+
+  Widget _buildDefaultModelMappingDialog(BuildContext context) {
+    return ShadDialog(
+      title: const Text('默认模型映射'),
+      description: const Text('当端点未配置具体模型时使用以下默认值'),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        ShadButton(
+          onPressed: () => updateDefaultModelMapping(context),
+          child: const Text('保存'),
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ShadInput(
+                  controller: defaultModelController,
+                  placeholder: const Text('默认模型'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ShadInput(
+                  controller: defaultSmallFastModelController,
+                  placeholder: const Text('小型快速模型'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ShadInput(
+                  controller: defaultHaikuModelController,
+                  placeholder: const Text('Haiku 模型'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ShadInput(
+                  controller: defaultSonnetModelController,
+                  placeholder: const Text('Sonnet 模型'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ShadInput(
+                  controller: defaultOpusModelController,
+                  placeholder: const Text('Opus 模型'),
+                ),
+              ),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
