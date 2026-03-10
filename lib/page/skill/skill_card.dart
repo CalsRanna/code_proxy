@@ -16,11 +16,31 @@ class SkillCard extends StatefulWidget {
 
 class _SkillCardState extends State<SkillCard> {
   final controller = ShadPopoverController();
+  final _buttonKey = GlobalKey();
+  bool _showAbove = false;
 
   @override
   void dispose() {
     controller.dispose();
     super.dispose();
+  }
+
+  void _toggleMenu() {
+    final box = _buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box != null) {
+      final position = box.localToGlobal(Offset.zero);
+      final screenHeight = MediaQuery.of(context).size.height;
+      final spaceBelow = screenHeight - position.dy - box.size.height;
+      final needAbove = spaceBelow < 150;
+      if (needAbove != _showAbove) {
+        setState(() => _showAbove = needAbove);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          controller.toggle();
+        });
+        return;
+      }
+    }
+    controller.toggle();
   }
 
   @override
@@ -88,8 +108,12 @@ class _SkillCardState extends State<SkillCard> {
               const SizedBox(width: ShadcnSpacing.spacing16),
               ShadContextMenu(
                 anchor: ShadAnchor(
-                  childAlignment: Alignment.topRight,
-                  overlayAlignment: Alignment.bottomRight,
+                  childAlignment: _showAbove
+                      ? Alignment.bottomRight
+                      : Alignment.topRight,
+                  overlayAlignment: _showAbove
+                      ? Alignment.topRight
+                      : Alignment.bottomRight,
                 ),
                 controller: controller,
                 items: [
@@ -105,8 +129,9 @@ class _SkillCardState extends State<SkillCard> {
                   ),
                 ],
                 child: ShadIconButton.ghost(
+                  key: _buttonKey,
                   icon: const Icon(LucideIcons.ellipsis),
-                  onPressed: controller.toggle,
+                  onPressed: _toggleMenu,
                 ),
               ),
             ],
