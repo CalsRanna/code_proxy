@@ -17,10 +17,22 @@ class RequestLogRepository {
   }
 
   /// Get all request logs with pagination
-  Future<List<RequestLogEntity>> getAll({int? limit, int? offset}) async {
+  ///
+  /// [statusCodeFilter]: null=全部, 200=仅成功, -1=仅失败(非200)
+  Future<List<RequestLogEntity>> getAll({
+    int? limit,
+    int? offset,
+    int? statusCodeFilter,
+  }) async {
     var query = _database.laconic
         .table('request_logs')
         .orderBy('timestamp', direction: 'desc');
+
+    if (statusCodeFilter == 200) {
+      query = query.where('status_code', 200);
+    } else if (statusCodeFilter == -1) {
+      query = query.where('status_code', 200, comparator: '!=');
+    }
 
     if (limit != null) {
       query = query.limit(limit);
@@ -174,10 +186,18 @@ class RequestLogRepository {
   }
 
   /// Get total count of request logs
-  Future<int> getTotalCount() async {
-    final result = await _database.laconic.table('request_logs').select([
-      'id',
-    ]).count();
+  ///
+  /// [statusCodeFilter]: null=全部, 200=仅成功, -1=仅失败(非200)
+  Future<int> getTotalCount({int? statusCodeFilter}) async {
+    var query = _database.laconic.table('request_logs').select(['id']);
+
+    if (statusCodeFilter == 200) {
+      query = query.where('status_code', 200);
+    } else if (statusCodeFilter == -1) {
+      query = query.where('status_code', 200, comparator: '!=');
+    }
+
+    final result = await query.count();
     return result;
   }
 

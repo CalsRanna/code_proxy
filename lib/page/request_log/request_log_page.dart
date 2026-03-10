@@ -1,5 +1,6 @@
 import 'package:code_proxy/page/request_log/request_log_detail_dialog.dart';
 import 'package:code_proxy/page/request_log/request_log_pagination.dart';
+import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/widget/page_header.dart';
@@ -17,16 +18,22 @@ class RequestLogPage extends StatefulWidget {
 
 class _RequestLogPageState extends State<RequestLogPage> {
   final viewModel = GetIt.instance.get<RequestLogViewModel>();
+  final _filterController = ShadPopoverController();
+
+  @override
+  void dispose() {
+    _filterController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final logs = viewModel.logs.value;
-    final total = viewModel.total.value;
-
     var body = Watch((context) {
+      final logs = viewModel.logs.value;
       return logs.isEmpty ? _buildEmpty() : _buildTable();
     });
     var pageHeader = Watch((context) {
+      final total = viewModel.total.value;
       return PageHeader(title: '请求日志', subtitle: '$total 条请求日志');
     });
     var children = [pageHeader, Expanded(child: body)];
@@ -50,6 +57,98 @@ class _RequestLogPageState extends State<RequestLogPage> {
       pageSize: pageSize,
       onPageChanged: viewModel.paginate,
       onPageSizeChanged: viewModel.setPageSize,
+    );
+  }
+
+  Widget _buildStatusCodeHeader() {
+    final filter = viewModel.statusCodeFilter.value;
+    final brightness = Theme.of(context).brightness;
+    final isActive = filter != null;
+
+    return ShadContextMenu(
+      anchor: ShadAnchor(
+        childAlignment: Alignment.topLeft,
+        overlayAlignment: Alignment.bottomLeft,
+      ),
+      controller: _filterController,
+      items: [
+        ShadContextMenuItem(
+          onPressed: () {
+            viewModel.setStatusCodeFilter(null);
+            _filterController.hide();
+          },
+          child: Row(
+            spacing: 8,
+            children: [
+              SizedBox(
+                width: 16,
+                child: filter == null
+                    ? Icon(LucideIcons.check, size: 14)
+                    : null,
+              ),
+              Text('全部'),
+            ],
+          ),
+        ),
+        ShadContextMenuItem(
+          onPressed: () {
+            viewModel.setStatusCodeFilter(200);
+            _filterController.hide();
+          },
+          child: Row(
+            spacing: 8,
+            children: [
+              SizedBox(
+                width: 16,
+                child: filter == 200 ? Icon(LucideIcons.check, size: 14) : null,
+              ),
+              Text('成功'),
+            ],
+          ),
+        ),
+        ShadContextMenuItem(
+          onPressed: () {
+            viewModel.setStatusCodeFilter(-1);
+            _filterController.hide();
+          },
+          child: Row(
+            spacing: 8,
+            children: [
+              SizedBox(
+                width: 16,
+                child: filter == -1 ? Icon(LucideIcons.check, size: 14) : null,
+              ),
+              Text('失败'),
+            ],
+          ),
+        ),
+      ],
+      child: GestureDetector(
+        onTap: _filterController.toggle,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 4,
+            children: [
+              Text(
+                '状态码',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: isActive ? ShadcnColors.primary : null,
+                ),
+              ),
+              Icon(
+                LucideIcons.chevronDown,
+                size: 14,
+                color: isActive
+                    ? ShadcnColors.primary
+                    : ShadcnColors.mutedForeground(brightness),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -101,11 +200,13 @@ class _RequestLogPageState extends State<RequestLogPage> {
             };
           },
           header: (context, column) {
+            if (column == 3) {
+              return ShadTableCell.header(child: _buildStatusCodeHeader());
+            }
             var text = switch (column) {
               0 => '请求时间',
               1 => '端点',
               2 => '模型',
-              3 => '状态码',
               4 => '响应时间',
               5 => 'Token',
               _ => '',

@@ -12,6 +12,9 @@ class RequestLogViewModel {
   final pageSize = signal(50);
   final total = signal(0);
 
+  /// null=全部, 200=仅成功, -1=仅失败(非200)
+  final statusCodeFilter = signal<int?>(null);
+
   late final totalPages = computed(() {
     var pages = (total.value / pageSize.value).ceil();
     if (pages == 0) pages = 1;
@@ -23,14 +26,18 @@ class RequestLogViewModel {
   }
 
   void loadLogs() async {
+    final filter = statusCodeFilter.value;
     final startIndex = (currentPage.value - 1) * pageSize.value;
     final dbLogs = await _requestLogRepository.getAll(
       limit: pageSize.value,
       offset: startIndex,
+      statusCodeFilter: filter,
     );
     logs.value = dbLogs;
 
-    final total = await _requestLogRepository.getTotalCount();
+    final total = await _requestLogRepository.getTotalCount(
+      statusCodeFilter: filter,
+    );
     this.total.value = total;
 
     if (currentPage.value > totalPages.value) {
@@ -39,6 +46,7 @@ class RequestLogViewModel {
       final newDbLogs = await _requestLogRepository.getAll(
         limit: pageSize.value,
         offset: newStartIndex,
+        statusCodeFilter: filter,
       );
       logs.value = newDbLogs;
     }
@@ -63,6 +71,12 @@ class RequestLogViewModel {
   void setPageSize(int size) {
     if (size < 1) return;
     pageSize.value = size;
+    currentPage.value = 1;
+    loadLogs();
+  }
+
+  void setStatusCodeFilter(int? filter) {
+    statusCodeFilter.value = filter;
     currentPage.value = 1;
     loadLogs();
   }
