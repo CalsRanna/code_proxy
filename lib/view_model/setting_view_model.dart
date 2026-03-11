@@ -24,6 +24,7 @@ class SettingViewModel {
   final disableDuration = signal(1800000);
   final disableNonessentialTraffic = signal(true);
   final attributionHeader = signal(true);
+  final disableExperimentalBetas = signal(true);
   final size = signal(0);
   final auditRetainDays = signal(14);
   final version = signal('');
@@ -88,6 +89,9 @@ class SettingViewModel {
 
     attributionHeader.value = await SharedPreferenceUtil.instance
         .getAttributionHeader();
+
+    disableExperimentalBetas.value = await SharedPreferenceUtil.instance
+        .getDisableExperimentalBetas();
 
     var file = File(Database.instance.path);
     var stats = await file.stat();
@@ -266,6 +270,12 @@ class SettingViewModel {
   Future<void> toggleAttributionHeader(bool value) async {
     attributionHeader.value = value;
     await SharedPreferenceUtil.instance.setAttributionHeader(value);
+    await ClaudeCodeSettingService().updateProxySetting();
+  }
+
+  Future<void> toggleDisableExperimentalBetas(bool value) async {
+    disableExperimentalBetas.value = value;
+    await SharedPreferenceUtil.instance.setDisableExperimentalBetas(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 

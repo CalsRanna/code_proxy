@@ -13,6 +13,8 @@ class ClaudeCodeSettingService {
     final apiTimeout = await instance.getApiTimeout();
     final disableNonessentialTraffic = await instance
         .getDisableNonessentialTraffic();
+    final disableExperimentalBetas = await instance
+        .getDisableExperimentalBetas();
     final attributionHeader = await instance.getAttributionHeader();
     final uuid = const Uuid().v4().replaceAll('-', '');
     final token = 'cp-$uuid';
@@ -28,6 +30,9 @@ class ClaudeCodeSettingService {
         'ANTHROPIC_SMALL_FAST_MODEL': 'ANTHROPIC_SMALL_FAST_MODEL',
         'API_TIMEOUT_MS': apiTimeout,
         'CLAUDE_CODE_ATTRIBUTION_HEADER': attributionHeader ? 1 : 0,
+        'CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS': disableExperimentalBetas
+            ? 1
+            : 0,
         'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': disableNonessentialTraffic
             ? 1
             : 0,
