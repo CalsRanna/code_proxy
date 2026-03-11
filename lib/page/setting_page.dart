@@ -110,6 +110,19 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
+    var disableExperimentalBetasTile = Watch((context) {
+      return ListTile(
+        title: const Text('禁用实验性 Beta 头'),
+        subtitle: const Text('通过第三方 LLM 网关时禁用 anthropic-beta 头'),
+        trailing: ShadSwitch(
+          value: viewModel.disableExperimentalBetas.value,
+          onChanged: (value) => viewModel.toggleDisableExperimentalBetas(value),
+        ),
+        onTap: () => viewModel.toggleDisableExperimentalBetas(
+          !viewModel.disableExperimentalBetas.value,
+        ),
+      );
+    });
     var disableNonessentialTrafficTile = Watch((context) {
       return ListTile(
         title: const Text('禁用非必要网络请求'),
@@ -194,6 +207,7 @@ class _SettingPageState extends State<SettingPage> {
               pricingTile,
               apiTimeoutTile,
               attributionHeaderTile,
+              disableExperimentalBetasTile,
               disableNonessentialTrafficTile,
               versionTile,
             ],

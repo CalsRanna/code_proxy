@@ -19,6 +19,7 @@ class SharedPreferenceUtil {
       'circuit_breaker_recovery_timeout';
   final String _keyAuditRetainDays = 'audit_retain_days';
   final String _keyLaunchAtStartup = 'launch_at_startup';
+  final String _keyDisableExperimentalBetas = 'disable_experimental_betas';
 
   SharedPreferenceUtil._();
 
@@ -99,6 +100,14 @@ class SharedPreferenceUtil {
 
   Future<void> setAttributionHeader(bool value) async {
     await (await _preferences).setBool(_keyAttributionHeader, value);
+  }
+
+  Future<bool> getDisableExperimentalBetas() async {
+    return (await _preferences).getBool(_keyDisableExperimentalBetas) ?? true;
+  }
+
+  Future<void> setDisableExperimentalBetas(bool value) async {
+    await (await _preferences).setBool(_keyDisableExperimentalBetas, value);
   }
 
   Future<void> setMaxRetries(int maxRetries) async {
