@@ -67,6 +67,20 @@ class RequestLogDetailDialog extends StatelessWidget {
                 label: '输出Token',
                 value: '${log.outputTokens}',
               ),
+              if (log.cacheCreationInputTokens != null &&
+                  log.cacheCreationInputTokens! > 0)
+                _buildListItem(
+                  icon: LucideIcons.hardDriveUpload,
+                  label: '缓存创建',
+                  value: '${log.cacheCreationInputTokens}',
+                ),
+              if (log.cacheReadInputTokens != null &&
+                  log.cacheReadInputTokens! > 0)
+                _buildListItem(
+                  icon: LucideIcons.hardDriveDownload,
+                  label: '缓存读取',
+                  value: '${log.cacheReadInputTokens}',
+                ),
             ],
             // 失败请求显示错误信息
             if (log.statusCode != 200)

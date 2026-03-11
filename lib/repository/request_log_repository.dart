@@ -217,9 +217,70 @@ class RequestLogRepository {
         'origin_model': log.originalModel,
         'input_tokens': log.inputTokens,
         'output_tokens': log.outputTokens,
+        'cache_creation_input_tokens': log.cacheCreationInputTokens,
+        'cache_read_input_tokens': log.cacheReadInputTokens,
         'error_message': log.errorMessage,
       },
     ]);
+  }
+
+  /// Get daily cache stats for charts
+  Future<Map<String, Map<String, int>>> getDailyCacheStats({
+    required int startTimestamp,
+    required int endTimestamp,
+  }) async {
+    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    final offsetModifier = offsetMinutes >= 0
+        ? '+$offsetMinutes minutes'
+        : '$offsetMinutes minutes';
+
+    final results = await _database.laconic.select('''
+      SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
+             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read,
+             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation,
+             SUM(COALESCE(input_tokens, 0)) as total_input
+      FROM request_logs
+      WHERE timestamp BETWEEN ? AND ? AND status_code = 200
+      GROUP BY date ORDER BY date
+    ''', [startTimestamp, endTimestamp]);
+
+    final Map<String, Map<String, int>> dailyStats = {};
+    for (final row in results) {
+      final rowMap = row.toMap();
+      final date = rowMap['date'] as String;
+      dailyStats[date] = {
+        'cache_read': rowMap['cache_read'] as int,
+        'cache_creation': rowMap['cache_creation'] as int,
+        'total_input': rowMap['total_input'] as int,
+      };
+    }
+
+    return dailyStats;
+  }
+
+  /// Get daily model token breakdown for cost calculation
+  Future<List<Map<String, dynamic>>> getDailyModelTokenBreakdown({
+    required int startTimestamp,
+    required int endTimestamp,
+  }) async {
+    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    final offsetModifier = offsetMinutes >= 0
+        ? '+$offsetMinutes minutes'
+        : '$offsetMinutes minutes';
+
+    final results = await _database.laconic.select('''
+      SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
+             COALESCE(model, 'unknown') as model,
+             SUM(COALESCE(input_tokens, 0)) as input,
+             SUM(COALESCE(output_tokens, 0)) as output,
+             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation,
+             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read
+      FROM request_logs
+      WHERE timestamp BETWEEN ? AND ? AND status_code = 200
+      GROUP BY date, model
+    ''', [startTimestamp, endTimestamp]);
+
+    return results.map((r) => r.toMap()).toList();
   }
 
   /// Convert database row to RequestLog
@@ -237,6 +298,8 @@ class RequestLogRepository {
       originalModel: row['origin_model'] as String?,
       inputTokens: row['input_tokens'] as int?,
       outputTokens: row['output_tokens'] as int?,
+      cacheCreationInputTokens: row['cache_creation_input_tokens'] as int?,
+      cacheReadInputTokens: row['cache_read_input_tokens'] as int?,
       errorMessage: row['error_message'] as String?,
     );
   }

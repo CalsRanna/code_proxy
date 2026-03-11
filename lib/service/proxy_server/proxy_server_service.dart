@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
+import 'package:code_proxy/service/proxy_server/circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
@@ -35,9 +36,15 @@ class ProxyServerService {
     this.onEndpointRestored,
   }) {
     final repository = EndpointRepository(Database.instance);
+    final circuitBreakerRegistry = CircuitBreakerRegistry(
+      failureThreshold: config.circuitBreakerFailureThreshold,
+      recoveryTimeoutMs: config.circuitBreakerRecoveryTimeoutMs,
+      slidingWindowMs: config.circuitBreakerSlidingWindowMs,
+    );
     _router = ProxyServerRouter(
       config: config,
       repository: repository,
+      circuitBreakerRegistry: circuitBreakerRegistry,
       onEndpointUnavailable: onEndpointUnavailable,
       onEndpointRestored: onEndpointRestored,
     );

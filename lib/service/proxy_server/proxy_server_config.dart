@@ -12,14 +12,22 @@ class ProxyServerConfig {
   /// API 超时时间(毫秒)
   final int apiTimeoutMs;
 
-  /// 端点禁用时长(毫秒)
-  final int disableDurationMs;
+  /// 断路器失败阈值（滑动窗口内失败次数达到此值后打开断路器）
+  final int circuitBreakerFailureThreshold;
+
+  /// 断路器恢复超时（Open 状态持续时间，毫秒）
+  final int circuitBreakerRecoveryTimeoutMs;
+
+  /// 断路器滑动窗口大小（毫秒）
+  final int circuitBreakerSlidingWindowMs;
 
   const ProxyServerConfig({
     this.address = '127.0.0.1',
     this.port = 9000,
     this.maxRetries = 3,
-    this.apiTimeoutMs = 10 * 60 * 1000, // 默认 10分钟
-    this.disableDurationMs = 60 * 1000, // 默认 1分钟
+    this.apiTimeoutMs = 10 * 60 * 1000,
+    this.circuitBreakerFailureThreshold = 5,
+    this.circuitBreakerRecoveryTimeoutMs = 60 * 1000,
+    this.circuitBreakerSlidingWindowMs = 120 * 1000,
   });
 }

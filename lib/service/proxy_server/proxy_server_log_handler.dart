@@ -26,6 +26,8 @@ class ProxyServerLogHandler {
     String? model;
     int? inputTokens;
     int? outputTokens;
+    int? cacheCreationInputTokens;
+    int? cacheReadInputTokens;
     String? errorMessage;
 
     // 从请求体中提取模型信息
@@ -44,6 +46,8 @@ class ProxyServerLogHandler {
     if (success && response.usage != null) {
       inputTokens = response.usage!['input'];
       outputTokens = response.usage!['output'];
+      cacheCreationInputTokens = response.usage!['cache_creation'];
+      cacheReadInputTokens = response.usage!['cache_read'];
     }
 
     // 处理错误信息（仅在非成功请求时保存，可选择性截断至 1000 字符）
@@ -68,6 +72,8 @@ class ProxyServerLogHandler {
       originalModel: request.originalModel,
       inputTokens: inputTokens,
       outputTokens: outputTokens,
+      cacheCreationInputTokens: cacheCreationInputTokens,
+      cacheReadInputTokens: cacheReadInputTokens,
       errorMessage: errorMessage,
     );
   }

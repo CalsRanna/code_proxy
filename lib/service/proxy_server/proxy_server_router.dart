@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
+import 'package:code_proxy/service/proxy_server/circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
@@ -17,6 +18,7 @@ enum HandleResult {
 class ProxyServerRouter {
   final ProxyServerConfig _config;
   final EndpointRepository _repository;
+  final CircuitBreakerRegistry _circuitBreakerRegistry;
   final void Function(EndpointEntity)? _onEndpointUnavailable;
   final void Function(EndpointEntity)? _onEndpointRestored;
 
@@ -28,10 +30,12 @@ class ProxyServerRouter {
   ProxyServerRouter({
     required ProxyServerConfig config,
     required EndpointRepository repository,
+    required CircuitBreakerRegistry circuitBreakerRegistry,
     void Function(EndpointEntity)? onEndpointUnavailable,
     void Function(EndpointEntity)? onEndpointRestored,
   }) : _config = config,
        _repository = repository,
+       _circuitBreakerRegistry = circuitBreakerRegistry,
        _onEndpointUnavailable = onEndpointUnavailable,
        _onEndpointRestored = onEndpointRestored;
 
@@ -79,17 +83,35 @@ class ProxyServerRouter {
     // 根据上一次的结果决定下一步
     switch (previousResult) {
       case HandleResult.success:
+        // 成功：记录断路器成功
+        final endpoint = currentEndpoint;
+        if (endpoint != null) {
+          final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
+          final wasHalfOpen =
+              breaker.state == CircuitBreakerState.halfOpen;
+          breaker.recordSuccess();
+          if (wasHalfOpen) {
+            // halfOpen → closed，端点恢复
+            _onEndpointRestored?.call(endpoint);
+            // 恢复数据库中的 forbidden 状态
+            await _repository.unforbid(endpoint.id);
+          }
+        }
+        return false;
+
       case HandleResult.clientError:
-        // 成功或客户端错误，不需要继续
+        // 客户端错误，不需要继续
         return false;
 
       case HandleResult.rateLimited:
-        // 429 速率限制/余额不足 → 直接禁用端点并故障转移（不重试）
+        // 429 速率限制/余额不足 → 强制打开断路器并故障转移
         final endpoint = currentEndpoint;
         if (endpoint != null) {
           LoggerUtil.instance.w(
-            'Endpoint ${endpoint.name} returned 429, disabling and failing over',
+            'Endpoint ${endpoint.name} returned 429, circuit breaker opened',
           );
+          final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
+          breaker.forceOpen();
           _onEndpointUnavailable?.call(endpoint);
         }
 
@@ -107,7 +129,12 @@ class ProxyServerRouter {
 
       case HandleResult.serverError:
       case HandleResult.exception:
-        // 服务器错误或异常，需要重试或转移
+        // 服务器错误或异常，记录断路器失败
+        final endpoint = currentEndpoint;
+        if (endpoint != null) {
+          _circuitBreakerRegistry.getBreaker(endpoint.id).recordFailure();
+        }
+
         if (_currentAttempt < _config.maxRetries) {
           // 重试当前端点
           _currentAttempt++;
@@ -130,8 +157,7 @@ class ProxyServerRouter {
 
           return true;
         } else {
-          // 重试用尽，调用onEndpointUnavailable回调
-          final endpoint = currentEndpoint;
+          // 重试用尽，通知端点不可用（断路器已在每次失败时记录）
           if (endpoint != null) {
             _onEndpointUnavailable?.call(endpoint);
           }
@@ -153,7 +179,6 @@ class ProxyServerRouter {
 
   /// 设置端点列表
   void setEndpoints(List<EndpointEntity> endpoints) {
-    // 过滤掉未启用和临时禁用的端点
     _endpoints = endpoints.where((e) => e.enabled && !e.forbidden).toList();
     _resetForNewRequest();
   }
@@ -163,24 +188,14 @@ class ProxyServerRouter {
     _currentEndpointIndex++;
     _currentAttempt = 1;
 
-    // 检查下一个端点是否过期，如果是则自动恢复
+    // 跳过断路器 open 的端点
     while (_currentEndpointIndex < _endpoints.length) {
       final nextEndpoint = _endpoints[_currentEndpointIndex];
-      final restored = await _repository.checkAndRestoreExpired(
-        nextEndpoint.id,
-      );
-      if (restored) {
-        LoggerUtil.instance.i(
-          'Automatically restored expired temp-disabled endpoint: ${nextEndpoint.name}',
-        );
-        // 获取更新后的端点实体并触发回调
-        final restoredEndpoint = await _repository.getById(nextEndpoint.id);
-        if (restoredEndpoint != null) {
-          _onEndpointRestored?.call(restoredEndpoint);
-        }
+      final breaker = _circuitBreakerRegistry.getBreaker(nextEndpoint.id);
+      if (breaker.allowRequest) {
         break;
       }
-      break;
+      _currentEndpointIndex++;
     }
   }
 
@@ -190,21 +205,34 @@ class ProxyServerRouter {
     _currentAttempt = 1;
     _state = RouteState.selectingEndpoint;
 
-    // 主动检查所有端点的过期状态
-    for (final endpoint in _endpoints) {
-      final restored = await _repository.checkAndRestoreExpired(endpoint.id);
-      if (restored) {
-        // 获取更新后的端点实体并触发回调
-        final restoredEndpoint = await _repository.getById(endpoint.id);
-        if (restoredEndpoint != null) {
-          _onEndpointRestored?.call(restoredEndpoint);
+    // 从数据库重新获取最新状态
+    final freshEndpoints = await _repository.getEnabled();
+
+    // 过滤：手动禁用(forbidden) 的排除，但检查断路器状态
+    _endpoints = [];
+    for (final e in freshEndpoints) {
+      final breaker = _circuitBreakerRegistry.getBreaker(e.id);
+      final breakerState = breaker.state;
+
+      if (e.forbidden && breakerState == CircuitBreakerState.closed) {
+        // forbidden 但断路器已 closed，说明已恢复，自动清除 forbidden
+        await _repository.unforbid(e.id);
+        _endpoints.add(e);
+        _onEndpointRestored?.call(e);
+      } else if (!e.forbidden) {
+        // 未 forbidden：断路器允许则加入
+        if (breaker.allowRequest) {
+          _endpoints.add(e);
+        }
+      } else if (e.forbidden &&
+          breakerState == CircuitBreakerState.halfOpen) {
+        // forbidden 且断路器 halfOpen：允许探测
+        if (breaker.allowRequest) {
+          _endpoints.add(e);
         }
       }
+      // forbidden && open → 跳过
     }
-
-    // 从数据库重新获取最新状态，确保使用更新后的 forbidden 值
-    final freshEndpoints = await _repository.getEnabled();
-    _endpoints = freshEndpoints.where((e) => !e.forbidden).toList();
   }
 }
 

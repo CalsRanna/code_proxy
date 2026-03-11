@@ -13,7 +13,10 @@ class SharedPreferenceUtil {
   final String _keyApiTimeout = 'api_timeout';
   final String _keyDisableNonessentialTraffic = 'disable_nonessential_traffic';
   final String _keyAttributionHeader = 'attribution_header';
-  final String _keyDisableDuration = 'disable_duration';
+  final String _keyCircuitBreakerFailureThreshold =
+      'circuit_breaker_failure_threshold';
+  final String _keyCircuitBreakerRecoveryTimeout =
+      'circuit_breaker_recovery_timeout';
   final String _keyAuditRetainDays = 'audit_retain_days';
   final String _keyLaunchAtStartup = 'launch_at_startup';
 
@@ -31,8 +34,13 @@ class SharedPreferenceUtil {
     return (await _preferences).getString(_keyBrightness) ?? 'light';
   }
 
-  Future<int> getDisableDuration() async {
-    return (await _preferences).getInt(_keyDisableDuration) ?? 30 * 60 * 1000;
+  Future<int> getCircuitBreakerFailureThreshold() async {
+    return (await _preferences).getInt(_keyCircuitBreakerFailureThreshold) ?? 5;
+  }
+
+  Future<int> getCircuitBreakerRecoveryTimeout() async {
+    return (await _preferences).getInt(_keyCircuitBreakerRecoveryTimeout) ??
+        60000;
   }
 
   Future<bool> getDisableNonessentialTraffic() async {
@@ -67,8 +75,18 @@ class SharedPreferenceUtil {
     await (await _preferences).setString(_keyBrightness, brightness);
   }
 
-  Future<void> setDisableDuration(int duration) async {
-    await (await _preferences).setInt(_keyDisableDuration, duration);
+  Future<void> setCircuitBreakerFailureThreshold(int threshold) async {
+    await (await _preferences).setInt(
+      _keyCircuitBreakerFailureThreshold,
+      threshold,
+    );
+  }
+
+  Future<void> setCircuitBreakerRecoveryTimeout(int timeoutMs) async {
+    await (await _preferences).setInt(
+      _keyCircuitBreakerRecoveryTimeout,
+      timeoutMs,
+    );
   }
 
   Future<void> setDisableNonessentialTraffic(bool disable) async {

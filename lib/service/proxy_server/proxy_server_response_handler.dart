@@ -421,6 +421,8 @@ class ResponseProcessor {
   ) {
     int? inputTokens;
     int? outputTokens;
+    int? cacheCreationTokens;
+    int? cacheReadTokens;
     final responseChunks = <String>[];
     final isCompressed = contentEncoding != null && contentEncoding.isNotEmpty;
     final rawChunks = isCompressed ? <List<int>>[] : null;
@@ -439,6 +441,10 @@ class ResponseProcessor {
             responseChunks.add(text);
             inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
             outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
+            cacheCreationTokens =
+                extractor.extractCacheCreationTokens(text) ?? cacheCreationTokens;
+            cacheReadTokens =
+                extractor.extractCacheReadTokens(text) ?? cacheReadTokens;
           }
         },
         handleDone: (sink) {
@@ -456,11 +462,20 @@ class ResponseProcessor {
             responseChunks.add(text);
             inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
             outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
+            cacheCreationTokens =
+                extractor.extractCacheCreationTokens(text) ?? cacheCreationTokens;
+            cacheReadTokens =
+                extractor.extractCacheReadTokens(text) ?? cacheReadTokens;
           }
 
           final responseBody = responseChunks.join();
           recordStats(
-            {'input': inputTokens, 'output': outputTokens},
+            {
+              'input': inputTokens,
+              'output': outputTokens,
+              'cache_creation': cacheCreationTokens,
+              'cache_read': cacheReadTokens,
+            },
             responseTime,
             responseBody,
           );
@@ -486,6 +501,10 @@ class ResponseProcessor {
 class TokenExtractor {
   static final _inputPattern = RegExp(r'"input_tokens"\s*:\s*(\d+)');
   static final _outputPattern = RegExp(r'"output_tokens"\s*:\s*(\d+)');
+  static final _cacheCreationPattern =
+      RegExp(r'"cache_creation_input_tokens"\s*:\s*(\d+)');
+  static final _cacheReadPattern =
+      RegExp(r'"cache_read_input_tokens"\s*:\s*(\d+)');
 
   const TokenExtractor();
 
@@ -502,11 +521,30 @@ class TokenExtractor {
     return int.tryParse(matches.last.group(1)!);
   }
 
+  /// 从文本中提取 cache_creation_input_tokens
+  int? extractCacheCreationTokens(String text) {
+    final match = _cacheCreationPattern.firstMatch(text);
+    return match != null ? int.tryParse(match.group(1)!) : null;
+  }
+
+  /// 从文本中提取 cache_read_input_tokens
+  int? extractCacheReadTokens(String text) {
+    final match = _cacheReadPattern.firstMatch(text);
+    return match != null ? int.tryParse(match.group(1)!) : null;
+  }
+
   /// 从文本中提取完整的 usage
   Map<String, int?>? extractUsage(String text) {
     final input = extractInputTokens(text);
     final output = extractOutputTokens(text);
+    final cacheCreation = extractCacheCreationTokens(text);
+    final cacheRead = extractCacheReadTokens(text);
     if (input == null && output == null) return null;
-    return {'input': input, 'output': output};
+    return {
+      'input': input,
+      'output': output,
+      'cache_creation': cacheCreation,
+      'cache_read': cacheRead,
+    };
   }
 }

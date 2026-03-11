@@ -30,7 +30,8 @@
       "Bash(pod install:*)",
       "Bash(xxd:*)",
       "Bash(dd:*)",
-      "mcp__dart-mcp-server__dart_format"
+      "mcp__dart-mcp-server__dart_format",
+      "WebFetch(domain:models.dev)"
     ],
     "deny": []
   }

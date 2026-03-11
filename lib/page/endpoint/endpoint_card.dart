@@ -99,7 +99,11 @@ class _EndpointCardState extends State<EndpointCard> {
                             ),
                           ],
                           if (widget.endpoint.forbidden)
-                            ShadBadge.secondary(child: Text('Forbidden')),
+                            ShadBadge(
+                              backgroundColor: Colors.red.shade50,
+                              foregroundColor: Colors.red,
+                              child: Text('断路中'),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 4),

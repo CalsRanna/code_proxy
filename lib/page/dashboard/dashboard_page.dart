@@ -1,3 +1,5 @@
+import 'package:code_proxy/page/dashboard/dashboard_cache_chart.dart';
+import 'package:code_proxy/page/dashboard/dashboard_cost_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_request_line_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_bar_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_heatmap.dart';
@@ -34,7 +36,7 @@ class _DashboardPageState extends State<DashboardPage> {
     var column = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: ShadcnSpacing.spacing24,
-      children: [_buildTokenHeatmap(), row],
+      children: [_buildTokenHeatmap(), row, _buildCacheChartRow()],
     );
     var singleChildScrollView = SingleChildScrollView(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
@@ -95,6 +97,80 @@ class _DashboardPageState extends State<DashboardPage> {
       const textStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.bold);
       var children = [
         const Text('请求数量', style: textStyle),
+        Expanded(child: chart),
+      ];
+      var column = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: ShadcnSpacing.spacing12,
+        children: children,
+      );
+      var padding = Padding(
+        padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
+        child: column,
+      );
+      return SizedBox(
+        height: 320,
+        child: ShadCard(padding: EdgeInsets.zero, child: padding),
+      );
+    });
+  }
+
+  Widget _buildCacheChartRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      spacing: ShadcnSpacing.spacing16,
+      children: [
+        Expanded(child: _buildCacheChart()),
+        Expanded(child: _buildCostChart()),
+      ],
+    );
+  }
+
+  Widget _buildCacheChart() {
+    return Watch((_) {
+      final cacheStats = viewModel.dailyCacheStats.value;
+      Widget chart = const Center(child: Text('暂无数据'));
+      if (cacheStats.isNotEmpty) {
+        chart = DashboardCacheChart(dailyCacheStats: cacheStats);
+      }
+      const textStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.bold);
+      var children = [
+        const Text('Prompt Cache', style: textStyle),
+        Expanded(child: chart),
+      ];
+      var column = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: ShadcnSpacing.spacing12,
+        children: children,
+      );
+      var padding = Padding(
+        padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
+        child: column,
+      );
+      return SizedBox(
+        height: 320,
+        child: ShadCard(padding: EdgeInsets.zero, child: padding),
+      );
+    });
+  }
+
+  Widget _buildCostChart() {
+    return Watch((_) {
+      final costs = viewModel.dailyCost.value;
+      final total = viewModel.totalCost.value;
+      final savings = viewModel.cacheSavings.value;
+      Widget chart = const Center(child: Text('暂无数据'));
+      if (costs.isNotEmpty) {
+        chart = DashboardCostChart(
+          dailyCost: costs,
+          totalCost: total,
+          cacheSavings: savings,
+        );
+      }
+      const textStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.bold);
+      var children = [
+        const Text('费用趋势', style: textStyle),
         Expanded(child: chart),
       ];
       var column = Column(

@@ -35,13 +35,24 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editMaxRetries(context),
       );
     });
-    var disableDurationTile = Watch((context) {
-      final minutes = viewModel.disableDuration.value ~/ 60000;
+    var circuitBreakerThresholdTile = Watch((context) {
       return ListTile(
-        title: const Text('端点禁用时长'),
-        subtitle: Text('端点失败后禁用 $minutes 分钟'),
+        title: const Text('断路器失败阈值'),
+        subtitle: Text(
+          '滑动窗口内失败 ${viewModel.circuitBreakerFailureThreshold.value} 次后断路',
+        ),
         trailing: const Icon(LucideIcons.chevronRight),
         onTap: () => viewModel.editDisableDuration(context),
+      );
+    });
+    var circuitBreakerRecoveryTile = Watch((context) {
+      return ListTile(
+        title: const Text('断路器恢复超时'),
+        subtitle: Text(
+          '断路后 ${viewModel.circuitBreakerRecoveryTimeout.value} 秒尝试恢复',
+        ),
+        trailing: const Icon(LucideIcons.chevronRight),
+        onTap: () => viewModel.editCircuitBreakerRecoveryTimeout(context),
       );
     });
     var apiTimeoutTile = Watch((context) {
@@ -121,6 +132,23 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editDefaultModelMapping(context),
       );
     });
+    var pricingTile = Watch((context) {
+      final refreshing = viewModel.pricingRefreshing.value;
+      return ListTile(
+        title: const Text('模型定价'),
+        subtitle: Text(
+          '${viewModel.pricingModelCount.value} 个模型 | 更新于 ${viewModel.pricingLastUpdated.value}',
+        ),
+        trailing: refreshing
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(LucideIcons.refreshCw),
+        onTap: refreshing ? null : () => viewModel.refreshPricing(),
+      );
+    });
     var versionTile = Watch((context) {
       return Padding(
         padding: const EdgeInsets.only(top: ShadcnSpacing.spacing24),
@@ -145,7 +173,8 @@ class _SettingPageState extends State<SettingPage> {
             children: [
               portListTile,
               maxRetriesTile,
-              disableDurationTile,
+              circuitBreakerThresholdTile,
+              circuitBreakerRecoveryTile,
               launchAtStartupTile,
               auditRetainDaysTile,
               sizeTile,
@@ -162,6 +191,7 @@ class _SettingPageState extends State<SettingPage> {
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
               defaultModelMappingTile,
+              pricingTile,
               apiTimeoutTile,
               attributionHeaderTile,
               disableNonessentialTrafficTile,

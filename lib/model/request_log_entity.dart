@@ -36,6 +36,12 @@ class RequestLogEntity {
   /// 输出 token 数量
   final int? outputTokens;
 
+  /// 缓存创建 token 数量
+  final int? cacheCreationInputTokens;
+
+  /// 缓存读取 token 数量
+  final int? cacheReadInputTokens;
+
   /// 错误信息（仅在非成功请求时保存）
   final String? errorMessage;
 
@@ -52,6 +58,8 @@ class RequestLogEntity {
     this.originalModel,
     this.inputTokens,
     this.outputTokens,
+    this.cacheCreationInputTokens,
+    this.cacheReadInputTokens,
     this.errorMessage,
   });
 
@@ -70,6 +78,8 @@ class RequestLogEntity {
       originalModel: json['originalModel'] as String?,
       inputTokens: json['inputTokens'] as int?,
       outputTokens: json['outputTokens'] as int?,
+      cacheCreationInputTokens: json['cacheCreationInputTokens'] as int?,
+      cacheReadInputTokens: json['cacheReadInputTokens'] as int?,
       errorMessage: json['errorMessage'] as String?,
     );
   }
@@ -89,6 +99,8 @@ class RequestLogEntity {
       'originalModel': originalModel,
       'inputTokens': inputTokens,
       'outputTokens': outputTokens,
+      'cacheCreationInputTokens': cacheCreationInputTokens,
+      'cacheReadInputTokens': cacheReadInputTokens,
       'errorMessage': errorMessage,
     };
   }
@@ -112,6 +124,8 @@ class RequestLogEntity {
     String? originalModel,
     int? inputTokens,
     int? outputTokens,
+    int? cacheCreationInputTokens,
+    int? cacheReadInputTokens,
     String? errorMessage,
   }) {
     return RequestLogEntity(
@@ -127,6 +141,10 @@ class RequestLogEntity {
       originalModel: originalModel ?? this.originalModel,
       inputTokens: inputTokens ?? this.inputTokens,
       outputTokens: outputTokens ?? this.outputTokens,
+      cacheCreationInputTokens:
+          cacheCreationInputTokens ?? this.cacheCreationInputTokens,
+      cacheReadInputTokens:
+          cacheReadInputTokens ?? this.cacheReadInputTokens,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

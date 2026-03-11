@@ -6,6 +6,7 @@ import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
+import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/app_restart_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
@@ -21,18 +22,23 @@ class SettingViewModel {
   final port = signal(9000);
   final maxRetries = signal(5);
   final apiTimeout = signal(600000);
-  final disableDuration = signal(1800000);
+  final circuitBreakerFailureThreshold = signal(5);
+  final circuitBreakerRecoveryTimeout = signal(60);
   final disableNonessentialTraffic = signal(true);
   final attributionHeader = signal(true);
   final size = signal(0);
   final auditRetainDays = signal(14);
   final version = signal('');
   final autoLaunch = signal(false);
+  final pricingLastUpdated = signal<String>('未加载');
+  final pricingModelCount = signal<int>(0);
+  final pricingRefreshing = signal<bool>(false);
 
   final controller = TextEditingController();
   final maxRetriesController = TextEditingController();
   final apiTimeoutController = TextEditingController();
-  final disableDurationController = TextEditingController();
+  final circuitBreakerFailureThresholdController = TextEditingController();
+  final circuitBreakerRecoveryTimeoutController = TextEditingController();
   final auditRetainDaysController = TextEditingController();
 
   // 默认模型映射
@@ -61,7 +67,17 @@ class SettingViewModel {
   }
 
   Future<void> editDisableDuration(BuildContext context) async {
-    showShadDialog(context: context, builder: _buildDisableDurationDialog);
+    showShadDialog(
+      context: context,
+      builder: _buildCircuitBreakerFailureThresholdDialog,
+    );
+  }
+
+  Future<void> editCircuitBreakerRecoveryTimeout(BuildContext context) async {
+    showShadDialog(
+      context: context,
+      builder: _buildCircuitBreakerRecoveryTimeoutDialog,
+    );
   }
 
   Future<void> editAuditRetainDays(BuildContext context) async {
@@ -78,10 +94,16 @@ class SettingViewModel {
     apiTimeout.value = await SharedPreferenceUtil.instance.getApiTimeout();
     apiTimeoutController.text = apiTimeout.value.toString();
 
-    disableDuration.value = await SharedPreferenceUtil.instance
-        .getDisableDuration();
-    disableDurationController.text = (disableDuration.value ~/ 60000)
-        .toString();
+    circuitBreakerFailureThreshold.value = await SharedPreferenceUtil.instance
+        .getCircuitBreakerFailureThreshold();
+    circuitBreakerFailureThresholdController.text =
+        circuitBreakerFailureThreshold.value.toString();
+
+    circuitBreakerRecoveryTimeout.value = await SharedPreferenceUtil.instance
+            .getCircuitBreakerRecoveryTimeout() ~/
+        1000;
+    circuitBreakerRecoveryTimeoutController.text =
+        circuitBreakerRecoveryTimeout.value.toString();
 
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();
@@ -101,6 +123,9 @@ class SettingViewModel {
 
     final packageInfo = await PackageInfo.fromPlatform();
     version.value = 'v${packageInfo.version} (${packageInfo.buildNumber})';
+
+    // 加载定价信息
+    _loadPricingInfo();
 
     // 加载默认模型映射
     final configService = ClaudeCodeModelConfigService.instance;
@@ -208,30 +233,67 @@ class SettingViewModel {
     );
   }
 
-  Future<void> updateTempDisableDuration(BuildContext context) async {
-    var newMinutes = int.tryParse(disableDurationController.text);
-    if (newMinutes == null || newMinutes < 10 || newMinutes > 60) {
+  Future<void> updateCircuitBreakerFailureThreshold(
+    BuildContext context,
+  ) async {
+    var newThreshold = int.tryParse(
+      circuitBreakerFailureThresholdController.text,
+    );
+    if (newThreshold == null || newThreshold < 1 || newThreshold > 20) {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, '禁用时长必须在 10-60 分钟之间');
+          return _buildAlertDialog(context, '失败阈值必须在 1-20 之间');
         },
       );
       return;
     }
-    final newDuration = newMinutes * 60000;
-    if (newDuration == disableDuration.value) {
+    if (newThreshold == circuitBreakerFailureThreshold.value) {
       Navigator.of(context).pop();
       return;
     }
-    await SharedPreferenceUtil.instance.setDisableDuration(newDuration);
-    disableDuration.value = newDuration;
+    await SharedPreferenceUtil.instance.setCircuitBreakerFailureThreshold(
+      newThreshold,
+    );
+    circuitBreakerFailureThreshold.value = newThreshold;
     if (!context.mounted) return;
     Navigator.of(context).pop();
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, '禁用时长已更新,重启代理服务器后生效。');
+        return _buildAlertDialog(context, '断路器失败阈值已更新,重启代理服务器后生效。');
+      },
+    );
+  }
+
+  Future<void> updateCircuitBreakerRecoveryTimeout(
+    BuildContext context,
+  ) async {
+    var newSeconds = int.tryParse(
+      circuitBreakerRecoveryTimeoutController.text,
+    );
+    if (newSeconds == null || newSeconds < 10 || newSeconds > 300) {
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return _buildAlertDialog(context, '恢复超时必须在 10-300 秒之间');
+        },
+      );
+      return;
+    }
+    if (newSeconds == circuitBreakerRecoveryTimeout.value) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final newMs = newSeconds * 1000;
+    await SharedPreferenceUtil.instance.setCircuitBreakerRecoveryTimeout(newMs);
+    circuitBreakerRecoveryTimeout.value = newSeconds;
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    showShadDialog(
+      context: context,
+      builder: (context) {
+        return _buildAlertDialog(context, '断路器恢复超时已更新,重启代理服务器后生效。');
       },
     );
   }
@@ -277,6 +339,25 @@ class SettingViewModel {
     } else {
       await launchAtStartup.disable();
     }
+  }
+
+  void _loadPricingInfo() {
+    final service = ModelPricingService.instance;
+    pricingModelCount.value = service.modelCount.value;
+    final updated = service.lastUpdated.value;
+    if (updated != null) {
+      pricingLastUpdated.value =
+          '${updated.year}-${updated.month.toString().padLeft(2, '0')}-${updated.day.toString().padLeft(2, '0')} ${updated.hour.toString().padLeft(2, '0')}:${updated.minute.toString().padLeft(2, '0')}';
+    } else {
+      pricingLastUpdated.value = '未加载';
+    }
+  }
+
+  Future<void> refreshPricing() async {
+    pricingRefreshing.value = true;
+    await ModelPricingService.instance.refresh();
+    _loadPricingInfo();
+    pricingRefreshing.value = false;
   }
 
   ShadDialog _buildAlertDialog(BuildContext context, String message) {
@@ -351,22 +432,43 @@ class SettingViewModel {
     );
   }
 
-  Widget _buildDisableDurationDialog(BuildContext context) {
+  Widget _buildCircuitBreakerFailureThresholdDialog(BuildContext context) {
     return ShadDialog(
-      title: const Text('端点禁用时长'),
-      description: const Text('端点失败后禁用的时长(分钟), 范围 10-60'),
+      title: const Text('断路器失败阈值'),
+      description: const Text('滑动窗口内失败次数达到此值后打开断路器 (1-20)'),
       actions: [
         ShadButton.outline(
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
         ShadButton(
-          onPressed: () => updateTempDisableDuration(context),
+          onPressed: () => updateCircuitBreakerFailureThreshold(context),
           child: const Text('保存'),
         ),
       ],
       child: ShadInput(
-        controller: disableDurationController,
+        controller: circuitBreakerFailureThresholdController,
+        keyboardType: TextInputType.number,
+      ),
+    );
+  }
+
+  Widget _buildCircuitBreakerRecoveryTimeoutDialog(BuildContext context) {
+    return ShadDialog(
+      title: const Text('断路器恢复超时'),
+      description: const Text('断路器打开后等待多久尝试恢复(秒), 范围 10-300'),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        ShadButton(
+          onPressed: () => updateCircuitBreakerRecoveryTimeout(context),
+          child: const Text('保存'),
+        ),
+      ],
+      child: ShadInput(
+        controller: circuitBreakerRecoveryTimeoutController,
         keyboardType: TextInputType.number,
       ),
     );

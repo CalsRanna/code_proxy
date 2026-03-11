@@ -8,6 +8,7 @@ import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/claude_code_audit_service.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
+import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
@@ -56,23 +57,14 @@ class HomeViewModel {
     }
   }
 
-  /// 处理端点不可用事件（重试用尽后触发）
+  /// 处理端点不可用事件（断路器打开后触发）
   Future<void> handleEndpointUnavailable(EndpointEntity endpoint) async {
     LoggerUtil.instance.w(
-      'Endpoint ${endpoint.name} exhausted retries, triggering temporary disable',
+      'Endpoint ${endpoint.name} circuit breaker opened',
     );
 
-    // 获取临时禁用时长配置
-    final disableDurationMs = await SharedPreferenceUtil.instance
-        .getDisableDuration();
-
-    // 触发临时禁用
-    await _endpointRepository.forbid(endpoint.id, disableDurationMs);
-
-    LoggerUtil.instance.i(
-      'Endpoint ${endpoint.name} temporarily disabled for '
-      '${disableDurationMs ~/ 1000} seconds',
-    );
+    // 标记 forbidden 用于 UI 展示断路状态（由断路器自动管理恢复）
+    await _endpointRepository.forbid(endpoint.id, 0);
 
     // 刷新端点列表以更新状态
     try {
@@ -134,6 +126,7 @@ class HomeViewModel {
     }
 
     ClaudeCodeAuditService.instance.cleanExpiredLogs();
+    await ModelPricingService.instance.load();
     _autoStartServer();
     _subscription ??= WindowUtil.instance.stream.listen((event) {
       if (event == WindowEvent.shown && selectedIndex.value == 0) {
@@ -205,11 +198,15 @@ class HomeViewModel {
     final instance = SharedPreferenceUtil.instance;
     final maxRetries = await instance.getMaxRetries();
     final apiTimeout = await instance.getApiTimeout();
+    final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
+    final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
     final config = ProxyServerConfig(
       address: '127.0.0.1',
       port: newPort,
       maxRetries: maxRetries,
       apiTimeoutMs: apiTimeout,
+      circuitBreakerFailureThreshold: cbThreshold,
+      circuitBreakerRecoveryTimeoutMs: cbRecovery,
     );
     _proxyServer = ProxyServerService(
       config: config,
@@ -272,12 +269,16 @@ class HomeViewModel {
     final port = await instance.getPort();
     final maxRetries = await instance.getMaxRetries();
     final apiTimeout = await instance.getApiTimeout();
+    final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
+    final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
 
     final config = ProxyServerConfig(
       address: '127.0.0.1',
       port: port,
       maxRetries: maxRetries,
       apiTimeoutMs: apiTimeout,
+      circuitBreakerFailureThreshold: cbThreshold,
+      circuitBreakerRecoveryTimeoutMs: cbRecovery,
     );
     await ClaudeCodeSettingService().updateProxySetting();
     _proxyServer ??= ProxyServerService(
