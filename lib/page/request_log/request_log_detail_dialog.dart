@@ -44,8 +44,7 @@ class RequestLogDetailDialog extends StatelessWidget {
               label: '响应时间',
               value: '${log.responseTime ?? 0}ms',
             ),
-            if (log.originalModel != null &&
-                log.originalModel!.isNotEmpty)
+            if (log.originalModel != null && log.originalModel!.isNotEmpty)
               _buildListItem(
                 icon: LucideIcons.tag,
                 label: '原始模型',
@@ -70,15 +69,15 @@ class RequestLogDetailDialog extends StatelessWidget {
               if (log.cacheCreationInputTokens != null &&
                   log.cacheCreationInputTokens! > 0)
                 _buildListItem(
-                  icon: LucideIcons.hardDriveUpload,
-                  label: '缓存创建',
+                  icon: LucideIcons.databaseZap,
+                  label: '缓存创建Token',
                   value: '${log.cacheCreationInputTokens}',
                 ),
               if (log.cacheReadInputTokens != null &&
                   log.cacheReadInputTokens! > 0)
                 _buildListItem(
-                  icon: LucideIcons.hardDriveDownload,
-                  label: '缓存读取',
+                  icon: LucideIcons.databaseSearch,
+                  label: '缓存读取Token',
                   value: '${log.cacheReadInputTokens}',
                 ),
             ],
@@ -109,7 +108,7 @@ class RequestLogDetailDialog extends StatelessWidget {
         spacing: ShadcnSpacing.spacing16,
         children: [
           SizedBox(
-            width: 100,
+            width: 120,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               spacing: ShadcnSpacing.spacing4,
