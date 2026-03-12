@@ -156,7 +156,7 @@ class RequestLogRepository {
     final results = await _database.laconic.select('''
       SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
              COALESCE(model, 'unknown') as model,
-             SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
+             SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) + COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)) as total_tokens,
              SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read,
              SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation
       FROM request_logs
