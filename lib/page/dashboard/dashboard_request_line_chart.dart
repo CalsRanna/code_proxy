@@ -13,6 +13,12 @@ class DashboardRequestsChart extends StatelessWidget {
     this.dailyCost = const {},
   });
 
+  static String _formatNumber(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -57,8 +63,14 @@ class DashboardRequestsChart extends StatelessWidget {
             primaryXAxis: const CategoryAxis(
               labelStyle: TextStyle(fontSize: 10),
             ),
-            primaryYAxis: const NumericAxis(
-              labelStyle: TextStyle(fontSize: 10),
+            primaryYAxis: NumericAxis(
+              labelStyle: const TextStyle(fontSize: 10),
+              axisLabelFormatter: (AxisLabelRenderDetails details) {
+                return ChartAxisLabel(
+                  _formatNumber(details.value.toInt()),
+                  const TextStyle(fontSize: 10),
+                );
+              },
             ),
             plotAreaBorderWidth: 0,
             legend: const Legend(isVisible: false),

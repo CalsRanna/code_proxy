@@ -56,30 +56,12 @@ class RequestLogDetailDialog extends StatelessWidget {
               value: log.model ?? 'unknown',
             ),
             if (log.statusCode == 200) ...[
-              _buildListItem(
-                icon: LucideIcons.cloudUpload,
-                label: '输入Token',
-                value: '${log.inputTokens}',
-              ),
+              _buildTokenItem(log),
               _buildListItem(
                 icon: LucideIcons.cloudDownload,
                 label: '输出Token',
                 value: '${log.outputTokens}',
               ),
-              if (log.cacheCreationInputTokens != null &&
-                  log.cacheCreationInputTokens! > 0)
-                _buildListItem(
-                  icon: LucideIcons.databaseZap,
-                  label: '缓存创建Token',
-                  value: '${log.cacheCreationInputTokens}',
-                ),
-              if (log.cacheReadInputTokens != null &&
-                  log.cacheReadInputTokens! > 0)
-                _buildListItem(
-                  icon: LucideIcons.databaseSearch,
-                  label: '缓存读取Token',
-                  value: '${log.cacheReadInputTokens}',
-                ),
             ],
             // 失败请求显示错误信息
             if (log.statusCode != 200)
@@ -91,6 +73,81 @@ class RequestLogDetailDialog extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTokenItem(RequestLogEntity log) {
+    final input = log.inputTokens ?? 0;
+    final cacheCreate = log.cacheCreationInputTokens ?? 0;
+    final cacheRead = log.cacheReadInputTokens ?? 0;
+    final total = input + cacheCreate + cacheRead;
+    final hasCache = cacheCreate > 0 || cacheRead > 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: ShadcnSpacing.spacing8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: ShadcnSpacing.spacing16,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              spacing: ShadcnSpacing.spacing4,
+              children: [
+                Icon(
+                  LucideIcons.cloudUpload,
+                  color: ShadcnColors.lightMutedForeground,
+                  size: 16,
+                ),
+                const Text('输入Token'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Text('$total'),
+                if (hasCache) ...[
+                  const SizedBox(width: 4),
+                  ShadTooltip(
+                    anchor: const ShadAnchor(
+                      childAlignment: Alignment.centerLeft,
+                      overlayAlignment: Alignment.centerRight,
+                      offset: Offset(4, 0),
+                    ),
+                    builder: (context) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '未缓存: $input',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        Text(
+                          '缓存创建: $cacheCreate',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        Text(
+                          '缓存读取: $cacheRead',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    child: ShadGestureDetector(
+                      child: Icon(
+                        LucideIcons.info,
+                        size: 14,
+                        color: ShadcnColors.lightMutedForeground,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
