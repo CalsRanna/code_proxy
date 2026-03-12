@@ -59,9 +59,7 @@ class HomeViewModel {
 
   /// 处理端点不可用事件（断路器打开后触发）
   Future<void> handleEndpointUnavailable(EndpointEntity endpoint) async {
-    LoggerUtil.instance.w(
-      'Endpoint ${endpoint.name} circuit breaker opened',
-    );
+    LoggerUtil.instance.w('Endpoint ${endpoint.name} circuit breaker opened');
 
     // 标记 forbidden 用于 UI 展示断路状态（由断路器自动管理恢复）
     await _endpointRepository.forbid(endpoint.id, 0);
@@ -233,6 +231,11 @@ class HomeViewModel {
   /// 更新代理服务器的端点列表
   void updateProxyEndpoints(List<EndpointEntity> enabledEndpoints) {
     _proxyServer?.endpoints = enabledEndpoints;
+  }
+
+  /// 用户手动恢复端点时，同步清理断路器状态。
+  void restoreEndpointAvailability(String endpointId) {
+    _proxyServer?.resetEndpointState(endpointId);
   }
 
   void updateSelectedIndex(int index) {

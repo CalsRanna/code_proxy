@@ -27,6 +27,7 @@ class ProxyServerService {
   late final ProxyServerRouter _router;
   late final ProxyServerRequestHandler _requestHandler;
   late final ProxyServerResponseHandler _responseHandler;
+  late final CircuitBreakerRegistry _circuitBreakerRegistry;
   HttpServer? _server;
 
   ProxyServerService({
@@ -36,7 +37,7 @@ class ProxyServerService {
     this.onEndpointRestored,
   }) {
     final repository = EndpointRepository(Database.instance);
-    final circuitBreakerRegistry = CircuitBreakerRegistry(
+    _circuitBreakerRegistry = CircuitBreakerRegistry(
       failureThreshold: config.circuitBreakerFailureThreshold,
       recoveryTimeoutMs: config.circuitBreakerRecoveryTimeoutMs,
       slidingWindowMs: config.circuitBreakerSlidingWindowMs,
@@ -44,7 +45,7 @@ class ProxyServerService {
     _router = ProxyServerRouter(
       config: config,
       repository: repository,
-      circuitBreakerRegistry: circuitBreakerRegistry,
+      circuitBreakerRegistry: _circuitBreakerRegistry,
       onEndpointUnavailable: onEndpointUnavailable,
       onEndpointRestored: onEndpointRestored,
     );
@@ -56,6 +57,11 @@ class ProxyServerService {
 
   set endpoints(List<EndpointEntity> endpoints) {
     _router.setEndpoints(endpoints);
+  }
+
+  /// 用户手动恢复端点时，同时清除内存中的断路器状态。
+  void resetEndpointState(String endpointId) {
+    _circuitBreakerRegistry.reset(endpointId);
   }
 
   Future<void> start() async {

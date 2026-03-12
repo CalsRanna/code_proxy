@@ -1,30 +1,41 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:code_proxy/service/proxy_server/circuit_breaker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:code_proxy/main.dart';
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const CodeProxyApp());
+  test('manual reset should immediately restore an open circuit breaker', () {
+    final breaker = CircuitBreaker(
+      endpointId: 'endpoint-1',
+      failureThreshold: 1,
+      recoveryTimeoutMs: 60000,
+      slidingWindowMs: 60000,
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    breaker.forceOpen();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    expect(breaker.state, CircuitBreakerState.open);
+    expect(breaker.allowRequest, isFalse);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    breaker.reset();
+
+    expect(breaker.state, CircuitBreakerState.closed);
+    expect(breaker.allowRequest, isTrue);
+  });
+
+  test('registry reset should clear the breaker for a specific endpoint', () {
+    final registry = CircuitBreakerRegistry(
+      failureThreshold: 1,
+      recoveryTimeoutMs: 60000,
+      slidingWindowMs: 60000,
+    );
+
+    final breaker = registry.getBreaker('endpoint-1');
+    breaker.forceOpen();
+
+    expect(breaker.state, CircuitBreakerState.open);
+
+    registry.reset('endpoint-1');
+
+    expect(breaker.state, CircuitBreakerState.closed);
+    expect(breaker.allowRequest, isTrue);
   });
 }

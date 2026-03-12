@@ -54,25 +54,26 @@ class EndpointRepository {
     ]);
   }
 
-  /// Update an existing endpoint
-  Future<void> update(EndpointEntity endpoint) async {
-    // Clear forbidden status when manually updating
-    final updated = endpoint.copyWith(forbidden: false, forbiddenUntil: null);
-
-    await _database.laconic.table('endpoints').where('id', updated.id).update({
-      'name': updated.name,
-      'note': updated.note,
-      'enabled': updated.enabled ? 1 : 0,
-      'weight': updated.weight,
-      'anthropic_auth_token': updated.anthropicAuthToken,
-      'anthropic_base_url': updated.anthropicBaseUrl,
-      'anthropic_model': updated.anthropicModel,
-      'anthropic_small_fast_model': updated.anthropicSmallFastModel,
-      'anthropic_default_haiku_model': updated.anthropicDefaultHaikuModel,
-      'anthropic_default_sonnet_model': updated.anthropicDefaultSonnetModel,
-      'anthropic_default_opus_model': updated.anthropicDefaultOpusModel,
-      'forbidden': 0,
-      'forbidden_until': null,
+  /// Update an existing endpoint.
+  /// `clearForbidden` is only used when the user manually re-enables an endpoint.
+  Future<void> update(
+    EndpointEntity endpoint, {
+    bool clearForbidden = false,
+  }) async {
+    await _database.laconic.table('endpoints').where('id', endpoint.id).update({
+      'name': endpoint.name,
+      'note': endpoint.note,
+      'enabled': endpoint.enabled ? 1 : 0,
+      'weight': endpoint.weight,
+      'anthropic_auth_token': endpoint.anthropicAuthToken,
+      'anthropic_base_url': endpoint.anthropicBaseUrl,
+      'anthropic_model': endpoint.anthropicModel,
+      'anthropic_small_fast_model': endpoint.anthropicSmallFastModel,
+      'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
+      'anthropic_default_sonnet_model': endpoint.anthropicDefaultSonnetModel,
+      'anthropic_default_opus_model': endpoint.anthropicDefaultOpusModel,
+      'forbidden': clearForbidden ? 0 : (endpoint.forbidden ? 1 : 0),
+      'forbidden_until': clearForbidden ? null : endpoint.forbiddenUntil,
     });
   }
 

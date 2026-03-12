@@ -68,8 +68,15 @@ class EndpointViewModel {
   Future<void> toggleEnabled(String id) async {
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
     final updated = endpoint.copyWith(enabled: !endpoint.enabled);
-    await _endpointRepository.update(updated);
+    final shouldRestoreAvailability = !endpoint.enabled && updated.enabled;
+    await _endpointRepository.update(
+      updated,
+      clearForbidden: shouldRestoreAvailability,
+    );
     await _loadEndpoints();
+    if (shouldRestoreAvailability) {
+      _restoreEndpointAvailability(updated.id);
+    }
   }
 
   Future<void> updateEndpoint(EndpointEntity endpoint) async {
@@ -104,6 +111,11 @@ class EndpointViewModel {
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
     final enabled = endpoints.value.where((e) => e.enabled).toList();
     homeViewModel.updateProxyEndpoints(enabled);
+  }
+
+  void _restoreEndpointAvailability(String endpointId) {
+    final homeViewModel = GetIt.instance.get<HomeViewModel>();
+    homeViewModel.restoreEndpointAvailability(endpointId);
   }
 
   /// 重新排序端点列表并更新 weight 字段
