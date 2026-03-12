@@ -7,11 +7,10 @@ class DashboardViewModel {
   final dailyTokenStats = signal<Map<String, int>>({});
   final dailyRequests = signal<Map<String, int>>({});
   final endpointTokenUsage = signal<Map<String, int>>({});
-  final modelDateTokenUsage = signal<Map<String, Map<String, int>>>({});
-  final dailyCacheStats = signal<Map<String, Map<String, int>>>({});
+  final modelDateTokenUsage =
+      signal<Map<String, Map<String, Map<String, int>>>>({});
   final dailyCost = signal<Map<String, double>>({});
   final totalCost = signal<double>(0.0);
-  final cacheSavings = signal<double>(0.0);
 
   Future<void> initSignals() async {
     _loadHeatmapData();
@@ -36,18 +35,14 @@ class DashboardViewModel {
         startTimestamp: startDate.millisecondsSinceEpoch,
         endTimestamp: endDate.millisecondsSinceEpoch,
       ),
-      repository.getDailyCacheStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      ),
     ]);
 
     dailyRequests.value = results[0] as Map<String, int>;
     endpointTokenUsage.value = results[1] as Map<String, int>;
-    modelDateTokenUsage.value = results[2] as Map<String, Map<String, int>>;
-    dailyCacheStats.value = results[3] as Map<String, Map<String, int>>;
+    modelDateTokenUsage.value =
+        results[2] as Map<String, Map<String, Map<String, int>>>;
 
-    // 加载费用数据
+    // 加载费用数据（图表用15天，总费用查全部）
     await _loadCostData(repository, startDate, endDate);
   }
 
@@ -57,43 +52,50 @@ class DashboardViewModel {
     DateTime endDate,
   ) async {
     final pricingService = ModelPricingService.instance;
+
+    // 确保定价数据已加载（首次进 dashboard 时可能 HomeViewModel 还没加载完）
+    if (pricingService.modelCount.value == 0) {
+      await pricingService.load();
+    }
+
+    // 15天内的每日费用（给图表 tooltip 用）
     final breakdown = await repository.getDailyModelTokenBreakdown(
       startTimestamp: startDate.millisecondsSinceEpoch,
       endTimestamp: endDate.millisecondsSinceEpoch,
     );
 
     final Map<String, double> costs = {};
-    double total = 0;
-    double savings = 0;
-
     for (final row in breakdown) {
       final date = row['date'] as String;
-      final model = row['model'] as String;
-      final input = row['input'] as int;
-      final output = row['output'] as int;
-      final cacheCreation = row['cache_creation'] as int;
-      final cacheRead = row['cache_read'] as int;
-
-      final cost = pricingService.calculateCost(
-        model: model,
-        inputTokens: input,
-        outputTokens: output,
-        cacheCreationTokens: cacheCreation,
-        cacheReadTokens: cacheRead,
-      );
-
+      final cost = _calculateRowCost(pricingService, row);
       costs[date] = (costs[date] ?? 0) + cost;
-      total += cost;
-
-      savings += pricingService.calculateCacheSavings(
-        model: model,
-        cacheReadTokens: cacheRead,
-      );
     }
-
     dailyCost.value = costs;
+
+    // 全部时间的总费用
+    final allBreakdown = await repository.getDailyModelTokenBreakdown(
+      startTimestamp: 0,
+      endTimestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    double total = 0;
+    for (final row in allBreakdown) {
+      total += _calculateRowCost(pricingService, row);
+    }
     totalCost.value = total;
-    cacheSavings.value = savings;
+  }
+
+  double _calculateRowCost(
+    ModelPricingService pricingService,
+    Map<String, dynamic> row,
+  ) {
+    return pricingService.calculateCost(
+      model: row['model'] as String,
+      inputTokens: row['input'] as int,
+      outputTokens: row['output'] as int,
+      cacheCreationTokens: row['cache_creation'] as int,
+      cacheReadTokens: row['cache_read'] as int,
+    );
   }
 
   Future<void> _loadHeatmapData() async {

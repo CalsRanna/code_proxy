@@ -98,18 +98,6 @@ class ModelPricingService {
         1000000;
   }
 
-  /// 计算缓存节省金额
-  double calculateCacheSavings({
-    required String model,
-    int cacheReadTokens = 0,
-  }) {
-    final pricing = getPricing(model);
-    if (pricing == null) return 0;
-    return cacheReadTokens *
-        (pricing.inputPrice - pricing.cacheReadPrice) /
-        1000000;
-  }
-
   void _parseApiResponse(Map<String, dynamic> json) {
     _pricingMap.clear();
 

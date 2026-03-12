@@ -143,43 +143,44 @@ class RequestLogRepository {
     return endpointTokenStats;
   }
 
-  /// Get model date token stats for charts
-  Future<Map<String, Map<String, int>>> getModelDateTokenStats({
+  /// Get model date token stats for charts (with cache breakdown)
+  Future<Map<String, Map<String, Map<String, int>>>> getModelDateTokenStats({
     required int startTimestamp,
     required int endTimestamp,
   }) async {
-    // 计算时区偏移（分钟）
-    // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
-    // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
     final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
     final offsetModifier = offsetMinutes >= 0
         ? '+$offsetMinutes minutes'
         : '$offsetMinutes minutes';
 
-    final results = await _database.laconic
-        .table('request_logs')
-        .select([
-          'date(timestamp / 1000, \'unixepoch\', \'$offsetModifier\') as date',
-          'COALESCE(model, \'unknown\') as model',
-          'SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens',
-        ])
-        .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
-        .groupBy('date')
-        .groupBy('model')
-        .having('total_tokens', 0, operator: '>')
-        .orderBy('date')
-        .orderBy('model')
-        .get();
+    final results = await _database.laconic.select('''
+      SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
+             COALESCE(model, 'unknown') as model,
+             SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens,
+             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read,
+             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation
+      FROM request_logs
+      WHERE timestamp BETWEEN ? AND ? AND status_code = 200
+      GROUP BY date, model
+      HAVING total_tokens > 0
+      ORDER BY date, model
+    ''', [startTimestamp, endTimestamp]);
 
-    final Map<String, Map<String, int>> modelDateStats = {};
+    final Map<String, Map<String, Map<String, int>>> modelDateStats = {};
     for (final row in results) {
       final rowMap = row.toMap();
       final date = rowMap['date'] as String;
       final model = rowMap['model'] as String;
       final totalTokens = rowMap['total_tokens'] as int;
+      final cacheRead = rowMap['cache_read'] as int;
+      final cacheCreation = rowMap['cache_creation'] as int;
 
       modelDateStats.putIfAbsent(date, () => {});
-      modelDateStats[date]![model] = totalTokens;
+      modelDateStats[date]![model] = {
+        'total': totalTokens,
+        'cache_read': cacheRead,
+        'cache_creation': cacheCreation,
+      };
     }
 
     return modelDateStats;
@@ -222,40 +223,6 @@ class RequestLogRepository {
         'error_message': log.errorMessage,
       },
     ]);
-  }
-
-  /// Get daily cache stats for charts
-  Future<Map<String, Map<String, int>>> getDailyCacheStats({
-    required int startTimestamp,
-    required int endTimestamp,
-  }) async {
-    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0
-        ? '+$offsetMinutes minutes'
-        : '$offsetMinutes minutes';
-
-    final results = await _database.laconic.select('''
-      SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
-             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read,
-             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation,
-             SUM(COALESCE(input_tokens, 0)) as total_input
-      FROM request_logs
-      WHERE timestamp BETWEEN ? AND ? AND status_code = 200
-      GROUP BY date ORDER BY date
-    ''', [startTimestamp, endTimestamp]);
-
-    final Map<String, Map<String, int>> dailyStats = {};
-    for (final row in results) {
-      final rowMap = row.toMap();
-      final date = rowMap['date'] as String;
-      dailyStats[date] = {
-        'cache_read': rowMap['cache_read'] as int,
-        'cache_creation': rowMap['cache_creation'] as int,
-        'total_input': rowMap['total_input'] as int,
-      };
-    }
-
-    return dailyStats;
   }
 
   /// Get daily model token breakdown for cost calculation

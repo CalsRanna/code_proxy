@@ -2,20 +2,27 @@ import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
-/// 模型Token使用趋势堆叠柱状图
+/// 模型Token使用趋势堆叠柱状图（hover 展示缓存详情）
 class DashboardTokenBarChart extends StatelessWidget {
-  final Map<String, Map<String, int>> modelDateTokenStats;
+  /// { date: { model: { total, cache_read, cache_creation } } }
+  final Map<String, Map<String, Map<String, int>>> modelDateTokenStats;
 
   const DashboardTokenBarChart({super.key, required this.modelDateTokenStats});
+
+  static String _formatNumber(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final data = <MapEntry<String, Map<String, double>>>[];
+        final data = <_BarChartEntry>[];
         final models = <String>{};
 
-        // 获取所有模型
+        // 收集所有模型
         for (final dateData in modelDateTokenStats.values) {
           models.addAll(dateData.keys);
         }
@@ -29,15 +36,25 @@ class DashboardTokenBarChart extends StatelessWidget {
               '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
           final formattedDate =
               '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
-          final Map<String, double> yValues = {};
           final dateStats = modelDateTokenStats[dateKey] ?? {};
+          final Map<String, double> totals = {};
+          final Map<String, int> cacheReads = {};
+          final Map<String, int> cacheCreations = {};
           for (final model in modelList) {
-            yValues[model] = (dateStats[model] ?? 0).toDouble();
+            final stats = dateStats[model];
+            totals[model] = (stats?['total'] ?? 0).toDouble();
+            cacheReads[model] = stats?['cache_read'] ?? 0;
+            cacheCreations[model] = stats?['cache_creation'] ?? 0;
           }
-          data.add(MapEntry(formattedDate, yValues));
+          data.add(_BarChartEntry(
+            date: formattedDate,
+            totals: totals,
+            cacheReads: cacheReads,
+            cacheCreations: cacheCreations,
+          ));
         }
 
-        // ShadcnUI风格的配色方案
+        // ShadcnUI 风格配色
         final colors = [
           ShadcnColors.blue500,
           ShadcnColors.emerald500,
@@ -52,28 +69,99 @@ class DashboardTokenBarChart extends StatelessWidget {
         ];
 
         return SfCartesianChart(
-          primaryXAxis: const CategoryAxis(labelStyle: TextStyle(fontSize: 10)),
-          primaryYAxis: const NumericAxis(labelStyle: TextStyle(fontSize: 10)),
+          primaryXAxis:
+              const CategoryAxis(labelStyle: TextStyle(fontSize: 10)),
+          primaryYAxis:
+              const NumericAxis(labelStyle: TextStyle(fontSize: 10)),
           plotAreaBorderWidth: 0,
           legend: const Legend(isVisible: false),
           tooltipBehavior: TooltipBehavior(
             enable: true,
-            header: '',
-            canShowMarker: false,
-            format: 'series.name: point.y',
+            builder: (dynamic rawData, dynamic point, dynamic series,
+                int pointIndex, int seriesIndex) {
+              if (pointIndex < 0 || pointIndex >= data.length) {
+                return const SizedBox.shrink();
+              }
+              final entry = data[pointIndex];
+              final model = modelList[seriesIndex];
+              final color = colors[seriesIndex % colors.length];
+              final total = (entry.totals[model] ?? 0).toInt();
+              final cacheRead = entry.cacheReads[model] ?? 0;
+              final cacheCreation = entry.cacheCreations[model] ?? 0;
+              final cached = cacheRead + cacheCreation;
+              final nonCache = (total - cached).clamp(0, total);
+
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A2E),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          model,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '未缓存: ${_formatNumber(nonCache)}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFFAAAAAA),
+                      ),
+                    ),
+                    if (cacheRead > 0)
+                      Text(
+                        '缓存读取: ${_formatNumber(cacheRead)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: ShadcnColors.emerald400,
+                        ),
+                      ),
+                    if (cacheCreation > 0)
+                      Text(
+                        '缓存创建: ${_formatNumber(cacheCreation)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: ShadcnColors.amber400,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
           series: modelList.map((model) {
             final color = colors[modelList.indexOf(model) % colors.length];
 
-            return StackedColumnSeries<
-              MapEntry<String, Map<String, double>>,
-              String
-            >(
+            return StackedColumnSeries<_BarChartEntry, String>(
               dataSource: data,
-              xValueMapper: (MapEntry<String, Map<String, double>> data, _) =>
-                  data.key,
-              yValueMapper: (MapEntry<String, Map<String, double>> data, _) =>
-                  data.value[model] ?? 0,
+              xValueMapper: (_BarChartEntry d, _) => d.date,
+              yValueMapper: (_BarChartEntry d, _) => d.totals[model] ?? 0,
               name: model,
               color: color,
               dataLabelSettings: const DataLabelSettings(isVisible: false),
@@ -83,4 +171,18 @@ class DashboardTokenBarChart extends StatelessWidget {
       },
     );
   }
+}
+
+class _BarChartEntry {
+  final String date;
+  final Map<String, double> totals;
+  final Map<String, int> cacheReads;
+  final Map<String, int> cacheCreations;
+
+  _BarChartEntry({
+    required this.date,
+    required this.totals,
+    required this.cacheReads,
+    required this.cacheCreations,
+  });
 }
