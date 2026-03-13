@@ -27,19 +27,11 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editListenPort(context),
       );
     });
-    var maxRetriesTile = Watch((context) {
-      return ListTile(
-        title: const Text('最大重试次数'),
-        subtitle: Text('每个端点最多重试 ${viewModel.maxRetries.value} 次'),
-        trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editMaxRetries(context),
-      );
-    });
     var circuitBreakerThresholdTile = Watch((context) {
       return ListTile(
-        title: const Text('断路器失败阈值'),
+        title: const Text('端点熔断阈值'),
         subtitle: Text(
-          '滑动窗口内失败 ${viewModel.circuitBreakerFailureThreshold.value} 次后断路',
+          '连续失败 ${viewModel.circuitBreakerFailureThreshold.value} 次后禁用端点并故障转移',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
         onTap: () => viewModel.editDisableDuration(context),
@@ -47,9 +39,9 @@ class _SettingPageState extends State<SettingPage> {
     });
     var circuitBreakerRecoveryTile = Watch((context) {
       return ListTile(
-        title: const Text('断路器恢复超时'),
+        title: const Text('端点恢复超时'),
         subtitle: Text(
-          '断路后 ${viewModel.circuitBreakerRecoveryTimeout.value} 秒尝试恢复',
+          '端点被禁用 ${viewModel.circuitBreakerRecoveryTimeout.value} 秒后尝试探测恢复',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
         onTap: () => viewModel.editCircuitBreakerRecoveryTimeout(context),
@@ -185,7 +177,6 @@ class _SettingPageState extends State<SettingPage> {
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
               portListTile,
-              maxRetriesTile,
               circuitBreakerThresholdTile,
               circuitBreakerRecoveryTile,
               launchAtStartupTile,

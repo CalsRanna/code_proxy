@@ -83,7 +83,7 @@ class ProxyServerRouter {
     // 根据上一次的结果决定下一步
     switch (previousResult) {
       case HandleResult.success:
-        // 成功：记录断路器成功
+        // 成功：记录断路器成功，清空失败计数
         final endpoint = currentEndpoint;
         if (endpoint != null) {
           final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
@@ -126,39 +126,24 @@ class ProxyServerRouter {
 
       case HandleResult.serverError:
       case HandleResult.exception:
-        // 服务器错误或异常，记录断路器失败
         final endpoint = currentEndpoint;
-        if (endpoint != null) {
-          _circuitBreakerRegistry.getBreaker(endpoint.id).recordFailure();
+        if (endpoint == null) {
+          _state = RouteState.failed;
+          return false;
         }
 
-        if (_currentAttempt < _config.maxRetries) {
-          // 重试当前端点
-          _currentAttempt++;
-          _state = RouteState.retryingEndpoint;
+        // 记录失败，由断路器判断端点是否仍可用
+        final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
+        breaker.recordFailure();
+        _currentAttempt++;
+
+        if (breaker.state == CircuitBreakerState.open) {
+          // 断路器打开，禁用端点并故障转移
           LoggerUtil.instance.w(
-            'Retrying endpoint ${currentEndpoint?.name} '
-            '($_currentAttempt/${_config.maxRetries})',
+            'Endpoint ${endpoint.name} circuit breaker opened '
+            'after $_currentAttempt attempts',
           );
-
-          // 添加重试等待逻辑（支持指数退避）
-          if (_currentAttempt > 1) {
-            final delayMs = _calculateRetryDelay(_currentAttempt);
-            if (delayMs > 0) {
-              LoggerUtil.instance.d(
-                'Waiting ${delayMs}ms before retry (attempt $_currentAttempt)',
-              );
-              await Future.delayed(Duration(milliseconds: delayMs));
-            }
-          }
-
-          return true;
-        } else {
-          // 重试用尽，通知端点不可用（断路器已在每次失败时记录）
-          if (endpoint != null) {
-            _onEndpointUnavailable?.call(endpoint);
-          }
-
+          _onEndpointUnavailable?.call(endpoint);
           _moveToNextEndpoint();
 
           if (_currentEndpointIndex < _endpoints.length) {
@@ -166,10 +151,24 @@ class ProxyServerRouter {
             LoggerUtil.instance.i('Failing over to next endpoint');
             return true;
           } else {
-            // 所有端点都用尽
             _state = RouteState.failed;
             return false;
           }
+        } else {
+          // 断路器仍然关闭，指数退避后重试同一端点
+          _state = RouteState.retryingEndpoint;
+          final delayMs = _calculateRetryDelay(_currentAttempt);
+          LoggerUtil.instance.w(
+            'Retrying endpoint ${endpoint.name} '
+            '(attempt $_currentAttempt/${_config.circuitBreakerFailureThreshold})',
+          );
+          if (delayMs > 0) {
+            LoggerUtil.instance.d(
+              'Waiting ${delayMs}ms before retry',
+            );
+            await Future.delayed(Duration(milliseconds: delayMs));
+          }
+          return true;
         }
     }
   }

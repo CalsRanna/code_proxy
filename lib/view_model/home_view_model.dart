@@ -209,14 +209,12 @@ class HomeViewModel {
     _proxyServer = null;
     await ClaudeCodeSettingService().updateProxySetting();
     final instance = SharedPreferenceUtil.instance;
-    final maxRetries = await instance.getMaxRetries();
     final apiTimeout = await instance.getApiTimeout();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
     final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
     final config = ProxyServerConfig(
       address: '127.0.0.1',
       port: newPort,
-      maxRetries: maxRetries,
       apiTimeoutMs: apiTimeout,
       circuitBreakerFailureThreshold: cbThreshold,
       circuitBreakerRecoveryTimeoutMs: cbRecovery,
@@ -285,7 +283,6 @@ class HomeViewModel {
   Future<void> _autoStartServer() async {
     var instance = SharedPreferenceUtil.instance;
     final port = await instance.getPort();
-    final maxRetries = await instance.getMaxRetries();
     final apiTimeout = await instance.getApiTimeout();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
     final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
@@ -293,7 +290,6 @@ class HomeViewModel {
     final config = ProxyServerConfig(
       address: '127.0.0.1',
       port: port,
-      maxRetries: maxRetries,
       apiTimeoutMs: apiTimeout,
       circuitBreakerFailureThreshold: cbThreshold,
       circuitBreakerRecoveryTimeoutMs: cbRecovery,

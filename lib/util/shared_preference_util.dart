@@ -9,7 +9,6 @@ class SharedPreferenceUtil {
   final String _keyWindowWidth = 'window_width';
   final String _keyBrightness = 'brightness';
   final String _keyPort = 'port';
-  final String _keyMaxRetries = 'max_retries';
   final String _keyApiTimeout = 'api_timeout';
   final String _keyDisableNonessentialTraffic = 'disable_nonessential_traffic';
   final String _keyAttributionHeader = 'attribution_header';
@@ -46,10 +45,6 @@ class SharedPreferenceUtil {
 
   Future<bool> getDisableNonessentialTraffic() async {
     return (await _preferences).getBool(_keyDisableNonessentialTraffic) ?? true;
-  }
-
-  Future<int> getMaxRetries() async {
-    return (await _preferences).getInt(_keyMaxRetries) ?? 5;
   }
 
   Future<int> getPort() async {
@@ -108,10 +103,6 @@ class SharedPreferenceUtil {
 
   Future<void> setDisableExperimentalBetas(bool value) async {
     await (await _preferences).setBool(_keyDisableExperimentalBetas, value);
-  }
-
-  Future<void> setMaxRetries(int maxRetries) async {
-    await (await _preferences).setInt(_keyMaxRetries, maxRetries);
   }
 
   Future<void> setPort(int port) async {

@@ -20,7 +20,6 @@ import 'package:signals/signals.dart';
 
 class SettingViewModel {
   final port = signal(9000);
-  final maxRetries = signal(5);
   final apiTimeout = signal(600000);
   final circuitBreakerFailureThreshold = signal(5);
   final circuitBreakerRecoveryTimeout = signal(60);
@@ -36,7 +35,6 @@ class SettingViewModel {
   final pricingRefreshing = signal<bool>(false);
 
   final controller = TextEditingController();
-  final maxRetriesController = TextEditingController();
   final apiTimeoutController = TextEditingController();
   final circuitBreakerFailureThresholdController = TextEditingController();
   final circuitBreakerRecoveryTimeoutController = TextEditingController();
@@ -57,10 +55,6 @@ class SettingViewModel {
 
   Future<void> editListenPort(BuildContext context) async {
     showShadDialog(context: context, builder: _buildEditDialog);
-  }
-
-  Future<void> editMaxRetries(BuildContext context) async {
-    showShadDialog(context: context, builder: _buildMaxRetriesDialog);
   }
 
   Future<void> editApiTimeout(BuildContext context) async {
@@ -88,9 +82,6 @@ class SettingViewModel {
   Future<void> initSignals() async {
     port.value = await SharedPreferenceUtil.instance.getPort();
     controller.text = port.value.toString();
-
-    maxRetries.value = await SharedPreferenceUtil.instance.getMaxRetries();
-    maxRetriesController.text = maxRetries.value.toString();
 
     apiTimeout.value = await SharedPreferenceUtil.instance.getApiTimeout();
     apiTimeoutController.text = apiTimeout.value.toString();
@@ -181,33 +172,6 @@ class SettingViewModel {
     );
   }
 
-  Future<void> updateMaxRetries(BuildContext context) async {
-    var newMaxRetries = int.tryParse(maxRetriesController.text);
-    if (newMaxRetries == null || newMaxRetries < 1 || newMaxRetries > 100) {
-      showShadDialog(
-        context: context,
-        builder: (context) {
-          return _buildAlertDialog(context, '最大重试次数必须在 1-100 之间');
-        },
-      );
-      return;
-    }
-    if (newMaxRetries == maxRetries.value) {
-      Navigator.of(context).pop();
-      return;
-    }
-    await SharedPreferenceUtil.instance.setMaxRetries(newMaxRetries);
-    maxRetries.value = newMaxRetries;
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-    showShadDialog(
-      context: context,
-      builder: (context) {
-        return _buildAlertDialog(context, '最大重试次数已更新,重启代理服务器后生效。');
-      },
-    );
-  }
-
   Future<void> updateApiTimeout(BuildContext context) async {
     var newApiTimeout = int.tryParse(apiTimeoutController.text);
     if (newApiTimeout == null ||
@@ -265,7 +229,7 @@ class SettingViewModel {
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, '断路器失败阈值已更新,重启代理服务器后生效。');
+        return _buildAlertDialog(context, '端点熔断阈值已更新,重启代理服务器后生效。');
       },
     );
   }
@@ -297,7 +261,7 @@ class SettingViewModel {
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, '断路器恢复超时已更新,重启代理服务器后生效。');
+        return _buildAlertDialog(context, '端点恢复超时已更新,重启代理服务器后生效。');
       },
     );
   }
@@ -400,27 +364,6 @@ class SettingViewModel {
     );
   }
 
-  Widget _buildMaxRetriesDialog(BuildContext context) {
-    return ShadDialog(
-      title: const Text('最大重试次数'),
-      description: const Text('设置每个端点的最大重试次数 (1-100)'),
-      actions: [
-        ShadButton.outline(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        ShadButton(
-          onPressed: () => updateMaxRetries(context),
-          child: const Text('保存'),
-        ),
-      ],
-      child: ShadInput(
-        controller: maxRetriesController,
-        keyboardType: TextInputType.number,
-      ),
-    );
-  }
-
   Widget _buildApiTimeoutDialog(BuildContext context) {
     return ShadDialog(
       title: const Text('API 超时时间'),
@@ -444,8 +387,8 @@ class SettingViewModel {
 
   Widget _buildCircuitBreakerFailureThresholdDialog(BuildContext context) {
     return ShadDialog(
-      title: const Text('断路器失败阈值'),
-      description: const Text('滑动窗口内失败次数达到此值后打开断路器 (1-20)'),
+      title: const Text('端点熔断阈值'),
+      description: const Text('连续失败达到此次数后禁用端点并故障转移 (1-20)'),
       actions: [
         ShadButton.outline(
           onPressed: () => Navigator.pop(context),
@@ -465,8 +408,8 @@ class SettingViewModel {
 
   Widget _buildCircuitBreakerRecoveryTimeoutDialog(BuildContext context) {
     return ShadDialog(
-      title: const Text('断路器恢复超时'),
-      description: const Text('断路器打开后等待多久尝试恢复(秒), 范围 10-300'),
+      title: const Text('端点恢复超时'),
+      description: const Text('端点被禁用后等待多久尝试探测恢复(秒), 范围 10-300'),
       actions: [
         ShadButton.outline(
           onPressed: () => Navigator.pop(context),

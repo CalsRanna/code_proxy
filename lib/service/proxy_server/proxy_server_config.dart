@@ -6,9 +6,6 @@ class ProxyServerConfig {
   /// 监听端口
   final int port;
 
-  /// 最大重试次数
-  final int maxRetries;
-
   /// API 超时时间(毫秒)
   final int apiTimeoutMs;
 
@@ -24,7 +21,6 @@ class ProxyServerConfig {
   const ProxyServerConfig({
     this.address = '127.0.0.1',
     this.port = 9000,
-    this.maxRetries = 3,
     this.apiTimeoutMs = 10 * 60 * 1000,
     this.circuitBreakerFailureThreshold = 5,
     this.circuitBreakerRecoveryTimeoutMs = 60 * 1000,
