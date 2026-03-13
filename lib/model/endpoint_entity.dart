@@ -36,12 +36,6 @@ class EndpointEntity {
   /// Anthropic 默认 Opus 模型名称
   final String? anthropicDefaultOpusModel;
 
-  /// 是否临时禁用
-  final bool forbidden;
-
-  /// 临时禁用到期时间戳（毫秒）
-  final int? forbiddenUntil;
-
   const EndpointEntity({
     required this.id,
     required this.name,
@@ -55,8 +49,6 @@ class EndpointEntity {
     this.anthropicDefaultHaikuModel,
     this.anthropicDefaultSonnetModel,
     this.anthropicDefaultOpusModel,
-    this.forbidden = false,
-    this.forbiddenUntil,
   });
 
   /// 从 JSON 反序列化
@@ -75,8 +67,6 @@ class EndpointEntity {
       anthropicDefaultSonnetModel:
           json['anthropicDefaultSonnetModel'] as String?,
       anthropicDefaultOpusModel: json['anthropicDefaultOpusModel'] as String?,
-      forbidden: json['forbidden'] as bool? ?? false,
-      forbiddenUntil: json['forbiddenUntil'] as int?,
     );
   }
 
@@ -95,8 +85,6 @@ class EndpointEntity {
       'anthropicDefaultHaikuModel': anthropicDefaultHaikuModel,
       'anthropicDefaultSonnetModel': anthropicDefaultSonnetModel,
       'anthropicDefaultOpusModel': anthropicDefaultOpusModel,
-      'forbidden': forbidden,
-      'forbiddenUntil': forbiddenUntil,
     };
   }
 
@@ -114,8 +102,6 @@ class EndpointEntity {
     String? anthropicDefaultHaikuModel,
     String? anthropicDefaultSonnetModel,
     String? anthropicDefaultOpusModel,
-    bool? forbidden,
-    int? forbiddenUntil,
   }) {
     return EndpointEntity(
       id: id ?? this.id,
@@ -134,8 +120,6 @@ class EndpointEntity {
           anthropicDefaultSonnetModel ?? this.anthropicDefaultSonnetModel,
       anthropicDefaultOpusModel:
           anthropicDefaultOpusModel ?? this.anthropicDefaultOpusModel,
-      forbidden: forbidden ?? this.forbidden,
-      forbiddenUntil: forbiddenUntil ?? this.forbiddenUntil,
     );
   }
 
@@ -154,8 +138,6 @@ class EndpointEntity {
       anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
       anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
       anthropicDefaultOpusModel: anthropicDefaultOpusModel,
-      forbidden: false,
-      forbiddenUntil: null,
     );
   }
 

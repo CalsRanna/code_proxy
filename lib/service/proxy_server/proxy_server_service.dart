@@ -27,6 +27,7 @@ class ProxyServerService {
   late final ProxyServerRouter _router;
   late final ProxyServerRequestHandler _requestHandler;
   late final ProxyServerResponseHandler _responseHandler;
+  late final CircuitBreakerRegistry _circuitBreakerRegistry;
   HttpServer? _server;
 
   ProxyServerService({
@@ -36,7 +37,7 @@ class ProxyServerService {
     this.onEndpointRestored,
   }) {
     final repository = EndpointRepository(Database.instance);
-    final circuitBreakerRegistry = CircuitBreakerRegistry(
+    _circuitBreakerRegistry = CircuitBreakerRegistry(
       failureThreshold: config.circuitBreakerFailureThreshold,
       recoveryTimeoutMs: config.circuitBreakerRecoveryTimeoutMs,
       slidingWindowMs: config.circuitBreakerSlidingWindowMs,
@@ -44,7 +45,7 @@ class ProxyServerService {
     _router = ProxyServerRouter(
       config: config,
       repository: repository,
-      circuitBreakerRegistry: circuitBreakerRegistry,
+      circuitBreakerRegistry: _circuitBreakerRegistry,
       onEndpointUnavailable: onEndpointUnavailable,
       onEndpointRestored: onEndpointRestored,
     );
@@ -81,6 +82,16 @@ class ProxyServerService {
     await _server!.close(force: true);
     _server = null;
     _requestHandler.close();
+  }
+
+  /// 重置指定端点的断路器
+  void resetCircuitBreaker(String endpointId) {
+    _circuitBreakerRegistry.reset(endpointId);
+  }
+
+  /// 重置所有断路器
+  void resetAllCircuitBreakers() {
+    _circuitBreakerRegistry.resetAll();
   }
 
   /// 代理处理器 - 协调路由、请求处理和响应处理

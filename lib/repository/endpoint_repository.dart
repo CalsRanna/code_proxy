@@ -56,23 +56,18 @@ class EndpointRepository {
 
   /// Update an existing endpoint
   Future<void> update(EndpointEntity endpoint) async {
-    // Clear forbidden status when manually updating
-    final updated = endpoint.copyWith(forbidden: false, forbiddenUntil: null);
-
-    await _database.laconic.table('endpoints').where('id', updated.id).update({
-      'name': updated.name,
-      'note': updated.note,
-      'enabled': updated.enabled ? 1 : 0,
-      'weight': updated.weight,
-      'anthropic_auth_token': updated.anthropicAuthToken,
-      'anthropic_base_url': updated.anthropicBaseUrl,
-      'anthropic_model': updated.anthropicModel,
-      'anthropic_small_fast_model': updated.anthropicSmallFastModel,
-      'anthropic_default_haiku_model': updated.anthropicDefaultHaikuModel,
-      'anthropic_default_sonnet_model': updated.anthropicDefaultSonnetModel,
-      'anthropic_default_opus_model': updated.anthropicDefaultOpusModel,
-      'forbidden': 0,
-      'forbidden_until': null,
+    await _database.laconic.table('endpoints').where('id', endpoint.id).update({
+      'name': endpoint.name,
+      'note': endpoint.note,
+      'enabled': endpoint.enabled ? 1 : 0,
+      'weight': endpoint.weight,
+      'anthropic_auth_token': endpoint.anthropicAuthToken,
+      'anthropic_base_url': endpoint.anthropicBaseUrl,
+      'anthropic_model': endpoint.anthropicModel,
+      'anthropic_small_fast_model': endpoint.anthropicSmallFastModel,
+      'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
+      'anthropic_default_sonnet_model': endpoint.anthropicDefaultSonnetModel,
+      'anthropic_default_opus_model': endpoint.anthropicDefaultOpusModel,
     });
   }
 
@@ -97,38 +92,6 @@ class EndpointRepository {
     return results.map((r) => _fromRow(r.toMap())).toList();
   }
 
-  /// Mark endpoint as temporarily forbidden
-  Future<void> forbid(String id, int durationMs) async {
-    final disableUntil = DateTime.now().millisecondsSinceEpoch + durationMs;
-    await _database.laconic.table('endpoints').where('id', id).update({
-      'forbidden': 1,
-      'forbidden_until': disableUntil,
-    });
-  }
-
-  /// Remove forbidden status from endpoint
-  Future<void> unforbid(String id) async {
-    await _database.laconic.table('endpoints').where('id', id).update({
-      'forbidden': 0,
-      'forbidden_until': null,
-    });
-  }
-
-  /// Check if forbidden status is expired and restore if needed
-  Future<bool> checkAndRestoreExpired(String id) async {
-    final endpoint = await getById(id);
-    if (endpoint == null) return false;
-
-    if (endpoint.forbidden && endpoint.forbiddenUntil != null) {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (now >= endpoint.forbiddenUntil!) {
-        await unforbid(id);
-        return true;
-      }
-    }
-    return false;
-  }
-
   /// Convert database row to EndpointEntity
   EndpointEntity _fromRow(Map<String, dynamic> row) {
     return EndpointEntity(
@@ -146,8 +109,6 @@ class EndpointRepository {
       anthropicDefaultSonnetModel:
           row['anthropic_default_sonnet_model'] as String?,
       anthropicDefaultOpusModel: row['anthropic_default_opus_model'] as String?,
-      forbidden: (row['forbidden'] as int?) == 1,
-      forbiddenUntil: row['forbidden_until'] as int?,
     );
   }
 }

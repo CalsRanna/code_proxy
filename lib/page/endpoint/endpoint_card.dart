@@ -6,17 +6,21 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 class EndpointCard extends StatefulWidget {
   final EndpointEntity endpoint;
+  final bool isForbidden;
   final void Function()? onDelete;
   final void Function()? onEdit;
   final void Function()? onClone;
+  final void Function()? onResetCircuitBreaker;
   final void Function(bool)? onToggleEnabled;
   final int index;
   const EndpointCard({
     super.key,
     required this.endpoint,
+    this.isForbidden = false,
     this.onEdit,
     this.onDelete,
     this.onClone,
+    this.onResetCircuitBreaker,
     this.onToggleEnabled,
     required this.index,
   });
@@ -98,7 +102,7 @@ class _EndpointCardState extends State<EndpointCard> {
                               ),
                             ),
                           ],
-                          if (widget.endpoint.forbidden)
+                          if (widget.isForbidden)
                             ShadBadge(
                               backgroundColor: Colors.red.shade50,
                               foregroundColor: Colors.red,
@@ -161,6 +165,20 @@ class _EndpointCardState extends State<EndpointCard> {
                         ],
                       ),
                     ),
+                    if (widget.isForbidden)
+                      ShadContextMenuItem(
+                        onPressed: widget.onResetCircuitBreaker,
+                        child: Row(
+                          children: [
+                            Icon(LucideIcons.refreshCw, color: Colors.orange),
+                            SizedBox(width: 8),
+                            Text(
+                              '重置断路器',
+                              style: TextStyle(color: Colors.orange),
+                            ),
+                          ],
+                        ),
+                      ),
                     ShadContextMenuItem(
                       onPressed: widget.onDelete,
                       child: Row(

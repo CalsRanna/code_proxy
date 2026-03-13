@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/claude_code_audit_service.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
@@ -38,40 +37,55 @@ class HomeViewModel {
   final RequestLogRepository _requestLogRepository = RequestLogRepository(
     Database.instance,
   );
-  final EndpointRepository _endpointRepository = EndpointRepository(
-    Database.instance,
-  );
-
-  /// 处理端点恢复事件（临时禁用到期后自动恢复）
-  Future<void> handleEndpointRestored(EndpointEntity endpoint) async {
+  /// 处理端点恢复事件（断路器自动恢复）
+  void handleEndpointRestored(EndpointEntity endpoint) {
     LoggerUtil.instance.i(
-      'Endpoint ${endpoint.name} has been automatically restored from temporary disable',
+      'Endpoint ${endpoint.name} has been automatically restored',
     );
 
-    // 刷新端点列表 UI
     try {
       final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-      await endpointViewModel.initSignals();
+      endpointViewModel.markRestored(endpoint.id);
     } catch (e) {
-      LoggerUtil.instance.e('Failed to refresh endpoint list: $e');
+      LoggerUtil.instance.e('Failed to update endpoint state: $e');
     }
   }
 
   /// 处理端点不可用事件（断路器打开后触发）
-  Future<void> handleEndpointUnavailable(EndpointEntity endpoint) async {
+  void handleEndpointUnavailable(EndpointEntity endpoint) {
     LoggerUtil.instance.w(
       'Endpoint ${endpoint.name} circuit breaker opened',
     );
 
-    // 标记 forbidden 用于 UI 展示断路状态（由断路器自动管理恢复）
-    await _endpointRepository.forbid(endpoint.id, 0);
-
-    // 刷新端点列表以更新状态
     try {
       final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-      endpointViewModel.initSignals();
+      endpointViewModel.markForbidden(endpoint.id);
     } catch (e) {
       // 忽略获取 ViewModel 的错误
+    }
+  }
+
+  /// 重置指定端点的断路器状态
+  void resetCircuitBreaker(String endpointId) {
+    _proxyServer?.resetCircuitBreaker(endpointId);
+
+    try {
+      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+      endpointViewModel.markRestored(endpointId);
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to update endpoint state: $e');
+    }
+  }
+
+  /// 重置所有端点的断路器状态
+  void resetAllCircuitBreakers() {
+    _proxyServer?.resetAllCircuitBreakers();
+
+    try {
+      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+      endpointViewModel.forbiddenEndpointIds.clear();
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to update endpoint state: $e');
     }
   }
 
