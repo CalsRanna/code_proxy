@@ -88,10 +88,7 @@ class EndpointViewModel {
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
     final updated = endpoint.copyWith(enabled: !endpoint.enabled);
     final shouldRestoreAvailability = !endpoint.enabled && updated.enabled;
-    await _endpointRepository.update(
-      updated,
-      clearForbidden: shouldRestoreAvailability,
-    );
+    await _endpointRepository.update(updated);
     await _loadEndpoints();
     if (shouldRestoreAvailability) {
       _restoreEndpointAvailability(updated.id);
