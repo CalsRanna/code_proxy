@@ -89,6 +89,16 @@ class ProxyServerService {
     _requestHandler.close();
   }
 
+  /// 重置指定端点的断路器
+  void resetCircuitBreaker(String endpointId) {
+    _circuitBreakerRegistry.reset(endpointId);
+  }
+
+  /// 重置所有断路器
+  void resetAllCircuitBreakers() {
+    _circuitBreakerRegistry.resetAll();
+  }
+
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final rawBody = await request.read().expand((x) => x).toList();

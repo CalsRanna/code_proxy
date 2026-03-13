@@ -31,7 +31,8 @@
       "Bash(xxd:*)",
       "Bash(dd:*)",
       "mcp__dart-mcp-server__dart_format",
-      "WebFetch(domain:models.dev)"
+      "WebFetch(domain:models.dev)",
+      "mcp__dart-mcp-server__run_tests"
     ],
     "deny": []
   }

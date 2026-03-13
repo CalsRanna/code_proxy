@@ -91,10 +91,7 @@ class ProxyServerRouter {
               breaker.state == CircuitBreakerState.halfOpen;
           breaker.recordSuccess();
           if (wasHalfOpen) {
-            // halfOpen → closed，端点恢复
             _onEndpointRestored?.call(endpoint);
-            // 恢复数据库中的 forbidden 状态
-            await _repository.unforbid(endpoint.id);
           }
         }
         return false;
@@ -115,7 +112,7 @@ class ProxyServerRouter {
           _onEndpointUnavailable?.call(endpoint);
         }
 
-        await _moveToNextEndpoint();
+        _moveToNextEndpoint();
 
         if (_currentEndpointIndex < _endpoints.length) {
           _state = RouteState.failingOver;
@@ -162,7 +159,7 @@ class ProxyServerRouter {
             _onEndpointUnavailable?.call(endpoint);
           }
 
-          await _moveToNextEndpoint();
+          _moveToNextEndpoint();
 
           if (_currentEndpointIndex < _endpoints.length) {
             _state = RouteState.failingOver;
@@ -179,12 +176,12 @@ class ProxyServerRouter {
 
   /// 设置端点列表
   void setEndpoints(List<EndpointEntity> endpoints) {
-    _endpoints = endpoints.where((e) => e.enabled && !e.forbidden).toList();
+    _endpoints = endpoints.where((e) => e.enabled).toList();
     _resetForNewRequest();
   }
 
   /// 移动到下一个端点
-  Future<void> _moveToNextEndpoint() async {
+  void _moveToNextEndpoint() {
     _currentEndpointIndex++;
     _currentAttempt = 1;
 
@@ -205,33 +202,16 @@ class ProxyServerRouter {
     _currentAttempt = 1;
     _state = RouteState.selectingEndpoint;
 
-    // 从数据库重新获取最新状态
+    // 从数据库重新获取最新的启用端点列表
     final freshEndpoints = await _repository.getEnabled();
 
-    // 过滤：手动禁用(forbidden) 的排除，但检查断路器状态
+    // 根据断路器状态过滤端点
     _endpoints = [];
     for (final e in freshEndpoints) {
       final breaker = _circuitBreakerRegistry.getBreaker(e.id);
-      final breakerState = breaker.state;
-
-      if (e.forbidden && breakerState == CircuitBreakerState.closed) {
-        // forbidden 但断路器已 closed，说明已恢复，自动清除 forbidden
-        await _repository.unforbid(e.id);
+      if (breaker.allowRequest) {
         _endpoints.add(e);
-        _onEndpointRestored?.call(e);
-      } else if (!e.forbidden) {
-        // 未 forbidden：断路器允许则加入
-        if (breaker.allowRequest) {
-          _endpoints.add(e);
-        }
-      } else if (e.forbidden &&
-          breakerState == CircuitBreakerState.halfOpen) {
-        // forbidden 且断路器 halfOpen：允许探测
-        if (breaker.allowRequest) {
-          _endpoints.add(e);
-        }
       }
-      // forbidden && open → 跳过
     }
   }
 }

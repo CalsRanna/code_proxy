@@ -23,6 +23,8 @@ class _EndpointPageState extends State<EndpointPage> {
   Widget build(BuildContext context) {
     return Watch((context) {
       final endpoints = viewModel.endpoints.value;
+      // 读取 forbiddenEndpointIds 以订阅断路器状态变化
+      viewModel.forbiddenEndpointIds.value;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -64,9 +66,12 @@ class _EndpointPageState extends State<EndpointPage> {
           key: ValueKey(endpoint.id),
           index: index,
           endpoint: endpoint,
+          isForbidden: viewModel.forbiddenEndpointIds.contains(endpoint.id),
           onEdit: () => _showEditEndpointDialog(context, endpoint),
           onClone: () => _showCloneEndpointDialog(context, endpoint),
           onDelete: () => _showDeleteDialog(context, endpoint),
+          onResetCircuitBreaker: () =>
+              viewModel.resetCircuitBreaker(endpoint.id),
           onToggleEnabled: (value) => viewModel.toggleEnabled(endpoint.id),
         );
       },

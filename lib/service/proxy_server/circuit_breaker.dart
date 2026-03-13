@@ -12,6 +12,7 @@ class CircuitBreaker {
   final List<int> _failureTimestamps = [];
   int? _openedAt;
   bool _halfOpenProbing = false;
+  bool _hasBeenOpened = false;
 
   CircuitBreaker({
     required this.endpointId,
@@ -20,7 +21,15 @@ class CircuitBreaker {
     this.slidingWindowMs = 120000,
   });
 
-  CircuitBreakerState get state {
+  /// 当前状态（纯读取，不触发状态转换）
+  CircuitBreakerState get state => _state;
+
+  /// 断路器是否曾经被打开过（用于区分新建断路器和恢复后的断路器）
+  bool get hasBeenOpened => _hasBeenOpened;
+
+  /// 评估并更新状态（处理 open → halfOpen 的超时转换）
+  /// 需要检查状态转换时应显式调用此方法，而非通过 state getter
+  CircuitBreakerState evaluateState() {
     if (_state == CircuitBreakerState.open && _openedAt != null) {
       final now = DateTime.now().millisecondsSinceEpoch;
       if (now - _openedAt! >= recoveryTimeoutMs) {
@@ -33,7 +42,8 @@ class CircuitBreaker {
 
   /// 是否允许请求通过
   bool get allowRequest {
-    switch (state) {
+    final currentState = evaluateState();
+    switch (currentState) {
       case CircuitBreakerState.closed:
         return true;
       case CircuitBreakerState.open:
@@ -55,6 +65,10 @@ class CircuitBreaker {
       _failureTimestamps.clear();
       _openedAt = null;
       _halfOpenProbing = false;
+    } else if (_state == CircuitBreakerState.closed) {
+      // closed 状态下成功时清理过期的失败记录，避免端点长期处于脆弱状态
+      final now = DateTime.now().millisecondsSinceEpoch;
+      _failureTimestamps.removeWhere((t) => now - t > slidingWindowMs);
     }
   }
 
@@ -62,13 +76,17 @@ class CircuitBreaker {
   void recordFailure() {
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    if (state == CircuitBreakerState.halfOpen) {
+    if (_state == CircuitBreakerState.halfOpen) {
       // halfOpen 探测失败 → 回到 open
       _state = CircuitBreakerState.open;
       _openedAt = now;
       _halfOpenProbing = false;
+      _hasBeenOpened = true;
       return;
     }
+
+    // 只在 closed 状态下记录失败，open 状态下忽略
+    if (_state != CircuitBreakerState.closed) return;
 
     // closed 状态：滑动窗口计数
     _failureTimestamps.add(now);
@@ -79,6 +97,7 @@ class CircuitBreaker {
       _state = CircuitBreakerState.open;
       _openedAt = now;
       _halfOpenProbing = false;
+      _hasBeenOpened = true;
     }
   }
 
@@ -87,6 +106,7 @@ class CircuitBreaker {
     _state = CircuitBreakerState.open;
     _openedAt = DateTime.now().millisecondsSinceEpoch;
     _halfOpenProbing = false;
+    _hasBeenOpened = true;
   }
 
   /// 手动重置到 closed
@@ -95,6 +115,7 @@ class CircuitBreaker {
     _failureTimestamps.clear();
     _openedAt = null;
     _halfOpenProbing = false;
+    _hasBeenOpened = false;
   }
 }
 
@@ -125,6 +146,11 @@ class CircuitBreakerRegistry {
 
   void reset(String endpointId) {
     _breakers[endpointId]?.reset();
+  }
+
+  /// 移除端点的断路器实例（用于端点被删除时清理内存）
+  void removeBreaker(String endpointId) {
+    _breakers.remove(endpointId);
   }
 
   void resetAll() {
