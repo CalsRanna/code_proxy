@@ -251,6 +251,11 @@ class HomeViewModel {
     _proxyServer?.removeCircuitBreaker(endpointId);
   }
 
+  void dispose() {
+    _subscription?.cancel();
+    _subscription = null;
+  }
+
   void updateSelectedIndex(int index) {
     final previousIndex = selectedIndex.value;
     selectedIndex.value = index;

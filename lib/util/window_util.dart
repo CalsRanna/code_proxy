@@ -17,6 +17,7 @@ class WindowUtil {
   Stream<WindowEvent> get stream => _controller.stream;
 
   Future<void> destroy() async {
+    await _controller.close();
     await windowManager.destroy();
   }
 

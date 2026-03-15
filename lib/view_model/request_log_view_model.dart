@@ -25,8 +25,20 @@ class RequestLogViewModel {
     loadLogs();
   }
 
-  void loadLogs() async {
+  Future<void> loadLogs() async {
     final filter = statusCodeFilter.value;
+
+    // 先获取总数，再根据总数计算有效页码，避免重复查库
+    final totalCount = await _requestLogRepository.getTotalCount(
+      statusCodeFilter: filter,
+    );
+    total.value = totalCount;
+
+    // 修正越界页码
+    if (currentPage.value > totalPages.value) {
+      currentPage.value = totalPages.value;
+    }
+
     final startIndex = (currentPage.value - 1) * pageSize.value;
     final dbLogs = await _requestLogRepository.getAll(
       limit: pageSize.value,
@@ -34,22 +46,6 @@ class RequestLogViewModel {
       statusCodeFilter: filter,
     );
     logs.value = dbLogs;
-
-    final total = await _requestLogRepository.getTotalCount(
-      statusCodeFilter: filter,
-    );
-    this.total.value = total;
-
-    if (currentPage.value > totalPages.value) {
-      currentPage.value = totalPages.value;
-      final newStartIndex = (currentPage.value - 1) * pageSize.value;
-      final newDbLogs = await _requestLogRepository.getAll(
-        limit: pageSize.value,
-        offset: newStartIndex,
-        statusCodeFilter: filter,
-      );
-      logs.value = newDbLogs;
-    }
   }
 
   void nextPage() {

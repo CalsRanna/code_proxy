@@ -57,7 +57,13 @@ class ModelPricingService {
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       _parseApiResponse(json);
-      await _saveCacheFile();
+
+      // 缓存保存失败不影响内存中的定价数据
+      try {
+        await _saveCacheFile();
+      } catch (e) {
+        LoggerUtil.instance.w('Failed to save pricing cache: $e');
+      }
     } catch (e) {
       LoggerUtil.instance.w('Failed to refresh pricing data: $e');
     }
@@ -67,13 +73,23 @@ class ModelPricingService {
   ModelPricingEntity? getPricing(String model) {
     // 完全匹配
     if (_pricingMap.containsKey(model)) return _pricingMap[model];
-    // 尝试忽略 provider 前缀匹配
+
+    // 前缀匹配：优先选择最长的匹配键（最精确的匹配）
+    // 例如 model="claude-sonnet-4-20250514" 应优先匹配 "claude-sonnet-4-20250514"
+    // 而非短键 "claude-sonnet-4"
+    ModelPricingEntity? bestMatch;
+    int bestLength = 0;
     for (final entry in _pricingMap.entries) {
-      if (model.contains(entry.key) || entry.key.contains(model)) {
-        return entry.value;
+      if (model.startsWith(entry.key) && entry.key.length > bestLength) {
+        bestMatch = entry.value;
+        bestLength = entry.key.length;
+      }
+      if (entry.key.startsWith(model) && model.length > bestLength) {
+        bestMatch = entry.value;
+        bestLength = model.length;
       }
     }
-    return null;
+    return bestMatch;
   }
 
   /// 计算请求费用

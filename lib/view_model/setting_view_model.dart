@@ -53,6 +53,19 @@ class SettingViewModel {
   final defaultModelController = TextEditingController();
   final defaultSmallFastModelController = TextEditingController();
 
+  void dispose() {
+    controller.dispose();
+    apiTimeoutController.dispose();
+    circuitBreakerFailureThresholdController.dispose();
+    circuitBreakerRecoveryTimeoutController.dispose();
+    auditRetainDaysController.dispose();
+    defaultHaikuModelController.dispose();
+    defaultSonnetModelController.dispose();
+    defaultOpusModelController.dispose();
+    defaultModelController.dispose();
+    defaultSmallFastModelController.dispose();
+  }
+
   Future<void> editListenPort(BuildContext context) async {
     showShadDialog(context: context, builder: _buildEditDialog);
   }
@@ -149,7 +162,7 @@ class SettingViewModel {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, '端口号必须在 1-65535 之间');
+          return _buildAlertDialog(context, '监听端口', '端口号必须在 1-65535 之间');
         },
       );
       return;
@@ -167,7 +180,7 @@ class SettingViewModel {
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, '监听端口已更新,代理服务器已自动重启。');
+        return _buildAlertDialog(context, '监听端口', '监听端口已更新，代理服务器已自动重启。');
       },
     );
   }
@@ -180,7 +193,7 @@ class SettingViewModel {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, 'API 超时时间必须在 1000-3600000 毫秒之间');
+          return _buildAlertDialog(context, 'API 超时时间', 'API 超时时间必须在 1000-3600000 毫秒之间');
         },
       );
       return;
@@ -196,7 +209,7 @@ class SettingViewModel {
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, 'API 超时时间已更新,重启代理服务器后生效。');
+        return _buildAlertDialog(context, 'API 超时时间', 'API 超时时间已更新，重启代理服务器后生效。');
       },
     );
   }
@@ -211,7 +224,7 @@ class SettingViewModel {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, '失败阈值必须在 1-20 之间');
+          return _buildAlertDialog(context, '端点熔断阈值', '失败阈值必须在 1-20 之间');
         },
       );
       return;
@@ -226,10 +239,13 @@ class SettingViewModel {
     circuitBreakerFailureThreshold.value = newThreshold;
     if (!context.mounted) return;
     Navigator.of(context).pop();
+    final homeViewModel = GetIt.instance.get<HomeViewModel>();
+    await homeViewModel.restartProxyServer(port.value);
+    if (!context.mounted) return;
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, '端点熔断阈值已更新,重启代理服务器后生效。');
+        return _buildAlertDialog(context, '端点熔断阈值', '端点熔断阈值已更新，代理服务器已自动重启。');
       },
     );
   }
@@ -244,7 +260,7 @@ class SettingViewModel {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, '恢复超时必须在 10-300 秒之间');
+          return _buildAlertDialog(context, '端点恢复超时', '恢复超时必须在 10-300 秒之间');
         },
       );
       return;
@@ -258,10 +274,13 @@ class SettingViewModel {
     circuitBreakerRecoveryTimeout.value = newSeconds;
     if (!context.mounted) return;
     Navigator.of(context).pop();
+    final homeViewModel = GetIt.instance.get<HomeViewModel>();
+    await homeViewModel.restartProxyServer(port.value);
+    if (!context.mounted) return;
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, '端点恢复超时已更新,重启代理服务器后生效。');
+        return _buildAlertDialog(context, '端点恢复超时', '端点恢复超时已更新，代理服务器已自动重启。');
       },
     );
   }
@@ -272,7 +291,7 @@ class SettingViewModel {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, '保留天数必须在 1-30 之间');
+          return _buildAlertDialog(context, '审计日志', '保留天数必须在 1-30 之间');
         },
       );
       return;
@@ -334,9 +353,9 @@ class SettingViewModel {
     pricingRefreshing.value = false;
   }
 
-  ShadDialog _buildAlertDialog(BuildContext context, String message) {
+  ShadDialog _buildAlertDialog(BuildContext context, String title, String message) {
     return ShadDialog.alert(
-      title: const Text('监听端口'),
+      title: Text(title),
       description: Text(message),
       actions: [
         ShadButton(

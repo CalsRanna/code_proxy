@@ -80,14 +80,11 @@ class RequestLogRepository {
     return dailyStats;
   }
 
-  /// Get daily request stats for heatmap
+  /// Get daily success request stats for heatmap (仅统计 2xx 成功请求)
   Future<Map<String, int>> getDailySuccessRequestStats({
     required int startTimestamp,
     required int endTimestamp,
   }) async {
-    // 计算时区偏移（分钟）
-    // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
-    // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
     final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
     final offsetModifier = offsetMinutes >= 0
         ? '+$offsetMinutes minutes'
@@ -100,6 +97,7 @@ class RequestLogRepository {
           'COUNT(id) as request_count',
         ])
         .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
+        .where('status_code', 200)
         .groupBy('date')
         .orderBy('date')
         .get();
