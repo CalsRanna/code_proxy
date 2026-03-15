@@ -246,9 +246,9 @@ class HomeViewModel {
     _proxyServer?.endpoints = enabledEndpoints;
   }
 
-  /// 用户手动恢复端点时，同步清理断路器状态。
-  void restoreEndpointAvailability(String endpointId) {
-    _proxyServer?.resetEndpointState(endpointId);
+  /// 移除端点的断路器实例（端点被删除时调用）
+  void removeCircuitBreaker(String endpointId) {
+    _proxyServer?.removeCircuitBreaker(endpointId);
   }
 
   void updateSelectedIndex(int index) {

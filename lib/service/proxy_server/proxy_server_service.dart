@@ -1,16 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/repository/endpoint_repository.dart';
-import 'package:code_proxy/service/proxy_server/circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
@@ -27,7 +25,7 @@ class ProxyServerService {
   late final ProxyServerRouter _router;
   late final ProxyServerRequestHandler _requestHandler;
   late final ProxyServerResponseHandler _responseHandler;
-  late final CircuitBreakerRegistry _circuitBreakerRegistry;
+  late final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
   HttpServer? _server;
 
   ProxyServerService({
@@ -36,15 +34,13 @@ class ProxyServerService {
     this.onEndpointUnavailable,
     this.onEndpointRestored,
   }) {
-    final repository = EndpointRepository(Database.instance);
-    _circuitBreakerRegistry = CircuitBreakerRegistry(
+    _circuitBreakerRegistry = ProxyServerCircuitBreakerRegistry(
       failureThreshold: config.circuitBreakerFailureThreshold,
       recoveryTimeoutMs: config.circuitBreakerRecoveryTimeoutMs,
       slidingWindowMs: config.circuitBreakerSlidingWindowMs,
     );
     _router = ProxyServerRouter(
       config: config,
-      repository: repository,
       circuitBreakerRegistry: _circuitBreakerRegistry,
       onEndpointUnavailable: onEndpointUnavailable,
       onEndpointRestored: onEndpointRestored,
@@ -57,11 +53,6 @@ class ProxyServerService {
 
   set endpoints(List<EndpointEntity> endpoints) {
     _router.setEndpoints(endpoints);
-  }
-
-  /// 用户手动恢复端点时，同时清除内存中的断路器状态。
-  void resetEndpointState(String endpointId) {
-    _circuitBreakerRegistry.reset(endpointId);
   }
 
   Future<void> start() async {
@@ -99,19 +90,52 @@ class ProxyServerService {
     _circuitBreakerRegistry.resetAll();
   }
 
+  /// 移除端点的断路器实例（用于端点被删除时清理内存）
+  void removeCircuitBreaker(String endpointId) {
+    _circuitBreakerRegistry.removeBreaker(endpointId);
+  }
+
+  /// 从 Retry-After header 解析等待时间（毫秒）
+  ///
+  /// 支持两种格式：
+  /// - 秒数（如 "120"）
+  /// - HTTP 日期（如 "Wed, 21 Oct 2015 07:28:00 GMT"）
+  static int? parseRetryAfter(http.StreamedResponse response) {
+    final retryAfter = response.headers['retry-after'];
+    if (retryAfter == null || retryAfter.isEmpty) return null;
+
+    // 尝试解析为秒数
+    final seconds = int.tryParse(retryAfter);
+    if (seconds != null) {
+      return seconds * 1000;
+    }
+
+    // 尝试解析为 HTTP 日期
+    try {
+      final date = HttpDate.parse(retryAfter);
+      final delayMs = date.difference(DateTime.now()).inMilliseconds;
+      return delayMs > 0 ? delayMs : null;
+    } catch (_) {
+      LoggerUtil.instance.w('Failed to parse Retry-After header: $retryAfter');
+      return null;
+    }
+  }
+
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final rawBody = await request.read().expand((x) => x).toList();
 
     HandleResult? previousResult;
     shelf.Response? finalResponse;
+    int? retryAfterMs;
 
     // 循环尝试端点
-    while (await _router.hasNext(previousResult)) {
+    while (await _router.hasNext(previousResult, retryAfterMs: retryAfterMs)) {
       final endpoint = _router.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
       http.Request? preparedRequest;
+      retryAfterMs = null;
       try {
         // 1. 构建请求
         preparedRequest = _requestHandler.prepareRequest(
@@ -135,6 +159,12 @@ class ProxyServerService {
 
         // 根据响应结果判断是否继续尝试
         previousResult = _responseHandler.getHandleResult(response);
+
+        // 429 时解析 Retry-After header
+        if (previousResult == HandleResult.rateLimited) {
+          retryAfterMs = parseRetryAfter(response);
+        }
+
         if (previousResult == HandleResult.success ||
             previousResult == HandleResult.clientError) {
           break;

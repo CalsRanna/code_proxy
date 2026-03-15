@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/repository/endpoint_repository.dart';
-import 'package:code_proxy/service/proxy_server/circuit_breaker.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 /// 响应处理结果
@@ -17,11 +17,14 @@ enum HandleResult {
 /// 端点路由器 - 状态机实现
 class ProxyServerRouter {
   final ProxyServerConfig _config;
-  final EndpointRepository _repository;
-  final CircuitBreakerRegistry _circuitBreakerRegistry;
+  final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
   final void Function(EndpointEntity)? _onEndpointUnavailable;
   final void Function(EndpointEntity)? _onEndpointRestored;
 
+  /// 所有启用的端点（由外部通过 setEndpoints 更新）
+  List<EndpointEntity> _allEndpoints = [];
+
+  /// 当前请求轮次中可用的端点（从 _allEndpoints 按断路器状态过滤）
   List<EndpointEntity> _endpoints = [];
   int _currentEndpointIndex = 0;
   int _currentAttempt = 0;
@@ -29,12 +32,10 @@ class ProxyServerRouter {
 
   ProxyServerRouter({
     required ProxyServerConfig config,
-    required EndpointRepository repository,
-    required CircuitBreakerRegistry circuitBreakerRegistry,
+    required ProxyServerCircuitBreakerRegistry circuitBreakerRegistry,
     void Function(EndpointEntity)? onEndpointUnavailable,
     void Function(EndpointEntity)? onEndpointRestored,
   }) : _config = config,
-       _repository = repository,
        _circuitBreakerRegistry = circuitBreakerRegistry,
        _onEndpointUnavailable = onEndpointUnavailable,
        _onEndpointRestored = onEndpointRestored;
@@ -73,10 +74,14 @@ class ProxyServerRouter {
 
   /// 判断是否还有下一个端点或需要重试
   /// previousResult: 上一次的响应结果，null表示第一次调用
-  Future<bool> hasNext(HandleResult? previousResult) async {
+  /// retryAfterMs: 429 响应中 Retry-After 解析出的等待时间（毫秒）
+  Future<bool> hasNext(
+    HandleResult? previousResult, {
+    int? retryAfterMs,
+  }) async {
     // 第一次调用
     if (previousResult == null) {
-      await _resetForNewRequest();
+      _resetForNewRequest();
       return _endpoints.isNotEmpty;
     }
 
@@ -88,7 +93,7 @@ class ProxyServerRouter {
         if (endpoint != null) {
           final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
           final wasHalfOpen =
-              breaker.state == CircuitBreakerState.halfOpen;
+              breaker.state == ProxyServerCircuitBreakerState.halfOpen;
           breaker.recordSuccess();
           if (wasHalfOpen) {
             _onEndpointRestored?.call(endpoint);
@@ -105,10 +110,11 @@ class ProxyServerRouter {
         final endpoint = currentEndpoint;
         if (endpoint != null) {
           LoggerUtil.instance.w(
-            'Endpoint ${endpoint.name} returned 429, circuit breaker opened',
+            'Endpoint ${endpoint.name} returned 429, circuit breaker opened'
+            '${retryAfterMs != null ? ' (retry after ${retryAfterMs}ms)' : ''}',
           );
           final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
-          breaker.forceOpen();
+          breaker.forceOpen(customRecoveryTimeoutMs: retryAfterMs);
           _onEndpointUnavailable?.call(endpoint);
         }
 
@@ -137,7 +143,7 @@ class ProxyServerRouter {
         breaker.recordFailure();
         _currentAttempt++;
 
-        if (breaker.state == CircuitBreakerState.open) {
+        if (breaker.state == ProxyServerCircuitBreakerState.open) {
           // 断路器打开，禁用端点并故障转移
           LoggerUtil.instance.w(
             'Endpoint ${endpoint.name} circuit breaker opened '
@@ -163,9 +169,7 @@ class ProxyServerRouter {
             '(attempt $_currentAttempt/${_config.circuitBreakerFailureThreshold})',
           );
           if (delayMs > 0) {
-            LoggerUtil.instance.d(
-              'Waiting ${delayMs}ms before retry',
-            );
+            LoggerUtil.instance.d('Waiting ${delayMs}ms before retry');
             await Future.delayed(Duration(milliseconds: delayMs));
           }
           return true;
@@ -173,9 +177,9 @@ class ProxyServerRouter {
     }
   }
 
-  /// 设置端点列表
+  /// 设置端点列表（由外部在端点变更时调用）
   void setEndpoints(List<EndpointEntity> endpoints) {
-    _endpoints = endpoints.where((e) => e.enabled).toList();
+    _allEndpoints = endpoints.where((e) => e.enabled).toList();
     _resetForNewRequest();
   }
 
@@ -184,31 +188,28 @@ class ProxyServerRouter {
     _currentEndpointIndex++;
     _currentAttempt = 1;
 
-    // 跳过断路器 open 的端点
+    // 跳过断路器 open 的端点（使用无副作用的 isAvailable）
     while (_currentEndpointIndex < _endpoints.length) {
       final nextEndpoint = _endpoints[_currentEndpointIndex];
       final breaker = _circuitBreakerRegistry.getBreaker(nextEndpoint.id);
-      if (breaker.allowRequest) {
+      if (breaker.isAvailable) {
         break;
       }
       _currentEndpointIndex++;
     }
   }
 
-  /// 重置路由状态
-  Future<void> _resetForNewRequest() async {
+  /// 重置路由状态（使用缓存的端点列表，按断路器状态过滤）
+  void _resetForNewRequest() {
     _currentEndpointIndex = 0;
     _currentAttempt = 1;
     _state = RouteState.selectingEndpoint;
 
-    // 从数据库重新获取最新的启用端点列表
-    final freshEndpoints = await _repository.getEnabled();
-
-    // 根据断路器状态过滤端点
+    // 从缓存的端点列表中按断路器状态过滤（使用无副作用的 isAvailable）
     _endpoints = [];
-    for (final e in freshEndpoints) {
+    for (final e in _allEndpoints) {
       final breaker = _circuitBreakerRegistry.getBreaker(e.id);
-      if (breaker.allowRequest) {
+      if (breaker.isAvailable) {
         _endpoints.add(e);
       }
     }
@@ -220,6 +221,5 @@ enum RouteState {
   selectingEndpoint, // 选择端点
   retryingEndpoint, // 重试当前端点
   failingOver, // 故障转移到下一个端点
-  completed, // 完成（成功）
   failed, // 失败（所有端点都用尽）
 }

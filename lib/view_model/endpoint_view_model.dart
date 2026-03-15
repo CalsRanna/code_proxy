@@ -75,6 +75,9 @@ class EndpointViewModel {
   Future<void> deleteEndpoint(String id) async {
     await _endpointRepository.delete(id);
     forbiddenEndpointIds.remove(id);
+    // 清理断路器实例，避免内存泄漏
+    final homeViewModel = GetIt.instance.get<HomeViewModel>();
+    homeViewModel.removeCircuitBreaker(id);
     await _loadEndpoints();
   }
 
@@ -87,11 +90,11 @@ class EndpointViewModel {
   Future<void> toggleEnabled(String id) async {
     final endpoint = endpoints.value.firstWhere((e) => e.id == id);
     final updated = endpoint.copyWith(enabled: !endpoint.enabled);
-    final shouldRestoreAvailability = !endpoint.enabled && updated.enabled;
     await _endpointRepository.update(updated);
     await _loadEndpoints();
-    if (shouldRestoreAvailability) {
-      _restoreEndpointAvailability(updated.id);
+    // 重新启用端点时，重置断路器状态并清除 UI 断路标记
+    if (!endpoint.enabled && updated.enabled) {
+      resetCircuitBreaker(id);
     }
   }
 
@@ -112,11 +115,6 @@ class EndpointViewModel {
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
     final enabled = endpoints.value.where((e) => e.enabled).toList();
     homeViewModel.updateProxyEndpoints(enabled);
-  }
-
-  void _restoreEndpointAvailability(String endpointId) {
-    final homeViewModel = GetIt.instance.get<HomeViewModel>();
-    homeViewModel.restoreEndpointAvailability(endpointId);
   }
 
   /// 重新排序端点列表并更新 weight 字段
