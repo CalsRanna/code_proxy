@@ -176,7 +176,11 @@ class _RequestLogPageState extends State<RequestLogPage> {
                 statusCode == 200
                     ? ShadBadge.secondary(child: Text(text ?? ''))
                     : ShadBadge.destructive(child: Text(text ?? '')),
-              _ => Text(text ?? 'null'),
+              _ => Text(
+                text ?? 'null',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             };
             return ShadTableCell(alignment: Alignment.centerLeft, child: child);
           },

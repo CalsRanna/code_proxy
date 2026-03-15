@@ -32,7 +32,10 @@
       "Bash(dd:*)",
       "mcp__dart-mcp-server__dart_format",
       "WebFetch(domain:models.dev)",
-      "mcp__dart-mcp-server__run_tests"
+      "mcp__dart-mcp-server__run_tests",
+      "Read(//Users/cals/.pub-cache/hosted/pub.dev/**)",
+      "Bash(2)",
+      "Bash(grep -n \"pubspec.yaml\" /Users/cals/Code/code_proxy/.dart_tool/package_config.json | grep shadcn 2>/dev/null; grep \"shadcn_ui\" /Users/cals/Code/code_proxy/pubspec.lock 2>/dev/null -A 3)"
     ],
     "deny": []
   }
