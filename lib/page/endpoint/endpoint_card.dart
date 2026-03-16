@@ -103,10 +103,13 @@ class _EndpointCardState extends State<EndpointCard> {
                             ),
                           ],
                           if (widget.isForbidden)
-                            ShadBadge(
-                              backgroundColor: Colors.red.shade50,
-                              foregroundColor: Colors.red,
-                              child: Text('断路中'),
+                            ShadBadge.secondary(
+                              child: Text(
+                                '断路中',
+                                style: Theme.of(context).textTheme.bodySmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                         ],
                       ),
