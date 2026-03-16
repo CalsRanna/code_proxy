@@ -168,20 +168,6 @@ class _EndpointCardState extends State<EndpointCard> {
                         ],
                       ),
                     ),
-                    if (widget.isForbidden)
-                      ShadContextMenuItem(
-                        onPressed: widget.onResetCircuitBreaker,
-                        child: Row(
-                          children: [
-                            Icon(LucideIcons.refreshCw, color: Colors.orange),
-                            SizedBox(width: 8),
-                            Text(
-                              '重置断路器',
-                              style: TextStyle(color: Colors.orange),
-                            ),
-                          ],
-                        ),
-                      ),
                     ShadContextMenuItem(
                       onPressed: widget.onDelete,
                       child: Row(
@@ -189,6 +175,17 @@ class _EndpointCardState extends State<EndpointCard> {
                           Icon(LucideIcons.trash2, color: Colors.red),
                           SizedBox(width: 8),
                           Text('删除', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                    // if (widget.isForbidden)
+                    ShadContextMenuItem(
+                      onPressed: widget.onResetCircuitBreaker,
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.circlePower),
+                          SizedBox(width: 8),
+                          Text('恢复'),
                         ],
                       ),
                     ),
