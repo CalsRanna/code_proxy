@@ -72,19 +72,17 @@ class ProxyServerResponseHandler {
 
       // 解压并解码响应体以保存错误信息
       final contentEncoding = response.headers['content-encoding'];
-      final decompressedBytes = ResponseDecompressor.decompress(
+      final bodyStr = ResponseDecompressor.decodeForLogging(
         responseBodyBytes,
         contentEncoding,
       );
-      final bodyStr = utf8.decode(decompressedBytes, allowMalformed: true);
 
       // 转发响应头（移除 transfer-encoding 因为 http 包已自动解码 chunked，
       // 保留 content-encoding 让客户端自行解压）
-      final forwardedResponseHeaders = Map<String, String>.from(
-        response.headers,
-      )
-        ..remove('transfer-encoding')
-        ..remove('content-length');
+      final forwardedResponseHeaders =
+          Map<String, String>.from(response.headers)
+            ..remove('transfer-encoding')
+            ..remove('content-length');
 
       // 记录请求日志（包含错误信息）
       _recordRequestWithBody(
@@ -114,19 +112,17 @@ class ProxyServerResponseHandler {
 
       // 解压并解码以提取 token
       final contentEncoding = response.headers['content-encoding'];
-      final decompressedBytes = ResponseDecompressor.decompress(
+      final bodyStr = ResponseDecompressor.decodeForLogging(
         responseBodyBytes,
         contentEncoding,
       );
-      final bodyStr = utf8.decode(decompressedBytes, allowMalformed: true);
       final usage = _tokenExtractor.extractUsage(bodyStr);
 
       // 转发响应头
-      final forwardedResponseHeaders = Map<String, String>.from(
-        response.headers,
-      )
-        ..remove('transfer-encoding')
-        ..remove('content-length');
+      final forwardedResponseHeaders =
+          Map<String, String>.from(response.headers)
+            ..remove('transfer-encoding')
+            ..remove('content-length');
 
       _recordRequestWithBody(
         endpoint: endpoint,
@@ -360,6 +356,38 @@ class ResponseDecompressor {
       return bytes;
     }
   }
+
+  /// 将响应体字节转换为适合日志记录的文本。
+  /// 如果无法得到可读文本，则返回包含编码和数据摘要的占位描述。
+  static String decodeForLogging(List<int> bytes, String? contentEncoding) {
+    if (bytes.isEmpty) return '';
+
+    final decompressedBytes = decompress(bytes, contentEncoding);
+    final bodyStr = utf8.decode(decompressedBytes, allowMalformed: true);
+    if (_isReadableText(bodyStr)) {
+      return bodyStr;
+    }
+
+    final base64Preview = base64Encode(bytes);
+    final preview = base64Preview.length > 120
+        ? '${base64Preview.substring(0, 120)}...'
+        : base64Preview;
+    final encodingLabel = contentEncoding == null || contentEncoding.isEmpty
+        ? 'identity'
+        : contentEncoding;
+
+    return '[non-text response body, ${bytes.length} bytes, '
+        'content-encoding: $encodingLabel, base64: $preview]';
+  }
+
+  static bool _isReadableText(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return false;
+    if (!trimmed.contains('\uFFFD')) return true;
+
+    final replacementCount = '\uFFFD'.allMatches(trimmed).length;
+    return replacementCount * 2 < trimmed.length;
+  }
 }
 
 class ResponseProcessor {
@@ -442,7 +470,8 @@ class ResponseProcessor {
             inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
             outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
             cacheCreationTokens =
-                extractor.extractCacheCreationTokens(text) ?? cacheCreationTokens;
+                extractor.extractCacheCreationTokens(text) ??
+                cacheCreationTokens;
             cacheReadTokens =
                 extractor.extractCacheReadTokens(text) ?? cacheReadTokens;
           }
@@ -463,7 +492,8 @@ class ResponseProcessor {
             inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
             outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
             cacheCreationTokens =
-                extractor.extractCacheCreationTokens(text) ?? cacheCreationTokens;
+                extractor.extractCacheCreationTokens(text) ??
+                cacheCreationTokens;
             cacheReadTokens =
                 extractor.extractCacheReadTokens(text) ?? cacheReadTokens;
           }
@@ -501,10 +531,12 @@ class ResponseProcessor {
 class TokenExtractor {
   static final _inputPattern = RegExp(r'"input_tokens"\s*:\s*(\d+)');
   static final _outputPattern = RegExp(r'"output_tokens"\s*:\s*(\d+)');
-  static final _cacheCreationPattern =
-      RegExp(r'"cache_creation_input_tokens"\s*:\s*(\d+)');
-  static final _cacheReadPattern =
-      RegExp(r'"cache_read_input_tokens"\s*:\s*(\d+)');
+  static final _cacheCreationPattern = RegExp(
+    r'"cache_creation_input_tokens"\s*:\s*(\d+)',
+  );
+  static final _cacheReadPattern = RegExp(
+    r'"cache_read_input_tokens"\s*:\s*(\d+)',
+  );
 
   const TokenExtractor();
 

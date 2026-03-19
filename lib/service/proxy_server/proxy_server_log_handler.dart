@@ -51,11 +51,12 @@ class ProxyServerLogHandler {
     }
 
     // 处理错误信息（仅在非成功请求时保存，可选择性截断至 1000 字符）
-    if (!success && response.errorBody != null) {
+    final errorText = _pickErrorText(response);
+    if (!success && errorText != null) {
       const maxLength = 1000;
-      errorMessage = response.errorBody!.length > maxLength
-          ? '${response.errorBody!.substring(0, maxLength)}... (truncated)'
-          : response.errorBody;
+      errorMessage = errorText.length > maxLength
+          ? '${errorText.substring(0, maxLength)}... (truncated)'
+          : errorText;
     }
 
     // 构建并返回请求日志对象
@@ -76,5 +77,19 @@ class ProxyServerLogHandler {
       cacheReadInputTokens: cacheReadInputTokens,
       errorMessage: errorMessage,
     );
+  }
+
+  String? _pickErrorText(ProxyServerResponse response) {
+    final errorBody = response.errorBody?.trim();
+    if (errorBody != null && errorBody.isNotEmpty) {
+      return errorBody;
+    }
+
+    final responseBody = response.responseBody?.trim();
+    if (responseBody != null && responseBody.isNotEmpty) {
+      return responseBody;
+    }
+
+    return null;
   }
 }

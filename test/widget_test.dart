@@ -1,4 +1,11 @@
+import 'dart:convert';
+
+import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/model_pricing_entity.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
@@ -356,6 +363,46 @@ void main() {
       expect(cost, closeTo(0.834, 0.000001));
     });
   });
+
+  group('RequestLogErrorMessage', () {
+    test('errorBody 为空时应回退到 responseBody', () {
+      final handler = ProxyServerLogHandler.create();
+      final log = handler.buildRequestLog(
+        endpoint: _createEndpoint(),
+        request: const ProxyServerRequest(
+          method: 'POST',
+          path: '/v1/messages',
+          headers: {},
+          body: '{"model":"MiniMax-M2.5"}',
+        ),
+        response: const ProxyServerResponse(
+          statusCode: 500,
+          headers: {},
+          responseTime: 100,
+          errorBody: '   ',
+          responseBody: '{"error":"upstream failure"}',
+        ),
+      );
+
+      expect(log.errorMessage, '{"error":"upstream failure"}');
+    });
+
+    test('不可读响应体应生成可见摘要', () {
+      final text = ResponseDecompressor.decodeForLogging(utf8.encode(''), null);
+      expect(text, isEmpty);
+
+      final binarySummary = ResponseDecompressor.decodeForLogging(const [
+        0,
+        159,
+        146,
+        150,
+        255,
+      ], 'br');
+      expect(binarySummary, contains('non-text response body'));
+      expect(binarySummary, contains('content-encoding: br'));
+      expect(binarySummary, contains('base64:'));
+    });
+  });
 }
 
 ProxyServerCircuitBreaker _createBreaker({
@@ -369,4 +416,8 @@ ProxyServerCircuitBreaker _createBreaker({
     recoveryTimeoutMs: recoveryTimeoutMs,
     slidingWindowMs: slidingWindowMs,
   );
+}
+
+EndpointEntity _createEndpoint() {
+  return const EndpointEntity(id: 'ep-1', name: 'Endpoint 1');
 }
