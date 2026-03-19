@@ -89,8 +89,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildTokenHeatmap() {
     return Watch((_) {
-      final dailyTokens = viewModel.dailyTokenStats.value;
-      return DashboardTokenHeatmap(dailyTokens);
+      final dailyRequests = viewModel.dailyHeatmapRequests.value;
+      return DashboardTokenHeatmap(dailyRequests);
     });
   }
 

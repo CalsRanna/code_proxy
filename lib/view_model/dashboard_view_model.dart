@@ -4,7 +4,7 @@ import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:signals/signals.dart';
 
 class DashboardViewModel {
-  final dailyTokenStats = signal<Map<String, int>>({});
+  final dailyHeatmapRequests = signal<Map<String, int>>({});
   final dailyRequests = signal<Map<String, int>>({});
   final endpointTokenUsage = signal<Map<String, int>>({});
   final modelDateTokenUsage =
@@ -103,10 +103,10 @@ class DashboardViewModel {
     final now = DateTime.now();
     final startDate = DateTime(now.year, 1, 1);
     final endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
-    final stats = await repository.getDailySuccessRequestStats(
+    final stats = await repository.getDailyRequestStats(
       startTimestamp: startDate.millisecondsSinceEpoch,
       endTimestamp: endDate.millisecondsSinceEpoch,
     );
-    dailyTokenStats.value = stats;
+    dailyHeatmapRequests.value = stats;
   }
 }
