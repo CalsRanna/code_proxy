@@ -39,4 +39,20 @@ class ProxyServerCircuitBreakerRegistry {
       breaker.reset();
     }
   }
+
+  /// 获取当前仍处于 open 状态的端点 ID
+  Set<String> getOpenEndpointIds(Iterable<String> endpointIds) {
+    final openEndpointIds = <String>{};
+
+    for (final endpointId in endpointIds) {
+      final breaker = _breakers[endpointId];
+      if (breaker == null) continue;
+
+      if (breaker.evaluateState() == ProxyServerCircuitBreakerState.open) {
+        openEndpointIds.add(endpointId);
+      }
+    }
+
+    return openEndpointIds;
+  }
 }

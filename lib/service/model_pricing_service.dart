@@ -10,6 +10,12 @@ import 'package:signals/signals.dart';
 
 class ModelPricingService {
   static final ModelPricingService instance = ModelPricingService._();
+  static const int _cacheSchemaVersion = 2;
+  static const List<String> _supportedProviders = [
+    'anthropic',
+    'minimax',
+    'minimax-cn',
+  ];
 
   final Map<String, ModelPricingEntity> _pricingMap = {};
   final lastUpdated = signal<DateTime?>(null);
@@ -33,7 +39,10 @@ class ModelPricingService {
         final content = await file.readAsString();
         final json = jsonDecode(content) as Map<String, dynamic>;
         _loadFromCacheJson(json);
-        return;
+        final cacheVersion = (json['schemaVersion'] as num?)?.toInt() ?? 0;
+        if (cacheVersion >= _cacheSchemaVersion) {
+          return;
+        }
       } catch (e) {
         LoggerUtil.instance.w('Failed to load pricing cache: $e');
       }
@@ -74,22 +83,49 @@ class ModelPricingService {
     // 完全匹配
     if (_pricingMap.containsKey(model)) return _pricingMap[model];
 
+    final normalizedModel = normalizeModelId(model);
+
     // 前缀匹配：优先选择最长的匹配键（最精确的匹配）
     // 例如 model="claude-sonnet-4-20250514" 应优先匹配 "claude-sonnet-4-20250514"
     // 而非短键 "claude-sonnet-4"
     ModelPricingEntity? bestMatch;
     int bestLength = 0;
     for (final entry in _pricingMap.entries) {
-      if (model.startsWith(entry.key) && entry.key.length > bestLength) {
+      final normalizedEntryKey = normalizeModelId(entry.key);
+
+      if (normalizedModel == normalizedEntryKey &&
+          normalizedEntryKey.length > bestLength) {
         bestMatch = entry.value;
-        bestLength = entry.key.length;
+        bestLength = normalizedEntryKey.length;
       }
-      if (entry.key.startsWith(model) && model.length > bestLength) {
+
+      if (normalizedModel.startsWith(normalizedEntryKey) &&
+          normalizedEntryKey.length > bestLength) {
         bestMatch = entry.value;
-        bestLength = model.length;
+        bestLength = normalizedEntryKey.length;
+      }
+
+      if (normalizedEntryKey.startsWith(normalizedModel) &&
+          normalizedModel.length > bestLength) {
+        bestMatch = entry.value;
+        bestLength = normalizedModel.length;
       }
     }
     return bestMatch;
+  }
+
+  static String normalizeModelId(String model) {
+    final trimmed = model.trim();
+    if (trimmed.isEmpty) return trimmed;
+
+    var normalized = trimmed.toLowerCase();
+    if (normalized.contains('/')) {
+      normalized = normalized.split('/').last;
+    }
+    if (normalized.contains(':')) {
+      normalized = normalized.split(':').last;
+    }
+    return normalized;
   }
 
   /// 计算请求费用
@@ -105,7 +141,10 @@ class ModelPricingService {
 
     // 非缓存的输入 token = 总输入 - 缓存读取 - 缓存创建
     final regularInputTokens =
-        (inputTokens - cacheReadTokens - cacheCreationTokens).clamp(0, inputTokens);
+        (inputTokens - cacheReadTokens - cacheCreationTokens).clamp(
+          0,
+          inputTokens,
+        );
 
     return (regularInputTokens * pricing.inputPrice +
             outputTokens * pricing.outputPrice +
@@ -117,11 +156,19 @@ class ModelPricingService {
   void _parseApiResponse(Map<String, dynamic> json) {
     _pricingMap.clear();
 
-    // models.dev API 结构: { "anthropic": { "models": { "model-id": { ... } } } }
-    final anthropic = json['anthropic'] as Map<String, dynamic>?;
-    if (anthropic == null) return;
+    for (final provider in _supportedProviders) {
+      _parseProviderModels(json, provider);
+    }
 
-    final models = anthropic['models'] as Map<String, dynamic>?;
+    lastUpdated.value = DateTime.now();
+    modelCount.value = _pricingMap.length;
+  }
+
+  void _parseProviderModels(Map<String, dynamic> json, String provider) {
+    final providerData = json[provider] as Map<String, dynamic>?;
+    if (providerData == null) return;
+
+    final models = providerData['models'] as Map<String, dynamic>?;
     if (models == null) return;
 
     for (final entry in models.entries) {
@@ -138,20 +185,19 @@ class ModelPricingService {
 
       if (inputPrice == 0 && outputPrice == 0) continue;
 
-      // 模型 ID 去除 provider 前缀（如 "anthropic/" → ""）
-      final modelId = entry.key.replaceFirst('anthropic/', '');
+      final modelId = entry.key.replaceFirst('$provider/', '');
 
-      _pricingMap[modelId] = ModelPricingEntity(
-        modelId: modelId,
-        inputPrice: inputPrice,
-        outputPrice: outputPrice,
-        cacheWritePrice: cacheWritePrice,
-        cacheReadPrice: cacheReadPrice,
+      _pricingMap.putIfAbsent(
+        modelId,
+        () => ModelPricingEntity(
+          modelId: modelId,
+          inputPrice: inputPrice,
+          outputPrice: outputPrice,
+          cacheWritePrice: cacheWritePrice,
+          cacheReadPrice: cacheReadPrice,
+        ),
       );
     }
-
-    lastUpdated.value = DateTime.now();
-    modelCount.value = _pricingMap.length;
   }
 
   void _loadFromCacheJson(Map<String, dynamic> json) {
@@ -172,6 +218,15 @@ class ModelPricingService {
     modelCount.value = _pricingMap.length;
   }
 
+  void replacePricingForTesting(Iterable<ModelPricingEntity> models) {
+    _pricingMap.clear();
+    for (final entity in models) {
+      _pricingMap[entity.modelId] = entity;
+    }
+    lastUpdated.value = null;
+    modelCount.value = _pricingMap.length;
+  }
+
   Future<void> _saveCacheFile() async {
     final file = File(_getCachePath());
     final dir = file.parent;
@@ -180,6 +235,7 @@ class ModelPricingService {
     }
 
     final json = {
+      'schemaVersion': _cacheSchemaVersion,
       'lastUpdated': DateTime.now().toIso8601String(),
       'models': _pricingMap.values.map((e) => e.toJson()).toList(),
     };

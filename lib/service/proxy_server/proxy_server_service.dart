@@ -95,6 +95,11 @@ class ProxyServerService {
     _circuitBreakerRegistry.removeBreaker(endpointId);
   }
 
+  /// 获取当前仍处于断路中的端点 ID
+  Set<String> getOpenCircuitBreakerEndpointIds(Iterable<String> endpointIds) {
+    return _circuitBreakerRegistry.getOpenEndpointIds(endpointIds);
+  }
+
   /// 从 Retry-After header 解析等待时间（毫秒）
   ///
   /// 支持两种格式：

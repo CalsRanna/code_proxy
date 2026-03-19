@@ -88,6 +88,11 @@ class HomeViewModel {
     }
   }
 
+  /// 获取当前仍处于断路中的端点 ID
+  Set<String> getOpenCircuitBreakerEndpointIds(Iterable<String> endpointIds) {
+    return _proxyServer?.getOpenCircuitBreakerEndpointIds(endpointIds) ?? {};
+  }
+
   Future<void> handleRequestCompleted(
     EndpointEntity endpoint,
     ProxyServerRequest request,

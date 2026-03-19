@@ -1,3 +1,5 @@
+import 'package:code_proxy/model/model_pricing_entity.dart';
+import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -294,6 +296,64 @@ void main() {
       expect(breaker.failureThreshold, 2);
       expect(breaker.recoveryTimeoutMs, 30000);
       expect(breaker.slidingWindowMs, 60000);
+    });
+
+    test('恢复超时后不应继续返回 open 端点', () async {
+      final registry = ProxyServerCircuitBreakerRegistry(
+        failureThreshold: 1,
+        recoveryTimeoutMs: 10,
+      );
+
+      final breaker = registry.getBreaker('ep-1');
+      breaker.recordFailure();
+      expect(registry.getOpenEndpointIds(['ep-1']), {'ep-1'});
+
+      await Future.delayed(const Duration(milliseconds: 30));
+
+      expect(registry.getOpenEndpointIds(['ep-1']), isEmpty);
+      expect(breaker.state, ProxyServerCircuitBreakerState.halfOpen);
+    });
+  });
+
+  group('ModelPricingService', () {
+    test('应匹配带 provider 前缀的 MiniMax 模型名', () {
+      final service = ModelPricingService.instance;
+      service.replacePricingForTesting([
+        const ModelPricingEntity(
+          modelId: 'MiniMax-M2.5',
+          inputPrice: 0.3,
+          outputPrice: 1.2,
+          cacheWritePrice: 0.375,
+          cacheReadPrice: 0.03,
+        ),
+      ]);
+
+      final pricing = service.getPricing('minimax/minimax-m2.5');
+      expect(pricing, isNotNull);
+      expect(pricing!.modelId, 'MiniMax-M2.5');
+    });
+
+    test('应按 MiniMax 定价正确计算缓存费用', () {
+      final service = ModelPricingService.instance;
+      service.replacePricingForTesting([
+        const ModelPricingEntity(
+          modelId: 'MiniMax-M2.5',
+          inputPrice: 0.3,
+          outputPrice: 1.2,
+          cacheWritePrice: 0.375,
+          cacheReadPrice: 0.03,
+        ),
+      ]);
+
+      final cost = service.calculateCost(
+        model: 'MiniMax-M2.5',
+        inputTokens: 1000000,
+        outputTokens: 500000,
+        cacheCreationTokens: 200000,
+        cacheReadTokens: 300000,
+      );
+
+      expect(cost, closeTo(0.834, 0.000001));
     });
   });
 }

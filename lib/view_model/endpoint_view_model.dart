@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
@@ -10,6 +12,7 @@ import 'package:uuid/uuid.dart';
 class EndpointViewModel {
   final _endpointRepository = EndpointRepository(Database.instance);
   final Uuid _uuid = const Uuid();
+  Timer? _circuitBreakerSyncTimer;
 
   // 初始化空列表
   final endpoints = listSignal<EndpointEntity>([]);
@@ -25,6 +28,7 @@ class EndpointViewModel {
   final shadPopoverController = ShadPopoverController();
 
   Future<void> initSignals() async {
+    _ensureCircuitBreakerSyncStarted();
     await _loadEndpoints();
   }
 
@@ -108,6 +112,7 @@ class EndpointViewModel {
     endpoints.value = allEndpoints;
     // 通知代理服务器端点列表已更新
     _notifyProxyServer();
+    _syncForbiddenEndpointIds();
   }
 
   /// 通知代理服务器端点列表已更新
@@ -115,6 +120,36 @@ class EndpointViewModel {
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
     final enabled = endpoints.value.where((e) => e.enabled).toList();
     homeViewModel.updateProxyEndpoints(enabled);
+  }
+
+  void _ensureCircuitBreakerSyncStarted() {
+    _circuitBreakerSyncTimer ??= Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _syncForbiddenEndpointIds(),
+    );
+  }
+
+  void _syncForbiddenEndpointIds() {
+    final homeViewModel = GetIt.instance.get<HomeViewModel>();
+    final endpointIds = endpoints.value.map((e) => e.id);
+    final openEndpointIds = homeViewModel.getOpenCircuitBreakerEndpointIds(
+      endpointIds,
+    );
+
+    if (_setEquals(forbiddenEndpointIds.value, openEndpointIds)) {
+      return;
+    }
+
+    forbiddenEndpointIds.value = openEndpointIds;
+  }
+
+  bool _setEquals(Set<String> left, Set<String> right) {
+    if (identical(left, right)) return true;
+    if (left.length != right.length) return false;
+    for (final value in left) {
+      if (!right.contains(value)) return false;
+    }
+    return true;
   }
 
   /// 重新排序端点列表并更新 weight 字段
