@@ -19,6 +19,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 
 class SettingViewModel {
+  static const int minCircuitBreakerRecoveryTimeoutSeconds = 10;
+  static const int maxCircuitBreakerRecoveryTimeoutSeconds = 3600;
+
   final port = signal(9000);
   final apiTimeout = signal(600000);
   final circuitBreakerFailureThreshold = signal(5);
@@ -104,11 +107,13 @@ class SettingViewModel {
     circuitBreakerFailureThresholdController.text =
         circuitBreakerFailureThreshold.value.toString();
 
-    circuitBreakerRecoveryTimeout.value = await SharedPreferenceUtil.instance
+    circuitBreakerRecoveryTimeout.value =
+        await SharedPreferenceUtil.instance
             .getCircuitBreakerRecoveryTimeout() ~/
         1000;
-    circuitBreakerRecoveryTimeoutController.text =
-        circuitBreakerRecoveryTimeout.value.toString();
+    circuitBreakerRecoveryTimeoutController.text = circuitBreakerRecoveryTimeout
+        .value
+        .toString();
 
     disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
         .getDisableNonessentialTraffic();
@@ -193,7 +198,11 @@ class SettingViewModel {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, 'API 超时时间', 'API 超时时间必须在 1000-3600000 毫秒之间');
+          return _buildAlertDialog(
+            context,
+            'API 超时时间',
+            'API 超时时间必须在 1000-3600000 毫秒之间',
+          );
         },
       );
       return;
@@ -209,7 +218,11 @@ class SettingViewModel {
     showShadDialog(
       context: context,
       builder: (context) {
-        return _buildAlertDialog(context, 'API 超时时间', 'API 超时时间已更新，重启代理服务器后生效。');
+        return _buildAlertDialog(
+          context,
+          'API 超时时间',
+          'API 超时时间已更新，重启代理服务器后生效。',
+        );
       },
     );
   }
@@ -250,17 +263,21 @@ class SettingViewModel {
     );
   }
 
-  Future<void> updateCircuitBreakerRecoveryTimeout(
-    BuildContext context,
-  ) async {
-    var newSeconds = int.tryParse(
-      circuitBreakerRecoveryTimeoutController.text,
-    );
-    if (newSeconds == null || newSeconds < 10 || newSeconds > 300) {
+  Future<void> updateCircuitBreakerRecoveryTimeout(BuildContext context) async {
+    var newSeconds = int.tryParse(circuitBreakerRecoveryTimeoutController.text);
+    if (newSeconds == null ||
+        newSeconds < minCircuitBreakerRecoveryTimeoutSeconds ||
+        newSeconds > maxCircuitBreakerRecoveryTimeoutSeconds) {
       showShadDialog(
         context: context,
         builder: (context) {
-          return _buildAlertDialog(context, '端点恢复超时', '恢复超时必须在 10-300 秒之间');
+          return _buildAlertDialog(
+            context,
+            '端点恢复超时',
+            '恢复超时必须在 '
+                '$minCircuitBreakerRecoveryTimeoutSeconds-'
+                '$maxCircuitBreakerRecoveryTimeoutSeconds 秒之间',
+          );
         },
       );
       return;
@@ -353,7 +370,11 @@ class SettingViewModel {
     pricingRefreshing.value = false;
   }
 
-  ShadDialog _buildAlertDialog(BuildContext context, String title, String message) {
+  ShadDialog _buildAlertDialog(
+    BuildContext context,
+    String title,
+    String message,
+  ) {
     return ShadDialog.alert(
       title: Text(title),
       description: Text(message),
@@ -428,7 +449,11 @@ class SettingViewModel {
   Widget _buildCircuitBreakerRecoveryTimeoutDialog(BuildContext context) {
     return ShadDialog(
       title: const Text('端点恢复超时'),
-      description: const Text('端点被禁用后等待多久尝试探测恢复(秒), 范围 10-300'),
+      description: Text(
+        '端点被禁用后等待多久尝试探测恢复(秒), 范围 '
+        '$minCircuitBreakerRecoveryTimeoutSeconds-'
+        '$maxCircuitBreakerRecoveryTimeoutSeconds',
+      ),
       actions: [
         ShadButton.outline(
           onPressed: () => Navigator.pop(context),
@@ -549,10 +574,7 @@ class SettingViewModel {
     defaultHaikuModelController.text = defaultHaikuModel.value;
     defaultSonnetModelController.text = defaultSonnetModel.value;
     defaultOpusModelController.text = defaultOpusModel.value;
-    showShadDialog(
-      context: context,
-      builder: _buildDefaultModelMappingDialog,
-    );
+    showShadDialog(context: context, builder: _buildDefaultModelMappingDialog);
   }
 
   Future<void> updateDefaultModelMapping(BuildContext context) async {
