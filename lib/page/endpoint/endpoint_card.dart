@@ -178,17 +178,17 @@ class _EndpointCardState extends State<EndpointCard> {
                         ],
                       ),
                     ),
-                    // if (widget.isForbidden)
-                    ShadContextMenuItem(
-                      onPressed: widget.onResetCircuitBreaker,
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.circlePower),
-                          SizedBox(width: 8),
-                          Text('恢复'),
-                        ],
+                    if (widget.isForbidden)
+                      ShadContextMenuItem(
+                        onPressed: widget.onResetCircuitBreaker,
+                        child: Row(
+                          children: [
+                            Icon(LucideIcons.circlePower),
+                            SizedBox(width: 8),
+                            Text('恢复'),
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                   child: ShadIconButton.ghost(
                     key: _buttonKey,
