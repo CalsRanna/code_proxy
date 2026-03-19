@@ -387,6 +387,28 @@ void main() {
       expect(log.errorMessage, '{"error":"upstream failure"}');
     });
 
+    test('5xx 且响应体为空时应写入默认错误信息', () {
+      final handler = ProxyServerLogHandler.create();
+      final log = handler.buildRequestLog(
+        endpoint: _createEndpoint(),
+        request: const ProxyServerRequest(
+          method: 'POST',
+          path: '/v1/messages',
+          headers: {},
+          body: '{"model":"MiniMax-M2.5"}',
+        ),
+        response: const ProxyServerResponse(
+          statusCode: 500,
+          headers: {},
+          responseTime: 100,
+          errorBody: '',
+          responseBody: '',
+        ),
+      );
+
+      expect(log.errorMessage, 'HTTP 500 with empty response body');
+    });
+
     test('不可读响应体应生成可见摘要', () {
       final text = ResponseDecompressor.decodeForLogging(utf8.encode(''), null);
       expect(text, isEmpty);

@@ -52,11 +52,18 @@ class ProxyServerLogHandler {
 
     // 处理错误信息（仅在非成功请求时保存，可选择性截断至 1000 字符）
     final errorText = _pickErrorText(response);
-    if (!success && errorText != null) {
-      const maxLength = 1000;
-      errorMessage = errorText.length > maxLength
-          ? '${errorText.substring(0, maxLength)}... (truncated)'
-          : errorText;
+    if (!success) {
+      final textToStore =
+          errorText ??
+          (response.statusCode >= 500
+              ? 'HTTP ${response.statusCode} with empty response body'
+              : null);
+      if (textToStore != null) {
+        const maxLength = 1000;
+        errorMessage = textToStore.length > maxLength
+            ? '${textToStore.substring(0, maxLength)}... (truncated)'
+            : textToStore;
+      }
     }
 
     // 构建并返回请求日志对象
