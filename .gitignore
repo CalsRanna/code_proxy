@@ -32,6 +32,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Removed mobile platforms
+/android/
+/ios/
+
 # Symbolication related
 app.*.symbols
 
