@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
@@ -23,22 +22,6 @@ class ProxyServerResponseHandler {
   }) : _processor = const ResponseProcessor(),
        _tokenExtractor = const TokenExtractor(),
        _onRequestCompleted = onRequestCompleted;
-
-  HandleResult getHandleResult(http.StreamedResponse response) {
-    final statusCode = response.statusCode;
-    if (statusCode >= 200 && statusCode < 300) {
-      return HandleResult.success;
-    } else if (statusCode == 429) {
-      // 429 速率限制/余额不足，需要特殊处理
-      return HandleResult.rateLimited;
-    } else if (statusCode >= 400 && statusCode < 500) {
-      return HandleResult.clientError;
-    } else if (statusCode >= 500) {
-      return HandleResult.serverError;
-    } else {
-      return HandleResult.success;
-    }
-  }
 
   /// 处理HTTP响应并判断是否需要继续
   Future<shelf.Response?> handleResponse(
@@ -66,7 +49,7 @@ class ProxyServerResponseHandler {
         forwardedHeaders: forwardedHeaders,
       );
     } else if (statusCode >= 400 && statusCode < 500) {
-      // 客户端错误 → 读取错误响应体，记录日志，返回响应（不重试）
+      // 客户端错误 → 读取错误响应体，记录日志，返回响应
       final responseBodyBytes = await response.stream.toBytes();
       final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 

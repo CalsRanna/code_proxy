@@ -100,47 +100,19 @@ class ProxyServerService {
     return _circuitBreakerRegistry.getOpenEndpointIds(endpointIds);
   }
 
-  /// 从 Retry-After header 解析等待时间（毫秒）
-  ///
-  /// 支持两种格式：
-  /// - 秒数（如 "120"）
-  /// - HTTP 日期（如 "Wed, 21 Oct 2015 07:28:00 GMT"）
-  static int? parseRetryAfter(http.StreamedResponse response) {
-    final retryAfter = response.headers['retry-after'];
-    if (retryAfter == null || retryAfter.isEmpty) return null;
-
-    // 尝试解析为秒数
-    final seconds = int.tryParse(retryAfter);
-    if (seconds != null) {
-      return seconds * 1000;
-    }
-
-    // 尝试解析为 HTTP 日期
-    try {
-      final date = HttpDate.parse(retryAfter);
-      final delayMs = date.difference(DateTime.now()).inMilliseconds;
-      return delayMs > 0 ? delayMs : null;
-    } catch (_) {
-      LoggerUtil.instance.w('Failed to parse Retry-After header: $retryAfter');
-      return null;
-    }
-  }
-
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final rawBody = await request.read().expand((x) => x).toList();
 
-    HandleResult? previousResult;
+    bool? previousSucceeded;
     shelf.Response? finalResponse;
-    int? retryAfterMs;
 
     // 循环尝试端点
-    while (await _router.hasNext(previousResult, retryAfterMs: retryAfterMs)) {
+    while (await _router.hasNext(previousSucceeded)) {
       final endpoint = _router.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
       http.Request? preparedRequest;
-      retryAfterMs = null;
       try {
         // 1. 构建请求
         preparedRequest = _requestHandler.prepareRequest(
@@ -162,22 +134,16 @@ class ProxyServerService {
           forwardedHeaders: preparedRequest.headers,
         );
 
-        // 根据响应结果判断是否继续尝试
-        previousResult = _responseHandler.getHandleResult(response);
+        previousSucceeded =
+            response.statusCode >= 200 && response.statusCode < 300;
 
-        // 429 时解析 Retry-After header
-        if (previousResult == HandleResult.rateLimited) {
-          retryAfterMs = parseRetryAfter(response);
-        }
-
-        if (previousResult == HandleResult.success ||
-            previousResult == HandleResult.clientError) {
+        if (previousSucceeded) {
           break;
         }
-        // 服务器错误，继续尝试下一个端点（finalResponse 已保存）
+        // 失败响应：统一通过路由器中的断路器机制决定重试或故障转移
       } catch (e) {
-        // 异常：设置previousResult为exception，触发重试或转移
-        previousResult = HandleResult.exception;
+        // 异常也按普通失败处理，统一交给断路器计数
+        previousSucceeded = false;
         LoggerUtil.instance.e('Exception during request: $e');
 
         // 记录异常请求到数据库

@@ -59,7 +59,7 @@ Database → DI → WindowUtil → TrayUtil → LaunchAtStartup → runApp
 ```
 
 - **ProxyServerService** — 主编排器，基于 shelf HTTP 服务器，实现请求重试循环
-- **ProxyServerRouter** — 状态机实现端点选择。5xx/异常按指数退避重试同一端点（上限 maxRetries 次），耗尽后故障转移到下一个；429 立即禁用端点并切换；4xx 直接返回不重试
+- **ProxyServerRouter** — 基于断路器的端点选择。所有失败响应和异常都按统一机制处理：指数退避重试当前端点，达到阈值后故障转移到下一个
 - **ProxyServerRequestHandler** — 构建转发请求，处理认证方式保留（`x-api-key` vs `Authorization: Bearer`）和模型名称映射
 - **ProxyServerResponseHandler** — 处理流式/非流式响应，提取 Token 用量，处理响应解压（gzip/deflate）
 - **ProxyServerModelMapper** — 将环境变量模型名（`ANTHROPIC_DEFAULT_SONNET_MODEL` 等）映射到端点配置的实际模型

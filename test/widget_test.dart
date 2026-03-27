@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/model_pricing_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
@@ -319,6 +321,74 @@ void main() {
 
       expect(registry.getOpenEndpointIds(['ep-1']), isEmpty);
       expect(breaker.state, ProxyServerCircuitBreakerState.halfOpen);
+    });
+  });
+
+  group('ProxyServerRouter', () {
+    test('失败响应应统一走断路器重试与故障转移', () async {
+      final registry = ProxyServerCircuitBreakerRegistry(
+        failureThreshold: 2,
+        recoveryTimeoutMs: 1000,
+      );
+      final router = ProxyServerRouter(
+        config: const ProxyServerConfig(circuitBreakerFailureThreshold: 2),
+        circuitBreakerRegistry: registry,
+      );
+      router.setEndpoints([
+        const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
+        const EndpointEntity(id: 'ep-2', name: 'Endpoint 2'),
+      ]);
+
+      expect(await router.hasNext(null), isTrue);
+      expect(router.currentEndpoint?.id, 'ep-1');
+
+      expect(await router.hasNext(false), isTrue);
+      expect(router.currentEndpoint?.id, 'ep-1');
+
+      expect(await router.hasNext(false), isTrue);
+      expect(router.currentEndpoint?.id, 'ep-2');
+      expect(
+        registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.open,
+      );
+    });
+
+    test('open 端点在恢复超时后应以 halfOpen 重新参与选择', () async {
+      final registry = ProxyServerCircuitBreakerRegistry(
+        failureThreshold: 1,
+        recoveryTimeoutMs: 10,
+      );
+      final restoredEndpointIds = <String>[];
+      final router = ProxyServerRouter(
+        config: const ProxyServerConfig(circuitBreakerFailureThreshold: 1),
+        circuitBreakerRegistry: registry,
+        onEndpointRestored: (endpoint) => restoredEndpointIds.add(endpoint.id),
+      );
+      router.setEndpoints([
+        const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
+      ]);
+
+      expect(await router.hasNext(null), isTrue);
+      expect(await router.hasNext(false), isFalse);
+      expect(
+        registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.open,
+      );
+
+      await Future.delayed(const Duration(milliseconds: 30));
+
+      expect(await router.hasNext(null), isTrue);
+      expect(
+        registry.getBreaker('ep-1').evaluateState(),
+        ProxyServerCircuitBreakerState.halfOpen,
+      );
+
+      expect(await router.hasNext(true), isFalse);
+      expect(restoredEndpointIds, ['ep-1']);
+      expect(
+        registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.closed,
+      );
     });
   });
 

@@ -92,9 +92,9 @@ class ProxyServerCircuitBreaker {
     }
   }
 
-  /// 强制打开断路器（用于 429 等需要立即断路的场景）
+  /// 强制打开断路器（用于需要立即断路的场景）
   ///
-  /// [customRecoveryTimeoutMs] 自定义恢复超时（例如从 Retry-After header 解析），
+  /// [customRecoveryTimeoutMs] 自定义恢复超时，
   /// 为 null 时使用默认的 [recoveryTimeoutMs]。
   void forceOpen({int? customRecoveryTimeoutMs}) {
     _state = ProxyServerCircuitBreakerState.open;
