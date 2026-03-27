@@ -1,3 +1,4 @@
+import 'package:code_proxy/model/model_pricing_entity.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
@@ -16,6 +17,7 @@ class SettingPage extends StatefulWidget {
 
 class _SettingPageState extends State<SettingPage> {
   final viewModel = GetIt.instance.get<SettingViewModel>();
+  String selectedTab = 'proxy';
 
   @override
   Widget build(BuildContext context) {
@@ -137,23 +139,6 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editDefaultModelMapping(context),
       );
     });
-    var pricingTile = Watch((context) {
-      final refreshing = viewModel.pricingRefreshing.value;
-      return ListTile(
-        title: const Text('模型定价'),
-        subtitle: Text(
-          '${viewModel.pricingModelCount.value} 个模型 | 更新于 ${viewModel.pricingLastUpdated.value}',
-        ),
-        trailing: refreshing
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(LucideIcons.refreshCw),
-        onTap: refreshing ? null : () => viewModel.refreshPricing(),
-      );
-    });
     var versionTile = Watch((context) {
       return Padding(
         padding: const EdgeInsets.only(top: ShadcnSpacing.spacing24),
@@ -167,7 +152,8 @@ class _SettingPageState extends State<SettingPage> {
     });
     var pageHeader = PageHeader(title: '设置', subtitle: '管理代理服务器配置和应用选项');
     var tabs = ShadTabs<String>(
-      value: 'proxy',
+      value: selectedTab,
+      onChanged: (value) => setState(() => selectedTab = value),
       maintainState: false,
       tabs: [
         ShadTab(
@@ -189,13 +175,18 @@ class _SettingPageState extends State<SettingPage> {
           child: const Text('代理服务器'),
         ),
         ShadTab(
+          value: 'pricing',
+          expandContent: true,
+          content: _buildPricingTabContent(),
+          child: const Text('模型定价'),
+        ),
+        ShadTab(
           value: 'claude_code',
           expandContent: true,
           content: ListView(
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
               defaultModelMappingTile,
-              pricingTile,
               apiTimeoutTile,
               attributionHeaderTile,
               disableExperimentalBetasTile,
@@ -222,6 +213,228 @@ class _SettingPageState extends State<SettingPage> {
         ),
       ],
     );
+  }
+
+  Widget _buildPricingTabContent() {
+    return Watch((context) {
+      final models = viewModel.pricingModels;
+      final refreshing = viewModel.pricingRefreshing.value;
+      final groupedModels = _groupPricingModels(models);
+      return ListView(
+        padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
+        children: [
+          ListTile(
+            title: const Text('刷新模型定价'),
+            subtitle: Text(
+              '${viewModel.pricingModelCount.value} 个模型 | 更新于 ${viewModel.pricingLastUpdated.value}',
+            ),
+            trailing: refreshing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(LucideIcons.refreshCw),
+            onTap: refreshing ? null : () => _refreshPricing(context),
+          ),
+          if (models.isEmpty)
+            _buildPricingEmptyState()
+          else
+            ...groupedModels.entries.expand((entry) {
+              return [
+                _buildPricingGroupHeader(entry.key, entry.value.length),
+                ...entry.value.map(
+                  (model) => ListTile(
+                    title: Text(model.modelId),
+                    subtitle: Text(
+                      '输入 ${_formatPrice(model.inputPrice)} | 输出 ${_formatPrice(model.outputPrice)}',
+                    ),
+                    trailing: const Icon(LucideIcons.chevronRight),
+                    onTap: () => _showPricingModelDialog(context, model),
+                  ),
+                ),
+              ];
+            }),
+        ],
+      );
+    });
+  }
+
+  Widget _buildPricingGroupHeader(String label, int count) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ShadcnSpacing.spacing16,
+        vertical: ShadcnSpacing.spacing12,
+      ),
+      child: Row(
+        spacing: ShadcnSpacing.spacing8,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: ShadcnColors.mutedForeground(Theme.of(context).brightness),
+            ),
+          ),
+          ShadBadge.secondary(
+            child: Text('$count', style: Theme.of(context).textTheme.bodySmall),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, List<ModelPricingEntity>> _groupPricingModels(
+    List<ModelPricingEntity> models,
+  ) {
+    final grouped = <String, List<ModelPricingEntity>>{
+      'Claude': [],
+      'GLM': [],
+      'Kimi': [],
+      'MiniMax': [],
+      '其他': [],
+    };
+
+    for (final model in models) {
+      grouped[_pricingGroupForModel(model)]!.add(model);
+    }
+
+    grouped.removeWhere((_, value) => value.isEmpty);
+    return grouped;
+  }
+
+  String _pricingGroupForModel(ModelPricingEntity model) {
+    final normalized = model.modelId.toLowerCase();
+    if (normalized.contains('claude')) return 'Claude';
+    if (normalized.contains('glm')) return 'GLM';
+    if (normalized.contains('kimi')) return 'Kimi';
+    if (normalized.contains('minimax')) return 'MiniMax';
+    return '其他';
+  }
+
+  Widget _buildPricingEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: ShadcnSpacing.spacing24),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(
+              LucideIcons.badgeDollarSign,
+              size: 48,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: ShadcnSpacing.spacing16),
+            Text('暂无模型定价数据', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: ShadcnSpacing.spacing8),
+            Text(
+              '点击上方刷新即可从 models.dev 拉取最新定价。',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPricingModelDialog(BuildContext context, ModelPricingEntity model) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) => ShadDialog(
+        title: Text(
+          model.modelId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            vertical: ShadcnSpacing.spacing12,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildPricingDetailRow(
+                icon: LucideIcons.arrowDownToLine,
+                label: '输入价格',
+                value: _formatPrice(model.inputPrice),
+              ),
+              _buildPricingDetailRow(
+                icon: LucideIcons.arrowUpFromLine,
+                label: '输出价格',
+                value: _formatPrice(model.outputPrice),
+              ),
+              _buildPricingDetailRow(
+                icon: LucideIcons.databaseZap,
+                label: '缓存写入价格',
+                value: _formatPrice(model.cacheWritePrice),
+              ),
+              _buildPricingDetailRow(
+                icon: LucideIcons.databaseBackup,
+                label: '缓存读取价格',
+                value: _formatPrice(model.cacheReadPrice),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPricingDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: ShadcnSpacing.spacing8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: ShadcnSpacing.spacing16,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              spacing: ShadcnSpacing.spacing4,
+              children: [
+                Icon(icon, color: ShadcnColors.lightMutedForeground, size: 16),
+                Text(label),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _refreshPricing(BuildContext context) async {
+    final message = await viewModel.refreshPricing();
+    if (!context.mounted) return;
+    if (message == null) {
+      ShadSonner.of(
+        context,
+      ).show(const ShadToast(description: Text('模型定价已刷新')));
+      return;
+    }
+    ShadSonner.of(context).show(ShadToast(description: Text(message)));
+  }
+
+  String _formatPrice(double price) {
+    if (price == 0) return '-';
+    var text = price.toStringAsFixed(6).replaceFirst(RegExp(r'0+$'), '');
+    if (text.endsWith('.')) {
+      text = text.substring(0, text.length - 1);
+    }
+    return '\$$text / MTok';
   }
 
   String _getFileSize(int size) {

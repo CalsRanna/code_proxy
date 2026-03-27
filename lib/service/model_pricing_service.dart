@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:code_proxy/model/model_pricing_entity.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/path_util.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 import 'package:signals/signals.dart';
@@ -15,6 +16,10 @@ class ModelPricingService {
     'anthropic',
     'minimax',
     'minimax-cn',
+    'zhipuai',
+    'zai',
+    'moonshotai',
+    'moonshotai-cn',
   ];
 
   final Map<String, ModelPricingEntity> _pricingMap = {};
@@ -52,16 +57,15 @@ class ModelPricingService {
   }
 
   /// 从 API 刷新定价数据
-  Future<void> refresh() async {
+  Future<String?> refresh() async {
     try {
       final response = await http
           .get(Uri.parse('https://models.dev/api.json'))
           .timeout(const Duration(seconds: 30));
       if (response.statusCode != 200) {
-        LoggerUtil.instance.w(
-          'Failed to fetch pricing data: ${response.statusCode}',
-        );
-        return;
+        final message = '获取模型定价失败：HTTP ${response.statusCode}';
+        LoggerUtil.instance.w(message);
+        return message;
       }
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -73,9 +77,20 @@ class ModelPricingService {
       } catch (e) {
         LoggerUtil.instance.w('Failed to save pricing cache: $e');
       }
+      return null;
     } catch (e) {
-      LoggerUtil.instance.w('Failed to refresh pricing data: $e');
+      final message = '刷新模型定价失败：$e';
+      LoggerUtil.instance.w(message);
+      return message;
     }
+  }
+
+  List<ModelPricingEntity> get pricingModels {
+    final models = _pricingMap.values.toList()
+      ..sort(
+        (a, b) => a.modelId.toLowerCase().compareTo(b.modelId.toLowerCase()),
+      );
+    return List.unmodifiable(models);
   }
 
   /// 按模型名查定价
@@ -225,6 +240,11 @@ class ModelPricingService {
     }
     lastUpdated.value = null;
     modelCount.value = _pricingMap.length;
+  }
+
+  @visibleForTesting
+  void parseApiResponseForTesting(Map<String, dynamic> json) {
+    _parseApiResponse(json);
   }
 
   Future<void> _saveCacheFile() async {

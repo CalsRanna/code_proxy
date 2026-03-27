@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/model_pricing_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
@@ -138,6 +139,11 @@ class SettingViewModel {
     version.value = 'v${packageInfo.version} (${packageInfo.buildNumber})';
 
     // 加载定价信息
+    final pricingService = ModelPricingService.instance;
+    if (pricingService.modelCount.value == 0 &&
+        pricingService.lastUpdated.value == null) {
+      await pricingService.load();
+    }
     _loadPricingInfo();
 
     // 加载默认模型映射
@@ -363,11 +369,19 @@ class SettingViewModel {
     }
   }
 
-  Future<void> refreshPricing() async {
+  List<ModelPricingEntity> get pricingModels =>
+      ModelPricingService.instance.pricingModels;
+
+  Future<String?> refreshPricing() async {
+    if (pricingRefreshing.value) return null;
     pricingRefreshing.value = true;
-    await ModelPricingService.instance.refresh();
-    _loadPricingInfo();
-    pricingRefreshing.value = false;
+    try {
+      final error = await ModelPricingService.instance.refresh();
+      _loadPricingInfo();
+      return error;
+    } finally {
+      pricingRefreshing.value = false;
+    }
   }
 
   ShadDialog _buildAlertDialog(
