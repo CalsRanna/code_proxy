@@ -35,7 +35,11 @@
       "mcp__dart-mcp-server__run_tests",
       "Read(//Users/cals/.pub-cache/hosted/pub.dev/**)",
       "Bash(2)",
-      "Bash(grep -n \"pubspec.yaml\" /Users/cals/Code/code_proxy/.dart_tool/package_config.json | grep shadcn 2>/dev/null; grep \"shadcn_ui\" /Users/cals/Code/code_proxy/pubspec.lock 2>/dev/null -A 3)"
+      "Bash(grep -n \"pubspec.yaml\" /Users/cals/Code/code_proxy/.dart_tool/package_config.json | grep shadcn 2>/dev/null; grep \"shadcn_ui\" /Users/cals/Code/code_proxy/pubspec.lock 2>/dev/null -A 3)",
+      "Bash(find /d/code/code_proxy -maxdepth 1 -type f \\\\\\(-name Makefile -o -name *.yml -o -name *.yaml -o -name .github \\\\\\))",
+      "Bash(git -C /d/code/code_proxy log --oneline --all)",
+      "Bash(git -C /d/code/code_proxy log --all --oneline)",
+      "Bash(git -C /d/code/code_proxy log --all --pretty=format:\"%h %ad %s\" --date=short)"
     ],
     "deny": []
   }
