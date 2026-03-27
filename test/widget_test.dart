@@ -338,15 +338,16 @@ void main() {
         const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
         const EndpointEntity(id: 'ep-2', name: 'Endpoint 2'),
       ]);
+      final session = router.startRequest();
 
-      expect(await router.hasNext(null), isTrue);
-      expect(router.currentEndpoint?.id, 'ep-1');
+      expect(await session.hasNext(null), isTrue);
+      expect(session.currentEndpoint?.id, 'ep-1');
 
-      expect(await router.hasNext(false), isTrue);
-      expect(router.currentEndpoint?.id, 'ep-1');
+      expect(await session.hasNext(false), isTrue);
+      expect(session.currentEndpoint?.id, 'ep-1');
 
-      expect(await router.hasNext(false), isTrue);
-      expect(router.currentEndpoint?.id, 'ep-2');
+      expect(await session.hasNext(false), isTrue);
+      expect(session.currentEndpoint?.id, 'ep-2');
       expect(
         registry.getBreaker('ep-1').state,
         ProxyServerCircuitBreakerState.open,
@@ -367,26 +368,75 @@ void main() {
       router.setEndpoints([
         const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
       ]);
+      final firstSession = router.startRequest();
 
-      expect(await router.hasNext(null), isTrue);
-      expect(await router.hasNext(false), isFalse);
+      expect(await firstSession.hasNext(null), isTrue);
+      expect(await firstSession.hasNext(false), isFalse);
       expect(
         registry.getBreaker('ep-1').state,
         ProxyServerCircuitBreakerState.open,
       );
 
       await Future.delayed(const Duration(milliseconds: 30));
+      final recoverySession = router.startRequest();
 
-      expect(await router.hasNext(null), isTrue);
+      expect(await recoverySession.hasNext(null), isTrue);
       expect(
         registry.getBreaker('ep-1').evaluateState(),
         ProxyServerCircuitBreakerState.halfOpen,
       );
 
-      expect(await router.hasNext(true), isFalse);
+      expect(await recoverySession.hasNext(true), isFalse);
       expect(restoredEndpointIds, ['ep-1']);
       expect(
         registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.closed,
+      );
+    });
+
+    test('并发请求失败时不应把断路器错误应用到其他端点', () async {
+      final registry = ProxyServerCircuitBreakerRegistry(
+        failureThreshold: 1,
+        recoveryTimeoutMs: 1000,
+      );
+      final router = ProxyServerRouter(
+        config: const ProxyServerConfig(circuitBreakerFailureThreshold: 1),
+        circuitBreakerRegistry: registry,
+      );
+      router.setEndpoints([
+        const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
+        const EndpointEntity(id: 'ep-2', name: 'Endpoint 2'),
+      ]);
+
+      final sessionA = router.startRequest();
+      final sessionB = router.startRequest();
+
+      expect(await sessionA.hasNext(null), isTrue);
+      expect(sessionA.currentEndpoint?.id, 'ep-1');
+      expect(await sessionB.hasNext(null), isTrue);
+      expect(sessionB.currentEndpoint?.id, 'ep-1');
+
+      expect(await sessionA.hasNext(false), isTrue);
+      expect(sessionA.currentEndpoint?.id, 'ep-2');
+      expect(
+        registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.open,
+      );
+      expect(
+        registry.getBreaker('ep-2').state,
+        ProxyServerCircuitBreakerState.closed,
+      );
+
+      // sessionB 仍然是在处理自己命中的 ep-1。即使它完成得更晚，
+      // 失败也只能归因到 ep-1，而不能误伤已经切换到的 ep-2。
+      expect(await sessionB.hasNext(false), isTrue);
+      expect(sessionB.currentEndpoint?.id, 'ep-2');
+      expect(
+        registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.open,
+      );
+      expect(
+        registry.getBreaker('ep-2').state,
         ProxyServerCircuitBreakerState.closed,
       );
     });

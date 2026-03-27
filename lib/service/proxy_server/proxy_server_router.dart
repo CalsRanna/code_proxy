@@ -16,11 +16,6 @@ class ProxyServerRouter {
   /// 所有启用的端点（由外部通过 setEndpoints 更新）
   List<EndpointEntity> _allEndpoints = [];
 
-  /// 当前请求轮次中可用的端点（从 _allEndpoints 按断路器状态过滤）
-  List<EndpointEntity> _endpoints = [];
-  int _currentEndpointIndex = 0;
-  int _currentAttempt = 0;
-
   ProxyServerRouter({
     required ProxyServerConfig config,
     required ProxyServerCircuitBreakerRegistry circuitBreakerRegistry,
@@ -31,20 +26,9 @@ class ProxyServerRouter {
        _onEndpointUnavailable = onEndpointUnavailable,
        _onEndpointRestored = onEndpointRestored;
 
-  /// 获取当前尝试次数
-  int get currentAttempt => _currentAttempt;
-
-  /// 获取当前端点
-  EndpointEntity? get currentEndpoint {
-    if (_currentEndpointIndex >= 0 &&
-        _currentEndpointIndex < _endpoints.length) {
-      return _endpoints[_currentEndpointIndex];
-    }
-    return null;
-  }
-
-  /// 获取端点列表（供调试使用）
-  List<EndpointEntity> get endpoints => List.unmodifiable(_endpoints);
+  /// 获取当前可用端点列表（供调试使用）
+  List<EndpointEntity> get endpoints =>
+      List.unmodifiable(_buildAvailableEndpoints());
 
   /// 计算重试延迟时间（支持指数退避）
   /// attempt: 当前尝试次数（从1开始）
@@ -60,6 +44,70 @@ class ProxyServerRouter {
     return delay.clamp(0, max);
   }
 
+  /// 为单个代理请求创建独立的路由会话，避免并发请求共享可变状态。
+  ProxyServerRouteSession startRequest() {
+    return ProxyServerRouteSession._(
+      router: this,
+      endpoints: _buildAvailableEndpoints(),
+    );
+  }
+
+  /// 设置端点列表（由外部在端点变更时调用）
+  void setEndpoints(List<EndpointEntity> endpoints) {
+    _allEndpoints = endpoints.where((e) => e.enabled).toList();
+  }
+
+  List<EndpointEntity> _buildAvailableEndpoints() {
+    final endpoints = <EndpointEntity>[];
+    for (final endpoint in _allEndpoints) {
+      final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
+      if (breaker.isAvailable) {
+        endpoints.add(endpoint);
+      }
+    }
+    return endpoints;
+  }
+
+  void _recordSuccess(EndpointEntity endpoint) {
+    final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
+    final wasHalfOpen =
+        breaker.state == ProxyServerCircuitBreakerState.halfOpen;
+    breaker.recordSuccess();
+    if (wasHalfOpen) {
+      _onEndpointRestored?.call(endpoint);
+    }
+  }
+}
+
+/// 单个请求的路由会话。
+///
+/// 每个请求都维护自己的 currentEndpoint / attempt 状态，避免多个并发请求
+/// 互相覆盖“当前端点”，导致成功或失败被记到错误的断路器上。
+class ProxyServerRouteSession {
+  final ProxyServerRouter _router;
+  final List<EndpointEntity> _endpoints;
+
+  int _currentEndpointIndex = 0;
+  int _currentAttempt = 1;
+
+  ProxyServerRouteSession._({
+    required ProxyServerRouter router,
+    required List<EndpointEntity> endpoints,
+  }) : _router = router,
+       _endpoints = endpoints;
+
+  int get currentAttempt => _currentAttempt;
+
+  EndpointEntity? get currentEndpoint {
+    if (_currentEndpointIndex >= 0 &&
+        _currentEndpointIndex < _endpoints.length) {
+      return _endpoints[_currentEndpointIndex];
+    }
+    return null;
+  }
+
+  List<EndpointEntity> get endpoints => List.unmodifiable(_endpoints);
+
   /// 判断是否还有下一个端点或需要重试。
   ///
   /// [previousSucceeded] 表示上一次请求是否成功：
@@ -68,22 +116,7 @@ class ProxyServerRouter {
   /// - false: 上一次失败，统一按断路器机制决定重试或故障转移
   Future<bool> hasNext(bool? previousSucceeded) async {
     if (previousSucceeded == null) {
-      _resetForNewRequest();
       return _endpoints.isNotEmpty;
-    }
-
-    if (previousSucceeded) {
-      final endpoint = currentEndpoint;
-      if (endpoint != null) {
-        final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
-        final wasHalfOpen =
-            breaker.state == ProxyServerCircuitBreakerState.halfOpen;
-        breaker.recordSuccess();
-        if (wasHalfOpen) {
-          _onEndpointRestored?.call(endpoint);
-        }
-      }
-      return false;
     }
 
     final endpoint = currentEndpoint;
@@ -91,8 +124,13 @@ class ProxyServerRouter {
       return false;
     }
 
+    if (previousSucceeded) {
+      _router._recordSuccess(endpoint);
+      return false;
+    }
+
     // 失败：统一按断路器机制处理，不再按具体状态码分流
-    final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
+    final breaker = _router._circuitBreakerRegistry.getBreaker(endpoint.id);
     breaker.recordFailure();
     _currentAttempt++;
 
@@ -101,7 +139,7 @@ class ProxyServerRouter {
         'Endpoint ${endpoint.name} circuit breaker opened '
         'after ${_currentAttempt - 1} failed attempts',
       );
-      _onEndpointUnavailable?.call(endpoint);
+      _router._onEndpointUnavailable?.call(endpoint);
       _moveToNextEndpoint();
 
       if (_currentEndpointIndex < _endpoints.length) {
@@ -111,10 +149,10 @@ class ProxyServerRouter {
       return false;
     }
 
-    final delayMs = _calculateRetryDelay(_currentAttempt);
+    final delayMs = _router._calculateRetryDelay(_currentAttempt);
     LoggerUtil.instance.w(
       'Retrying endpoint ${endpoint.name} '
-      '(attempt $_currentAttempt/${_config.circuitBreakerFailureThreshold})',
+      '(attempt $_currentAttempt/${_router._config.circuitBreakerFailureThreshold})',
     );
     if (delayMs > 0) {
       LoggerUtil.instance.d('Waiting ${delayMs}ms before retry');
@@ -123,39 +161,21 @@ class ProxyServerRouter {
     return true;
   }
 
-  /// 设置端点列表（由外部在端点变更时调用）
-  void setEndpoints(List<EndpointEntity> endpoints) {
-    _allEndpoints = endpoints.where((e) => e.enabled).toList();
-    _resetForNewRequest();
-  }
-
-  /// 移动到下一个端点
   void _moveToNextEndpoint() {
     _currentEndpointIndex++;
     _currentAttempt = 1;
 
-    // 跳过断路器 open 的端点（使用无副作用的 isAvailable）
+    // 跳过当前已处于 open 的端点。这里重新读取断路器状态，避免会话快照中的
+    // 端点因为其他并发请求刚被打开后仍被继续选中。
     while (_currentEndpointIndex < _endpoints.length) {
       final nextEndpoint = _endpoints[_currentEndpointIndex];
-      final breaker = _circuitBreakerRegistry.getBreaker(nextEndpoint.id);
+      final breaker = _router._circuitBreakerRegistry.getBreaker(
+        nextEndpoint.id,
+      );
       if (breaker.isAvailable) {
         break;
       }
       _currentEndpointIndex++;
-    }
-  }
-
-  /// 重置路由状态（使用缓存的端点列表，按断路器状态过滤）
-  void _resetForNewRequest() {
-    _currentEndpointIndex = 0;
-    _currentAttempt = 1;
-
-    _endpoints = [];
-    for (final e in _allEndpoints) {
-      final breaker = _circuitBreakerRegistry.getBreaker(e.id);
-      if (breaker.isAvailable) {
-        _endpoints.add(e);
-      }
     }
   }
 }

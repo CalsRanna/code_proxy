@@ -103,13 +103,14 @@ class ProxyServerService {
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final rawBody = await request.read().expand((x) => x).toList();
+    final routeSession = _router.startRequest();
 
     bool? previousSucceeded;
     shelf.Response? finalResponse;
 
     // 循环尝试端点
-    while (await _router.hasNext(previousSucceeded)) {
-      final endpoint = _router.currentEndpoint;
+    while (await routeSession.hasNext(previousSucceeded)) {
+      final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
       http.Request? preparedRequest;
