@@ -120,5 +120,38 @@ void main() {
         ProxyServerCircuitBreakerState.closed,
       );
     });
+
+    test('黑名单失败不应重试或计入断路器', () async {
+      final registry = ProxyServerCircuitBreakerRegistry(
+        failureThreshold: 1,
+        recoveryTimeoutMs: 1000,
+      );
+      final router = ProxyServerRouter(
+        config: const ProxyServerConfig(circuitBreakerFailureThreshold: 1),
+        circuitBreakerRegistry: registry,
+      );
+      router.setEndpoints([
+        const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
+        const EndpointEntity(id: 'ep-2', name: 'Endpoint 2'),
+      ]);
+      final session = router.startRequest();
+
+      expect(await session.hasNext(null), isTrue);
+      expect(session.currentEndpoint?.id, 'ep-1');
+
+      expect(
+        await session.hasNext(false, applyCircuitBreakerOnFailure: false),
+        isFalse,
+      );
+      expect(session.currentEndpoint?.id, 'ep-1');
+      expect(
+        registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.closed,
+      );
+      expect(
+        registry.getBreaker('ep-2').state,
+        ProxyServerCircuitBreakerState.closed,
+      );
+    });
   });
 }

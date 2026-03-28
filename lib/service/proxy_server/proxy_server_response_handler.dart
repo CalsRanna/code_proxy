@@ -148,6 +148,7 @@ class ProxyServerResponseHandler {
     required List<int> requestBodyBytes,
     required int? startTime,
     required Object error,
+    int statusCode = HttpStatus.badGateway,
     List<int>? mappedRequestBodyBytes,
     Map<String, String>? forwardedHeaders,
   }) {
@@ -167,13 +168,21 @@ class ProxyServerResponseHandler {
     );
 
     final proxyResponse = ProxyServerResponse(
-      statusCode: 502, // Bad Gateway - 代理服务器无法从上游端点获得有效响应
+      statusCode: statusCode,
       headers: {},
       responseTime: responseTime,
       errorBody: error.toString(),
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
+  }
+
+  shelf.Response buildExceptionResponse(Object error) {
+    return shelf.Response(
+      HttpStatus.internalServerError,
+      headers: {HttpHeaders.contentTypeHeader: 'text/plain; charset=utf-8'},
+      body: error.toString(),
+    );
   }
 
   Future<shelf.Response> _processAndReturnResponse(

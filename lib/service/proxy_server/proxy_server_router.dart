@@ -114,7 +114,13 @@ class ProxyServerRouteSession {
   /// - null: 首次进入，为当前请求选择第一个可用端点
   /// - true: 上一次成功，结束当前请求轮次
   /// - false: 上一次失败，统一按断路器机制决定重试或故障转移
-  Future<bool> hasNext(bool? previousSucceeded) async {
+  ///
+  /// [applyCircuitBreakerOnFailure] 为 false 时，失败不会触发重试、
+  /// 故障转移或断路器计数，调用方会直接返回当前结果。
+  Future<bool> hasNext(
+    bool? previousSucceeded, {
+    bool applyCircuitBreakerOnFailure = true,
+  }) async {
     if (previousSucceeded == null) {
       return _endpoints.isNotEmpty;
     }
@@ -126,6 +132,13 @@ class ProxyServerRouteSession {
 
     if (previousSucceeded) {
       _router._recordSuccess(endpoint);
+      return false;
+    }
+
+    if (!applyCircuitBreakerOnFailure) {
+      LoggerUtil.instance.i(
+        'Skipping retry and circuit breaker for endpoint ${endpoint.name}',
+      );
       return false;
     }
 

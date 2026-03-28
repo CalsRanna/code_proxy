@@ -15,6 +15,10 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 class ProxyServerService {
+  static const Set<String> _failurePassthroughPaths = {
+    '/v1/messages/count_tokens',
+  };
+
   final ProxyServerConfig config;
 
   final void Function(EndpointEntity)? onEndpointUnavailable;
@@ -95,6 +99,8 @@ class ProxyServerService {
     _circuitBreakerRegistry.removeBreaker(endpointId);
   }
 
+  int? get boundPort => _server?.port;
+
   /// 获取当前仍处于断路中的端点 ID
   Set<String> getOpenCircuitBreakerEndpointIds(Iterable<String> endpointIds) {
     return _circuitBreakerRegistry.getOpenEndpointIds(endpointIds);
@@ -104,12 +110,18 @@ class ProxyServerService {
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final rawBody = await request.read().expand((x) => x).toList();
     final routeSession = _router.startRequest();
+    final applyCircuitBreakerOnFailure = !_shouldPassthroughFailureHandling(
+      request.requestedUri.path,
+    );
 
     bool? previousSucceeded;
     shelf.Response? finalResponse;
 
     // 循环尝试端点
-    while (await routeSession.hasNext(previousSucceeded)) {
+    while (await routeSession.hasNext(
+      previousSucceeded,
+      applyCircuitBreakerOnFailure: applyCircuitBreakerOnFailure,
+    )) {
       final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
@@ -143,7 +155,7 @@ class ProxyServerService {
         }
         // 失败响应：统一通过路由器中的断路器机制决定重试或故障转移
       } catch (e) {
-        // 异常也按普通失败处理，统一交给断路器计数
+        // 异常默认走统一失败处理；黑名单路径会直接返回原始错误
         previousSucceeded = false;
         LoggerUtil.instance.e('Exception during request: $e');
 
@@ -154,9 +166,16 @@ class ProxyServerService {
           requestBodyBytes: rawBody,
           startTime: startTime,
           error: e,
+          statusCode: applyCircuitBreakerOnFailure
+              ? HttpStatus.badGateway
+              : HttpStatus.internalServerError,
           mappedRequestBodyBytes: preparedRequest?.bodyBytes,
           forwardedHeaders: preparedRequest?.headers,
         );
+
+        if (!applyCircuitBreakerOnFailure) {
+          finalResponse = _responseHandler.buildExceptionResponse(e);
+        }
       }
     }
 
@@ -166,5 +185,14 @@ class ProxyServerService {
       // 所有端点都失败
       return shelf.Response.internalServerError(body: 'All endpoints failed');
     }
+  }
+
+  static bool _shouldPassthroughFailureHandling(String path) {
+    return _failurePassthroughPaths.contains(_normalizePath(path));
+  }
+
+  static String _normalizePath(String path) {
+    if (path.isEmpty) return '/';
+    return path.startsWith('/') ? path : '/$path';
   }
 }
