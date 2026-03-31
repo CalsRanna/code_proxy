@@ -110,9 +110,13 @@ class ProxyServerService {
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final rawBody = await request.read().expand((x) => x).toList();
     final routeSession = _router.startRequest();
-    final applyCircuitBreakerOnFailure = !_shouldPassthroughFailureHandling(
+    final allowCircuitBreakerOnFailure = !_shouldPassthroughFailureHandling(
       request.requestedUri.path,
     );
+    var applyCircuitBreakerOnPreviousFailure = allowCircuitBreakerOnFailure;
+    String? skipFailureHandlingReason = allowCircuitBreakerOnFailure
+        ? null
+        : 'request path ${_normalizePath(request.requestedUri.path)} bypasses failure handling';
 
     bool? previousSucceeded;
     shelf.Response? finalResponse;
@@ -120,7 +124,8 @@ class ProxyServerService {
     // 循环尝试端点
     while (await routeSession.hasNext(
       previousSucceeded,
-      applyCircuitBreakerOnFailure: applyCircuitBreakerOnFailure,
+      applyCircuitBreakerOnFailure: applyCircuitBreakerOnPreviousFailure,
+      skipFailureHandlingReason: skipFailureHandlingReason,
     )) {
       final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
@@ -149,6 +154,12 @@ class ProxyServerService {
 
         previousSucceeded =
             response.statusCode >= 200 && response.statusCode < 300;
+        applyCircuitBreakerOnPreviousFailure =
+            allowCircuitBreakerOnFailure &&
+            _shouldApplyCircuitBreakerOnFailure(response.statusCode);
+        skipFailureHandlingReason = applyCircuitBreakerOnPreviousFailure
+            ? null
+            : 'upstream returned ${response.statusCode}';
 
         if (previousSucceeded) {
           break;
@@ -157,6 +168,10 @@ class ProxyServerService {
       } catch (e) {
         // 异常默认走统一失败处理；黑名单路径会直接返回原始错误
         previousSucceeded = false;
+        applyCircuitBreakerOnPreviousFailure = allowCircuitBreakerOnFailure;
+        skipFailureHandlingReason = allowCircuitBreakerOnFailure
+            ? null
+            : 'request path ${_normalizePath(request.requestedUri.path)} bypasses failure handling';
         LoggerUtil.instance.e('Exception during request: $e');
 
         // 记录异常请求到数据库
@@ -166,14 +181,14 @@ class ProxyServerService {
           requestBodyBytes: rawBody,
           startTime: startTime,
           error: e,
-          statusCode: applyCircuitBreakerOnFailure
+          statusCode: allowCircuitBreakerOnFailure
               ? HttpStatus.badGateway
               : HttpStatus.internalServerError,
           mappedRequestBodyBytes: preparedRequest?.bodyBytes,
           forwardedHeaders: preparedRequest?.headers,
         );
 
-        if (!applyCircuitBreakerOnFailure) {
+        if (!allowCircuitBreakerOnFailure) {
           finalResponse = _responseHandler.buildExceptionResponse(e);
         }
       }
@@ -189,6 +204,10 @@ class ProxyServerService {
 
   static bool _shouldPassthroughFailureHandling(String path) {
     return _failurePassthroughPaths.contains(_normalizePath(path));
+  }
+
+  static bool _shouldApplyCircuitBreakerOnFailure(int statusCode) {
+    return statusCode < 400 || statusCode >= 500;
   }
 
   static String _normalizePath(String path) {

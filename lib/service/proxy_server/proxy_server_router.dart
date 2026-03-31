@@ -120,6 +120,7 @@ class ProxyServerRouteSession {
   Future<bool> hasNext(
     bool? previousSucceeded, {
     bool applyCircuitBreakerOnFailure = true,
+    String? skipFailureHandlingReason,
   }) async {
     if (previousSucceeded == null) {
       return _endpoints.isNotEmpty;
@@ -136,8 +137,12 @@ class ProxyServerRouteSession {
     }
 
     if (!applyCircuitBreakerOnFailure) {
+      final reasonSuffix = skipFailureHandlingReason == null
+          ? ''
+          : ' because $skipFailureHandlingReason';
       LoggerUtil.instance.i(
-        'Skipping retry and circuit breaker for endpoint ${endpoint.name}',
+        'Returning failure from endpoint ${endpoint.name} without retry '
+        'or circuit breaker$reasonSuffix',
       );
       return false;
     }

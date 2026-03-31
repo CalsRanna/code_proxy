@@ -129,6 +129,60 @@ void main() {
         isEmpty,
       );
     });
+
+    test('4xx 响应应直接返回且不重试不熔断', () async {
+      var firstHits = 0;
+      var secondHits = 0;
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          firstHits++;
+          request.response.statusCode = HttpStatus.badRequest;
+          request.response.write('invalid request');
+          await request.response.close();
+        }),
+      );
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          secondHits++;
+          request.response.statusCode = HttpStatus.ok;
+          request.response.write('should not be reached');
+          await request.response.close();
+        }),
+      );
+
+      service = ProxyServerService(
+        config: const ProxyServerConfig(
+          address: '127.0.0.1',
+          port: 0,
+          apiTimeoutMs: 2000,
+          circuitBreakerFailureThreshold: 1,
+        ),
+      );
+      service!.endpoints = [
+        _buildEndpoint('ep-1', upstreamServers[0].port),
+        _buildEndpoint('ep-2', upstreamServers[1].port),
+      ];
+      await service!.start();
+
+      client = http.Client();
+      final response = await client!.post(
+        Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': 'client-token',
+        },
+        body: jsonEncode({'model': 'claude-3-7-sonnet'}),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      expect(response.body, 'invalid request');
+      expect(firstHits, 1);
+      expect(secondHits, 0);
+      expect(
+        service!.getOpenCircuitBreakerEndpointIds({'ep-1', 'ep-2'}),
+        isEmpty,
+      );
+    });
   });
 }
 
