@@ -198,20 +198,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       if (mounted) {
         ShadSonner.of(context).show(
           const ShadToast(
-            description: Text('请输入有效的 HTTPS URL（如：https://api.example.com）'),
-          ),
-        );
-      }
-      return;
-    }
-
-    if (!_isHttpsUrl(baseUrl)) {
-      if (mounted) {
-        ShadSonner.of(context).show(
-          const ShadToast(
-            description: Text(
-              'Base URL 必须是 HTTPS 协议（如：https://api.example.com）',
-            ),
+            description: Text('请输入有效的 URL（如：https://api.example.com 或 http://localhost:8080）'),
           ),
         );
       }
@@ -278,16 +265,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     } catch (e) {
       if (!mounted) return;
       ShadSonner.of(context).show(ShadToast(description: Text('保存失败：$e')));
-    }
-  }
-
-  /// 验证 URL 是否为 HTTPS
-  bool _isHttpsUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.scheme == 'https';
-    } catch (e) {
-      return false;
     }
   }
 
