@@ -1,7 +1,7 @@
 name: code_proxy
 description: "Anthropic API proxy manager for Claude Code. Supports macOS, Windows, and Linux."
 publish_to: 'none'
-version: 1.2.9+219
+version: 1.2.10+222
 
 environment:
   sdk: ^3.10.1
