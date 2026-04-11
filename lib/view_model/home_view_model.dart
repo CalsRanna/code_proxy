@@ -18,10 +18,8 @@ import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
-import 'package:code_proxy/view_model/mcp_server_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
-import 'package:code_proxy/view_model/skill_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
@@ -277,14 +275,6 @@ class HomeViewModel {
       logViewModel.initSignals();
     }
     if (index == 3 && previousIndex != 3) {
-      final serverViewModel = GetIt.instance.get<McpServerViewModel>();
-      serverViewModel.initSignals();
-    }
-    if (index == 4 && previousIndex != 4) {
-      final skillViewModel = GetIt.instance.get<SkillViewModel>();
-      skillViewModel.initSignals();
-    }
-    if (index == 5 && previousIndex != 5) {
       final settingViewModel = GetIt.instance.get<SettingViewModel>();
       settingViewModel.initSignals();
     }

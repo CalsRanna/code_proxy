@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-Code Proxy 是一个 Flutter 桌面应用，为 Claude Code 提供本地 Anthropic API 代理服务。支持配置多个 API 端点，采用主备故障转移策略（请求始终发往优先级最高的端点，仅在失败时切换），最大化 prompt cache 命中率。同时提供模型映射、请求审计、MCP 服务器管理和技能安装等功能。
+Code Proxy 是一个 Flutter 桌面应用，为 Claude Code 提供本地 Anthropic API 代理服务。支持配置多个 API 端点，采用主备故障转移策略（请求始终发往优先级最高的端点，仅在失败时切换），最大化 prompt cache 命中率。同时提供模型映射和请求审计等功能。
 
 支持 macOS、Windows、Linux。
 
@@ -69,8 +69,6 @@ Database → DI → WindowUtil → TrayUtil → LaunchAtStartup → runApp
 - **ClaudeCodeSettingService** — 启动代理时自动写入 `~/.claude/settings.json`，生成 `cp-<uuid>` 格式的会话 Token
 - **ClaudeCodeAuditService** — 审计日志记录到 `~/.code_proxy/audit/`，按天分目录，支持自动过期清理
 - **ClaudeCodeModelConfigService** — 管理全局默认模型映射（`~/.code_proxy/default_model.yaml`）
-- **ClaudeCodeMcpServerService** — 管理 `~/.claude.json` 中的 MCP 服务器配置
-- **ClaudeCodeSkillService** — 从 GitHub 安装技能到 `~/.claude/skills/`
 
 ### 数据库
 
@@ -82,7 +80,7 @@ SQLite3 + Laconic ORM。数据库文件位于 `~/.code_proxy/code_proxy.db`。
 
 使用 shadcn_ui 组件库，Montserrat 字体，lucide_icons_flutter 图标。自定义颜色和间距定义在 `lib/theme/`。
 
-主页面（`home_page.dart`）包含 6 个导航标签：控制面板、端点、MCP 服务器、技能、日志、设置。
+主页面（`home_page.dart`）包含 4 个导航标签：概览、端点、请求、设置。
 
 ### 桌面集成
 

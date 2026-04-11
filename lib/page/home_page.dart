@@ -10,10 +10,8 @@ import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
-import 'package:code_proxy/view_model/mcp_server_view_model.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
-import 'package:code_proxy/view_model/skill_view_model.dart';
 import 'package:code_proxy/widget/macos_window_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -34,8 +32,6 @@ class _HomePageState extends State<HomePage> {
   final endpointsViewModel = GetIt.instance.get<EndpointViewModel>();
   final logsViewModel = GetIt.instance.get<RequestLogViewModel>();
   final settingsViewModel = GetIt.instance.get<SettingViewModel>();
-  final serverViewModel = GetIt.instance.get<McpServerViewModel>();
-  final skillViewModel = GetIt.instance.get<SkillViewModel>();
 
   final icons = [
     LucideIcons.layoutGrid,
@@ -58,8 +54,6 @@ class _HomePageState extends State<HomePage> {
     dashboardViewModel.initSignals();
     endpointsViewModel.initSignals();
     logsViewModel.initSignals();
-    serverViewModel.initSignals();
-    skillViewModel.initSignals();
     settingsViewModel.initSignals();
   }
 
