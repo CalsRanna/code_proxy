@@ -1,4 +1,6 @@
 import 'package:code_proxy/model/model_pricing_entity.dart';
+import 'package:code_proxy/page/mcp_server/mcp_server_page.dart';
+import 'package:code_proxy/page/skill/skill_page.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
@@ -150,7 +152,10 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
-    var pageHeader = PageHeader(title: '设置', subtitle: '管理代理服务器配置和应用选项');
+    var pageHeader = PageHeader(
+      title: '设置',
+      subtitle: '管理代理配置、Claude Code 集成和实验功能',
+    );
     var tabs = ShadTabs<String>(
       value: selectedTab,
       onChanged: (value) => setState(() => selectedTab = value),
@@ -175,12 +180,6 @@ class _SettingPageState extends State<SettingPage> {
           child: const Text('代理服务器'),
         ),
         ShadTab(
-          value: 'pricing',
-          expandContent: true,
-          content: _buildPricingTabContent(),
-          child: const Text('模型定价'),
-        ),
-        ShadTab(
           value: 'claude_code',
           expandContent: true,
           content: ListView(
@@ -195,6 +194,54 @@ class _SettingPageState extends State<SettingPage> {
             ],
           ),
           child: const Text('Claude Code'),
+        ),
+        ShadTab(
+          value: 'integrations',
+          expandContent: true,
+          content: Padding(
+            padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildFeatureCallout(
+                  icon: LucideIcons.server,
+                  title: 'Claude Code 集成',
+                  description: '管理 Claude Code 的 MCP 服务器配置，属于辅助集成能力。',
+                  badgeText: '集成',
+                ),
+                const SizedBox(height: ShadcnSpacing.spacing16),
+                const Expanded(child: McpServerPage(showHeader: false)),
+              ],
+            ),
+          ),
+          child: const Text('集成'),
+        ),
+        ShadTab(
+          value: 'pricing',
+          expandContent: true,
+          content: _buildPricingTabContent(),
+          child: const Text('模型定价'),
+        ),
+        ShadTab(
+          value: 'experimental',
+          expandContent: true,
+          content: Padding(
+            padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildFeatureCallout(
+                  icon: LucideIcons.sparkles,
+                  title: '实验功能',
+                  description: 'Skill 管理是实验能力，不影响代理主流程，也不在默认导航中强调。',
+                  badgeText: '实验',
+                ),
+                const SizedBox(height: ShadcnSpacing.spacing16),
+                const Expanded(child: SkillPage(showHeader: false)),
+              ],
+            ),
+          ),
+          child: const Text('实验功能'),
         ),
       ],
     );
@@ -212,6 +259,61 @@ class _SettingPageState extends State<SettingPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFeatureCallout({
+    required IconData icon,
+    required String title,
+    required String description,
+    required String badgeText,
+  }) {
+    final brightness = Theme.of(context).brightness;
+    return ShadCard(
+      padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: ShadcnSpacing.spacing16,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: ShadcnColors.zinc100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 18),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: ShadcnSpacing.spacing8,
+              children: [
+                Row(
+                  spacing: ShadcnSpacing.spacing8,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    ShadBadge.secondary(child: Text(badgeText)),
+                  ],
+                ),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: ShadcnColors.mutedForeground(brightness),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

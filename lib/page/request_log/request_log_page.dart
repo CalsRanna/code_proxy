@@ -34,7 +34,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
     });
     var pageHeader = Watch((context) {
       final total = viewModel.total.value;
-      return PageHeader(title: '请求日志', subtitle: '$total 条请求日志');
+      return PageHeader(title: '请求', subtitle: '$total 条请求记录');
     });
     var children = [pageHeader, Expanded(child: body)];
     return Column(

@@ -10,7 +10,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
 class SkillPage extends StatefulWidget {
-  const SkillPage({super.key});
+  final bool showHeader;
+
+  const SkillPage({super.key, this.showHeader = true});
 
   @override
   State<SkillPage> createState() => _SkillPageState();
@@ -60,24 +62,28 @@ class _SkillPageState extends State<SkillPage> {
       );
     });
 
+    final body = Watch((context) {
+      if (viewModel.isLoading.value) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final skills = viewModel.skills.value;
+      if (skills.isEmpty) {
+        return _buildEmptyState();
+      }
+
+      return _buildSkillsList(skills.values.toList());
+    });
+
+    if (!widget.showHeader) {
+      return body;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         pageHeader,
-        Expanded(
-          child: Watch((context) {
-            if (viewModel.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final skills = viewModel.skills.value;
-            if (skills.isEmpty) {
-              return _buildEmptyState();
-            }
-
-            return _buildSkillsList(skills.values.toList());
-          }),
-        ),
+        Expanded(child: body),
       ],
     );
   }

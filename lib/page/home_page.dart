@@ -3,10 +3,8 @@ import 'dart:io';
 import 'package:auto_route/auto_route.dart';
 import 'package:code_proxy/page/dashboard/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
-import 'package:code_proxy/page/mcp_server/mcp_server_page.dart';
 import 'package:code_proxy/page/request_log/request_log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
-import 'package:code_proxy/page/skill/skill_page.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
@@ -42,12 +40,10 @@ class _HomePageState extends State<HomePage> {
   final icons = [
     LucideIcons.layoutGrid,
     LucideIcons.shell,
-    LucideIcons.server,
-    LucideIcons.sparkles,
     LucideIcons.arrowUpDown,
     LucideIcons.bolt,
   ];
-  final labels = ['控制面板', '端点', 'MCP服务器', '技能', '日志', '设置'];
+  final labels = ['概览', '端点', '请求', '设置'];
 
   @override
   Widget build(BuildContext context) {
@@ -72,10 +68,8 @@ class _HomePageState extends State<HomePage> {
       return switch (viewModel.selectedIndex.value) {
         0 => DashboardPage(),
         1 => EndpointPage(),
-        2 => McpServerPage(),
-        3 => SkillPage(),
-        4 => RequestLogPage(),
-        5 => SettingPage(),
+        2 => RequestLogPage(),
+        3 => SettingPage(),
         _ => DashboardPage(),
       };
     });

@@ -51,9 +51,9 @@ class _DashboardPageState extends State<DashboardPage> {
     return Watch((_) {
       final total = viewModel.totalCost.value;
       final subtitle = total > 0
-          ? '控制面板 （合计花费 \$${total.toStringAsFixed(2)}）'
-          : '控制面板';
-      return PageHeader(title: 'CODE PROXY', subtitle: subtitle);
+          ? '代理状态与成本总览（合计花费 \$${total.toStringAsFixed(2)}）'
+          : '代理状态与成本总览';
+      return PageHeader(title: '概览', subtitle: subtitle);
     });
   }
 

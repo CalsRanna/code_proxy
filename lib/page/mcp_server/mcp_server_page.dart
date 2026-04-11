@@ -10,7 +10,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
 class McpServerPage extends StatefulWidget {
-  const McpServerPage({super.key});
+  final bool showHeader;
+
+  const McpServerPage({super.key, this.showHeader = true});
 
   @override
   State<McpServerPage> createState() => _McpServerPageState();
@@ -35,24 +37,28 @@ class _McpServerPageState extends State<McpServerPage> {
       );
     });
 
+    final body = Watch((context) {
+      if (viewModel.isLoading.value) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final servers = viewModel.mcpServers.value;
+      if (servers.isEmpty) {
+        return _buildEmptyState();
+      }
+
+      return _buildServersList(servers.values.toList());
+    });
+
+    if (!widget.showHeader) {
+      return body;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         pageHeader,
-        Expanded(
-          child: Watch((context) {
-            if (viewModel.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final servers = viewModel.mcpServers.value;
-            if (servers.isEmpty) {
-              return _buildEmptyState();
-            }
-
-            return _buildServersList(servers.values.toList());
-          }),
-        ),
+        Expanded(child: body),
       ],
     );
   }
