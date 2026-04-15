@@ -39,7 +39,8 @@
       "Bash(find /d/code/code_proxy -maxdepth 1 -type f \\\\\\(-name Makefile -o -name *.yml -o -name *.yaml -o -name .github \\\\\\))",
       "Bash(git -C /d/code/code_proxy log --oneline --all)",
       "Bash(git -C /d/code/code_proxy log --all --oneline)",
-      "Bash(git -C /d/code/code_proxy log --all --pretty=format:\"%h %ad %s\" --date=short)"
+      "Bash(git -C /d/code/code_proxy log --all --pretty=format:\"%h %ad %s\" --date=short)",
+      "WebFetch(domain:pub.dev)"
     ],
     "deny": []
   }

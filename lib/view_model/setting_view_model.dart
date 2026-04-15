@@ -38,6 +38,9 @@ class SettingViewModel {
   final pricingModelCount = signal<int>(0);
   final pricingRefreshing = signal<bool>(false);
 
+  // 通知配置
+  final notificationEnabled = signal(true);
+
   final controller = TextEditingController();
   final apiTimeoutController = TextEditingController();
   final circuitBreakerFailureThresholdController = TextEditingController();
@@ -157,6 +160,9 @@ class SettingViewModel {
     defaultOpusModel.value = modelConfig.anthropicDefaultOpusModel;
     defaultModel.value = modelConfig.anthropicModel;
     defaultSmallFastModel.value = modelConfig.anthropicSmallFastModel;
+
+    // 加载通知配置
+    notificationEnabled.value = await SharedPreferenceUtil.instance.getNotificationEnabled();
   }
 
   bool isValidHealthCheckPath(String path) {
@@ -355,6 +361,11 @@ class SettingViewModel {
     } else {
       await launchAtStartup.disable();
     }
+  }
+
+  Future<void> toggleNotificationEnabled(bool value) async {
+    notificationEnabled.value = value;
+    await SharedPreferenceUtil.instance.setNotificationEnabled(value);
   }
 
   void _loadPricingInfo() {

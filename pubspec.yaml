@@ -23,6 +23,7 @@ dependencies:
   laconic: ^1.0.0
   logger: ^2.6.2
   lucide_icons_flutter: ^3.1.10
+  local_notifier: ^0.1.6
   package_info_plus: ^8.3.0
   path: ^1.8.0
   path_provider: ^2.1.0

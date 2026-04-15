@@ -4,6 +4,7 @@ import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/di.dart';
 import 'package:code_proxy/router/router.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
+import 'package:code_proxy/util/notification_util.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Database.instance.ensureInitialized();
   DI.ensureInitialized();
+  await NotificationUtil.instance.ensureInitialized();
   await WindowUtil.instance.ensureInitialized();
   await TrayUtil.instance.ensureInitialized();
 

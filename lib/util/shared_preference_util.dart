@@ -19,6 +19,7 @@ class SharedPreferenceUtil {
   final String _keyAuditRetainDays = 'audit_retain_days';
   final String _keyLaunchAtStartup = 'launch_at_startup';
   final String _keyDisableExperimentalBetas = 'disable_experimental_betas';
+  final String _keyNotificationEnabled = 'notification_enabled';
 
   SharedPreferenceUtil._();
 
@@ -123,5 +124,13 @@ class SharedPreferenceUtil {
 
   Future<void> setLaunchAtStartup(bool value) async {
     await (await _preferences).setBool(_keyLaunchAtStartup, value);
+  }
+
+  Future<bool> getNotificationEnabled() async {
+    return (await _preferences).getBool(_keyNotificationEnabled) ?? true;
+  }
+
+  Future<void> setNotificationEnabled(bool value) async {
+    await (await _preferences).setBool(_keyNotificationEnabled, value);
   }
 }

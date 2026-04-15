@@ -77,6 +77,17 @@ class _SettingPageState extends State<SettingPage> {
         onTap: () => viewModel.editAuditRetainDays(context),
       );
     });
+    var notificationEnabledTile = Watch((context) {
+      return ListTile(
+        title: const Text('启用通知'),
+        subtitle: const Text('端点故障转移或恢复时发送系统通知'),
+        trailing: ShadSwitch(
+          value: viewModel.notificationEnabled.value,
+          onChanged: (value) => viewModel.toggleNotificationEnabled(value),
+        ),
+        onTap: () => viewModel.toggleNotificationEnabled(!viewModel.notificationEnabled.value),
+      );
+    });
     var sizeTile = Watch((context) {
       return ListTile(
         title: const Text('数据库文件大小'),
@@ -169,6 +180,7 @@ class _SettingPageState extends State<SettingPage> {
               circuitBreakerThresholdTile,
               circuitBreakerRecoveryTile,
               launchAtStartupTile,
+              notificationEnabledTile,
               auditRetainDaysTile,
               sizeTile,
               resetTile,

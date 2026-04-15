@@ -8,6 +8,7 @@ import 'package:code_proxy/service/claude_code_audit_service.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/util/notification_util.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
@@ -42,6 +43,11 @@ class HomeViewModel {
       'Endpoint ${endpoint.name} has been automatically restored',
     );
 
+    // 发送通知
+    NotificationUtil.instance.showEndpointRestoredNotification(
+      endpointName: endpoint.name,
+    );
+
     try {
       final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
       endpointViewModel.markRestored(endpoint.id);
@@ -54,8 +60,24 @@ class HomeViewModel {
   Future<void> handleEndpointUnavailable(EndpointEntity endpoint) async {
     LoggerUtil.instance.w('Endpoint ${endpoint.name} circuit breaker opened');
 
+    // 获取下一个可用端点作为故障转移目标
+    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+    final openIds = getOpenCircuitBreakerEndpointIds(
+      endpointViewModel.enabledEndpoints.map((e) => e.id),
+    );
+    final availableEndpoints = endpointViewModel.enabledEndpoints
+        .where((e) => !openIds.contains(e.id))
+        .toList();
+
+    // 发送通知（仅当存在备用端点时）
+    if (availableEndpoints.isNotEmpty) {
+      final nextEndpoint = availableEndpoints.first;
+      NotificationUtil.instance.showFailoverNotification(
+        toEndpoint: nextEndpoint.name,
+      );
+    }
+
     try {
-      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
       endpointViewModel.markForbidden(endpoint.id);
     } catch (e) {
       // 忽略获取 ViewModel 的错误
