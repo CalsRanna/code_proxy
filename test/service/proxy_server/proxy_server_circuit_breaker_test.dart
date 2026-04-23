@@ -14,8 +14,8 @@ void main() {
       });
     });
 
-    group('滑动窗口与阈值', () {
-      test('失败次数达到阈值应触发 open', () {
+    group('连续失败计数与阈值', () {
+      test('连续失败次数达到阈值应触发 open', () {
         final breaker = createBreaker(failureThreshold: 3);
 
         breaker.recordFailure();
@@ -37,24 +37,11 @@ void main() {
         expect(breaker.isAvailable, isTrue);
       });
 
-      test('滑动窗口外的失败记录应被清除', () async {
-        final breaker = createBreaker(failureThreshold: 3, slidingWindowMs: 50);
+      test('成功时应清零连续失败计数', () {
+        final breaker = createBreaker(failureThreshold: 3);
 
         breaker.recordFailure();
         breaker.recordFailure();
-        await Future.delayed(const Duration(milliseconds: 80));
-        breaker.recordFailure();
-
-        expect(breaker.state, ProxyServerCircuitBreakerState.closed);
-      });
-
-      test('成功时应清理过期的失败记录', () async {
-        final breaker = createBreaker(failureThreshold: 3, slidingWindowMs: 50);
-
-        breaker.recordFailure();
-        breaker.recordFailure();
-        await Future.delayed(const Duration(milliseconds: 80));
-
         breaker.recordSuccess();
 
         breaker.recordFailure();

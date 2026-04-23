@@ -4,13 +4,11 @@ import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dar
 ProxyServerCircuitBreaker createBreaker({
   int failureThreshold = 5,
   int recoveryTimeoutMs = 60000,
-  int slidingWindowMs = 120000,
 }) {
   return ProxyServerCircuitBreaker(
     endpointId: 'test-endpoint',
     failureThreshold: failureThreshold,
     recoveryTimeoutMs: recoveryTimeoutMs,
-    slidingWindowMs: slidingWindowMs,
   );
 }
 

@@ -4,13 +4,11 @@ import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dar
 class ProxyServerCircuitBreakerRegistry {
   final int failureThreshold;
   final int recoveryTimeoutMs;
-  final int slidingWindowMs;
   final Map<String, ProxyServerCircuitBreaker> _breakers = {};
 
   ProxyServerCircuitBreakerRegistry({
     this.failureThreshold = 5,
     this.recoveryTimeoutMs = 60000,
-    this.slidingWindowMs = 120000,
   });
 
   ProxyServerCircuitBreaker getBreaker(String endpointId) {
@@ -20,7 +18,6 @@ class ProxyServerCircuitBreakerRegistry {
         endpointId: endpointId,
         failureThreshold: failureThreshold,
         recoveryTimeoutMs: recoveryTimeoutMs,
-        slidingWindowMs: slidingWindowMs,
       ),
     );
   }

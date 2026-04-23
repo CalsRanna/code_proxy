@@ -41,7 +41,6 @@ class ProxyServerService {
     _circuitBreakerRegistry = ProxyServerCircuitBreakerRegistry(
       failureThreshold: config.circuitBreakerFailureThreshold,
       recoveryTimeoutMs: config.circuitBreakerRecoveryTimeoutMs,
-      slidingWindowMs: config.circuitBreakerSlidingWindowMs,
     );
     _router = ProxyServerRouter(
       config: config,

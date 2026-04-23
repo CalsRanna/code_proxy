@@ -70,13 +70,11 @@ void main() {
       final registry = ProxyServerCircuitBreakerRegistry(
         failureThreshold: 2,
         recoveryTimeoutMs: 30000,
-        slidingWindowMs: 60000,
       );
 
       final breaker = registry.getBreaker('ep-1');
       expect(breaker.failureThreshold, 2);
       expect(breaker.recoveryTimeoutMs, 30000);
-      expect(breaker.slidingWindowMs, 60000);
     });
 
     test('恢复超时后不应继续返回 open 端点', () async {
