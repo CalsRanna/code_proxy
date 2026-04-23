@@ -206,7 +206,6 @@ class RequestLogRepository {
       {
         'id': log.id,
         'timestamp': log.timestamp,
-        'endpoint_id': log.endpointId,
         'endpoint_name': log.endpointName,
         'path': log.path,
         'method': log.method,
@@ -253,7 +252,6 @@ class RequestLogRepository {
     return RequestLogEntity(
       id: row['id'] as String,
       timestamp: row['timestamp'] as int,
-      endpointId: row['endpoint_id'] as String,
       endpointName: row['endpoint_name'] as String,
       path: row['path'] as String,
       method: row['method'] as String,

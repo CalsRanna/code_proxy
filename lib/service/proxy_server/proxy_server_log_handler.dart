@@ -70,7 +70,6 @@ class ProxyServerLogHandler {
     return RequestLogEntity(
       id: const Uuid().v4(),
       timestamp: DateTime.now().millisecondsSinceEpoch,
-      endpointId: endpoint.id,
       endpointName: endpoint.name,
       path: request.path,
       method: request.method,

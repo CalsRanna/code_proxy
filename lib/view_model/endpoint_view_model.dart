@@ -92,7 +92,9 @@ class EndpointViewModel {
   }
 
   Future<void> toggleEnabled(String id) async {
-    final endpoint = endpoints.value.firstWhere((e) => e.id == id);
+    final matching = endpoints.value.where((e) => e.id == id);
+    if (matching.isEmpty) return;
+    final endpoint = matching.first;
     final updated = endpoint.copyWith(enabled: !endpoint.enabled);
     await _endpointRepository.update(updated);
     await _loadEndpoints();

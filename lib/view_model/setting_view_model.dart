@@ -174,8 +174,8 @@ class SettingViewModel {
   }
 
   Future<void> updateListenPort(BuildContext context) async {
-    var newPort = int.parse(controller.text);
-    if (!isValidPort(newPort)) {
+    var newPort = int.tryParse(controller.text);
+    if (newPort == null || !isValidPort(newPort)) {
       showShadDialog(
         context: context,
         builder: (context) {

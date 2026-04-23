@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
+import 'package:path/path.dart' as p;
 
 /// 审计服务 - 记录原始 API 请求和响应
 class ClaudeCodeAuditService {
@@ -89,7 +90,7 @@ $response''';
 
       await for (final entity in auditDir.list()) {
         if (entity is Directory) {
-          final dirName = entity.path.split('/').last;
+          final dirName = p.basename(entity.path);
           final dirDate = DateTime.tryParse(dirName);
 
           if (dirDate != null && dirDate.isBefore(cutoffDate)) {

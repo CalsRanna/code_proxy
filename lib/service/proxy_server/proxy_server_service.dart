@@ -119,6 +119,7 @@ class ProxyServerService {
 
     bool? previousSucceeded;
     shelf.Response? finalResponse;
+    Object? lastException;
 
     // 循环尝试端点
     while (await routeSession.hasNext(
@@ -171,6 +172,7 @@ class ProxyServerService {
         skipFailureHandlingReason = allowCircuitBreakerOnFailure
             ? null
             : 'request path ${_normalizePath(request.requestedUri.path)} bypasses failure handling';
+        lastException = e;
         LoggerUtil.instance.e('Exception during request: $e');
 
         // 记录异常请求到数据库
@@ -196,8 +198,10 @@ class ProxyServerService {
     if (finalResponse != null) {
       return finalResponse;
     } else {
-      // 所有端点都失败
-      return shelf.Response.internalServerError(body: 'All endpoints failed');
+      final message = lastException != null
+          ? 'All endpoints failed: $lastException'
+          : 'All endpoints failed';
+      return shelf.Response.internalServerError(body: message);
     }
   }
 

@@ -8,6 +8,7 @@ import 'package:code_proxy/database/migration/migration_202601100000.dart';
 import 'package:code_proxy/database/migration/migration_202602080000.dart';
 import 'package:code_proxy/database/migration/migration_202603110000.dart';
 import 'package:code_proxy/database/migration/migration_202603130000.dart';
+import 'package:code_proxy/database/migration/migration_202604230000.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:laconic/laconic.dart';
@@ -64,6 +65,7 @@ SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';
     await Migration202602080000().migrate(laconic);
     await Migration202603110000().migrate(laconic);
     await Migration202603130000().migrate(laconic);
+    await Migration202604230000().migrate(laconic);
   }
 
   Future<void> _migrateFile() async {

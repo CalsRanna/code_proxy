@@ -259,7 +259,9 @@ class HomeViewModel {
   Future<void> toggleEndpointEnabled(String id) async {
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     final endpoints = endpointViewModel.endpoints.value;
-    final endpoint = endpoints.firstWhere((e) => e.id == id);
+    final matching = endpoints.where((e) => e.id == id);
+    if (matching.isEmpty) return;
+    final endpoint = matching.first;
     final updated = endpoint.copyWith(enabled: !endpoint.enabled);
     await endpointViewModel.updateEndpoint(updated);
     final enabledEndpoints = endpointViewModel.enabledEndpoints;

@@ -6,10 +6,7 @@ class RequestLogEntity {
   /// 时间戳
   final int timestamp;
 
-  /// 端点 ID
-  final String endpointId;
-
-  /// 端点名称（冗余，便于显示）
+  /// 端点名称（冗余存储，便于显示和统计）
   final String endpointName;
 
   /// 请求路径
@@ -48,7 +45,6 @@ class RequestLogEntity {
   const RequestLogEntity({
     required this.id,
     required this.timestamp,
-    required this.endpointId,
     required this.endpointName,
     required this.path,
     this.method = 'GET',
@@ -68,7 +64,6 @@ class RequestLogEntity {
     return RequestLogEntity(
       id: json['id'] as String,
       timestamp: json['timestamp'] as int,
-      endpointId: json['endpointId'] as String,
       endpointName: json['endpointName'] as String,
       path: json['path'] as String,
       method: json['method'] as String? ?? 'GET',
@@ -89,7 +84,6 @@ class RequestLogEntity {
     return {
       'id': id,
       'timestamp': timestamp,
-      'endpointId': endpointId,
       'endpointName': endpointName,
       'path': path,
       'method': method,
@@ -114,7 +108,6 @@ class RequestLogEntity {
   RequestLogEntity copyWith({
     String? id,
     int? timestamp,
-    String? endpointId,
     String? endpointName,
     String? path,
     String? method,
@@ -131,7 +124,6 @@ class RequestLogEntity {
     return RequestLogEntity(
       id: id ?? this.id,
       timestamp: timestamp ?? this.timestamp,
-      endpointId: endpointId ?? this.endpointId,
       endpointName: endpointName ?? this.endpointName,
       path: path ?? this.path,
       method: method ?? this.method,
