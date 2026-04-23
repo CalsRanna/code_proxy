@@ -19,32 +19,42 @@ class ClaudeCodeSettingService {
     final uuid = const Uuid().v4().replaceAll('-', '');
     final token = 'cp-$uuid';
 
-    final setting = {
-      'env': {
-        'ANTHROPIC_AUTH_TOKEN': token,
-        'ANTHROPIC_BASE_URL': 'http://127.0.0.1:$port',
-        'ANTHROPIC_DEFAULT_HAIKU_MODEL': 'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-        'ANTHROPIC_DEFAULT_OPUS_MODEL': 'ANTHROPIC_DEFAULT_OPUS_MODEL',
-        'ANTHROPIC_DEFAULT_SONNET_MODEL': 'ANTHROPIC_DEFAULT_SONNET_MODEL',
-        'ANTHROPIC_MODEL': 'ANTHROPIC_MODEL',
-        'ANTHROPIC_SMALL_FAST_MODEL': 'ANTHROPIC_SMALL_FAST_MODEL',
-        'API_TIMEOUT_MS': apiTimeout,
-        'CLAUDE_CODE_ATTRIBUTION_HEADER': attributionHeader ? 1 : 0,
-        'CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS': disableExperimentalBetas
-            ? 1
-            : 0,
-        'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': disableNonessentialTraffic
-            ? 1
-            : 0,
-      },
-    };
-
     final home = PathUtil.instance.getHomeDirectory();
     final path = join(home, '.claude', 'settings.json');
     final file = File(path);
     await file.parent.create(recursive: true);
 
-    final json = JsonEncoder.withIndent('  ').convert(setting);
-    await file.writeAsString(json);
+    Map<String, dynamic> existing = {};
+    if (await file.exists()) {
+      try {
+        final content = await file.readAsString();
+        if (content.trim().isNotEmpty) {
+          existing = jsonDecode(content) as Map<String, dynamic>;
+        }
+      } catch (_) {}
+    }
+
+    final env = (existing['env'] as Map<String, dynamic>?) ?? {};
+    env['ANTHROPIC_AUTH_TOKEN'] = token;
+    env['ANTHROPIC_BASE_URL'] = 'http://127.0.0.1:$port';
+    env['ANTHROPIC_DEFAULT_HAIKU_MODEL'] = 'ANTHROPIC_DEFAULT_HAIKU_MODEL';
+    env['ANTHROPIC_DEFAULT_OPUS_MODEL'] = 'ANTHROPIC_DEFAULT_OPUS_MODEL';
+    env['ANTHROPIC_DEFAULT_SONNET_MODEL'] = 'ANTHROPIC_DEFAULT_SONNET_MODEL';
+    env['ANTHROPIC_MODEL'] = 'ANTHROPIC_MODEL';
+    env['ANTHROPIC_SMALL_FAST_MODEL'] = 'ANTHROPIC_SMALL_FAST_MODEL';
+    env['API_TIMEOUT_MS'] = apiTimeout;
+    env['CLAUDE_CODE_ATTRIBUTION_HEADER'] = attributionHeader ? 1 : 0;
+    env['CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS'] = disableExperimentalBetas
+        ? 1
+        : 0;
+    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = disableNonessentialTraffic
+        ? 1
+        : 0;
+    existing['env'] = env;
+
+    final json = JsonEncoder.withIndent('  ').convert(existing);
+    final tempPath = '$path.tmp';
+    await File(tempPath).writeAsString(json);
+    await File(tempPath).rename(path);
   }
 }
