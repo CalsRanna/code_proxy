@@ -6,6 +6,11 @@ class CodeProxyRouter extends RootStackRouter {
   @override
   List<AutoRoute> get routes => [
     AutoRoute(page: HomeRoute.page, initial: true),
+    CustomRoute(
+      page: AuditDetailRoute.page,
+      durationInMilliseconds: 0,
+      reverseDurationInMilliseconds: 0,
+    ),
   ];
 }
 

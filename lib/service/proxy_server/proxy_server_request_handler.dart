@@ -52,11 +52,14 @@ class ProxyServerRequestHandler {
   }
 
   /// 构建目标URL
-  Uri _buildTargetUrl(EndpointEntity endpoint, shelf.Request request) {
+Uri _buildTargetUrl(EndpointEntity endpoint, shelf.Request request) {
     final baseUrl = (endpoint.anthropicBaseUrl ?? '').replaceAll(RegExp(r'/$'), '');
     final path = request.url.path;
     final query = request.url.query;
-    final url = query.isNotEmpty ? '$baseUrl$path?$query' : '$baseUrl$path';
+    final separator = path.startsWith('/') ? '' : '/';
+    final url = query.isNotEmpty
+        ? '$baseUrl$separator$path?$query'
+        : '$baseUrl$separator$path';
     return Uri.parse(url);
   }
 

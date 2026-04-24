@@ -1,5 +1,7 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:code_proxy/page/request_log/request_log_detail_dialog.dart';
 import 'package:code_proxy/page/request_log/request_log_pagination.dart';
+import 'package:code_proxy/router/router.gr.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
@@ -162,26 +164,49 @@ class _RequestLogPageState extends State<RequestLogPage> {
             var time = DateTime.fromMillisecondsSinceEpoch(log.timestamp);
             var statusCode = log.statusCode;
             var tokenText = '${log.inputTokens} / ${log.outputTokens}';
-            var text = switch (index.column) {
-              0 => time.toString().substring(0, 19),
-              1 => log.endpointName,
-              2 => log.model,
-              3 => statusCode.toString(),
-              4 => '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
-              5 => statusCode != 200 ? '-' : tokenText,
-              _ => '',
-            };
-            Widget child = switch (index.column) {
-              3 =>
-                statusCode == 200
-                    ? ShadBadge.secondary(child: Text(text ?? ''))
-                    : ShadBadge.destructive(child: Text(text ?? '')),
-              _ => Text(
-                text ?? 'null',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            };
+            Widget child;
+            switch (index.column) {
+              case 0:
+                child = Text(
+                  time.toString().substring(0, 19),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+                break;
+              case 1:
+                child = Text(
+                  log.endpointName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+                break;
+              case 2:
+                child = Text(
+                  log.model ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+                break;
+              case 3:
+                child = statusCode == 200
+                    ? ShadBadge.secondary(
+                        child: Text(statusCode.toString()))
+                    : ShadBadge.destructive(
+                        child: Text(statusCode.toString()));
+                break;
+              case 4:
+                child = Text(
+                  '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
+                );
+                break;
+              case 5:
+                child = Text(
+                  statusCode != 200 ? '-' : tokenText,
+                );
+                break;
+              default:
+                child = const SizedBox.shrink();
+            }
             return ShadTableCell(alignment: Alignment.centerLeft, child: child);
           },
           columnCount: 6,
@@ -220,9 +245,17 @@ class _RequestLogPageState extends State<RequestLogPage> {
           },
           onRowTap: (row) {
             if (row == 0) return;
+            final log = logs[row - 1];
             showShadDialog(
               context: context,
-              builder: (context) => RequestLogDetailDialog(log: logs[row - 1]),
+              builder: (context) => RequestLogDetailDialog(
+                log: log,
+                onAudit: () {
+                  context.router.push(
+                    AuditDetailRoute(log: log),
+                  );
+                },
+              ),
             );
           },
           pinnedRowCount: 1,
