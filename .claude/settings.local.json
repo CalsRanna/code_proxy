@@ -44,7 +44,8 @@
       "Skill(code-review:code-review)",
       "Bash(gh api *)",
       "Bash(per_page=50 2>&1)",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "mcp__dart-mcp-server__read_package_uris"
     ],
     "deny": []
   }

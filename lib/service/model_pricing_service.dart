@@ -14,6 +14,7 @@ class ModelPricingService {
   static const int _cacheSchemaVersion = 2;
   static const List<String> _supportedProviders = [
     'anthropic',
+    'deepseek',
     'minimax',
     'minimax-cn',
     'zhipuai',

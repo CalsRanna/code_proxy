@@ -304,6 +304,7 @@ class _SettingPageState extends State<SettingPage> {
   ) {
     final grouped = <String, List<ModelPricingEntity>>{
       'Claude': [],
+      'DeepSeek': [],
       'GLM': [],
       'Kimi': [],
       'MiniMax': [],
@@ -321,6 +322,7 @@ class _SettingPageState extends State<SettingPage> {
   String _pricingGroupForModel(ModelPricingEntity model) {
     final normalized = model.modelId.toLowerCase();
     if (normalized.contains('claude')) return 'Claude';
+    if (normalized.contains('deepseek')) return 'DeepSeek';
     if (normalized.contains('glm')) return 'GLM';
     if (normalized.contains('kimi')) return 'Kimi';
     if (normalized.contains('minimax')) return 'MiniMax';
