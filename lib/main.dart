@@ -66,8 +66,19 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
   @override
   Widget build(BuildContext context) {
     var shadDecoration = ShadDecoration(color: ShadcnColors.zinc950);
+    final fallbackFonts = <String>[];
+    if (Platform.isMacOS) {
+      fallbackFonts.add('PingFang SC');
+    } else if (Platform.isWindows) {
+      fallbackFonts.add('Microsoft YaHei');
+    } else if (Platform.isLinux) {
+      fallbackFonts.add('Noto Sans SC');
+    }
+
     var shadThemeData = ShadThemeData(
-      textTheme: ShadTextTheme(family: 'Montserrat'),
+      textTheme:
+          ShadTextTheme(family: 'Montserrat')
+              .apply(fontFamilyFallback: fallbackFonts),
       sonnerTheme: ShadSonnerTheme(alignment: Alignment.topCenter),
       tooltipTheme: ShadTooltipTheme(decoration: shadDecoration),
     );
