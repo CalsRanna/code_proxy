@@ -45,8 +45,6 @@ class EndpointRepository {
         'weight': endpoint.weight,
         'anthropic_auth_token': endpoint.anthropicAuthToken,
         'anthropic_base_url': endpoint.anthropicBaseUrl,
-        'anthropic_model': endpoint.anthropicModel,
-        'anthropic_small_fast_model': endpoint.anthropicSmallFastModel,
         'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
         'anthropic_default_sonnet_model': endpoint.anthropicDefaultSonnetModel,
         'anthropic_default_opus_model': endpoint.anthropicDefaultOpusModel,
@@ -63,8 +61,6 @@ class EndpointRepository {
       'weight': endpoint.weight,
       'anthropic_auth_token': endpoint.anthropicAuthToken,
       'anthropic_base_url': endpoint.anthropicBaseUrl,
-      'anthropic_model': endpoint.anthropicModel,
-      'anthropic_small_fast_model': endpoint.anthropicSmallFastModel,
       'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
       'anthropic_default_sonnet_model': endpoint.anthropicDefaultSonnetModel,
       'anthropic_default_opus_model': endpoint.anthropicDefaultOpusModel,
@@ -102,8 +98,6 @@ class EndpointRepository {
       weight: row['weight'] as int,
       anthropicAuthToken: row['anthropic_auth_token'] as String?,
       anthropicBaseUrl: row['anthropic_base_url'] as String?,
-      anthropicModel: row['anthropic_model'] as String?,
-      anthropicSmallFastModel: row['anthropic_small_fast_model'] as String?,
       anthropicDefaultHaikuModel:
           row['anthropic_default_haiku_model'] as String?,
       anthropicDefaultSonnetModel:

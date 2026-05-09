@@ -17,12 +17,7 @@ class ProxyServerModelMapper {
       'ANTHROPIC_DEFAULT_OPUS_MODEL' =>
         endpoint.anthropicDefaultOpusModel ??
             defaultConfig.anthropicDefaultOpusModel,
-      'ANTHROPIC_MODEL' =>
-        endpoint.anthropicModel ?? defaultConfig.anthropicModel,
-      'ANTHROPIC_SMALL_FAST_MODEL' =>
-        endpoint.anthropicSmallFastModel ??
-            defaultConfig.anthropicSmallFastModel,
-      _ => defaultConfig.anthropicModel,
+      _ => originalModel,
     };
   }
 }

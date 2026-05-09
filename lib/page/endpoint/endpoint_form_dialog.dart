@@ -21,8 +21,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController noteController;
   late final TextEditingController authTokenController;
   late final TextEditingController baseUrlController;
-  late final TextEditingController modelController;
-  late final TextEditingController smallFastModelController;
   late final TextEditingController haikuModelController;
   late final TextEditingController sonnetModelController;
   late final TextEditingController opusModelController;
@@ -81,23 +79,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
               children: [
                 Expanded(
                   child: ShadInput(
-                    controller: modelController,
-                    placeholder: const Text('模型'),
-                  ),
-                ),
-                Expanded(
-                  child: ShadInput(
-                    controller: smallFastModelController,
-                    placeholder: const Text('快速模型'),
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              spacing: ShadcnSpacing.spacing16,
-              children: [
-                Expanded(
-                  child: ShadInput(
                     controller: haikuModelController,
                     placeholder: const Text('Haiku模型'),
                   ),
@@ -133,8 +114,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     noteController.dispose();
     authTokenController.dispose();
     baseUrlController.dispose();
-    modelController.dispose();
-    smallFastModelController.dispose();
     haikuModelController.dispose();
     sonnetModelController.dispose();
     opusModelController.dispose();
@@ -153,12 +132,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     );
     baseUrlController = TextEditingController(
       text: widget.endpoint?.anthropicBaseUrl,
-    );
-    modelController = TextEditingController(
-      text: widget.endpoint?.anthropicModel,
-    );
-    smallFastModelController = TextEditingController(
-      text: widget.endpoint?.anthropicSmallFastModel,
     );
     haikuModelController = TextEditingController(
       text: widget.endpoint?.anthropicDefaultHaikuModel,
@@ -214,12 +187,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           note: noteController.text.isEmpty ? null : noteController.text,
           anthropicAuthToken: authTokenController.text,
           anthropicBaseUrl: baseUrlController.text,
-          anthropicModel: modelController.text.isEmpty
-              ? null
-              : modelController.text,
-          anthropicSmallFastModel: smallFastModelController.text.isEmpty
-              ? null
-              : smallFastModelController.text,
           anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
               ? null
               : haikuModelController.text,
@@ -240,12 +207,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                 int.tryParse(weightController.text) ?? widget.endpoint!.weight,
             anthropicAuthToken: authTokenController.text,
             anthropicBaseUrl: baseUrlController.text,
-            anthropicModel: modelController.text.isEmpty
-                ? null
-                : modelController.text,
-            anthropicSmallFastModel: smallFastModelController.text.isEmpty
-                ? null
-                : smallFastModelController.text,
             anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
                 ? null
                 : haikuModelController.text,

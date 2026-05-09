@@ -21,12 +21,6 @@ class EndpointEntity {
   /// Anthropic API Base URL
   final String? anthropicBaseUrl;
 
-  /// Anthropic 模型名称
-  final String? anthropicModel;
-
-  /// Anthropic 小型快速模型名称
-  final String? anthropicSmallFastModel;
-
   /// Anthropic 默认 Haiku 模型名称
   final String? anthropicDefaultHaikuModel;
 
@@ -44,8 +38,6 @@ class EndpointEntity {
     this.weight = 1,
     this.anthropicAuthToken,
     this.anthropicBaseUrl,
-    this.anthropicModel,
-    this.anthropicSmallFastModel,
     this.anthropicDefaultHaikuModel,
     this.anthropicDefaultSonnetModel,
     this.anthropicDefaultOpusModel,
@@ -61,8 +53,6 @@ class EndpointEntity {
       weight: json['weight'] as int? ?? 1,
       anthropicAuthToken: json['anthropicAuthToken'] as String?,
       anthropicBaseUrl: json['anthropicBaseUrl'] as String?,
-      anthropicModel: json['anthropicModel'] as String?,
-      anthropicSmallFastModel: json['anthropicSmallFastModel'] as String?,
       anthropicDefaultHaikuModel: json['anthropicDefaultHaikuModel'] as String?,
       anthropicDefaultSonnetModel:
           json['anthropicDefaultSonnetModel'] as String?,
@@ -80,8 +70,6 @@ class EndpointEntity {
       'weight': weight,
       'anthropicAuthToken': anthropicAuthToken,
       'anthropicBaseUrl': anthropicBaseUrl,
-      'anthropicModel': anthropicModel,
-      'anthropicSmallFastModel': anthropicSmallFastModel,
       'anthropicDefaultHaikuModel': anthropicDefaultHaikuModel,
       'anthropicDefaultSonnetModel': anthropicDefaultSonnetModel,
       'anthropicDefaultOpusModel': anthropicDefaultOpusModel,
@@ -97,8 +85,6 @@ class EndpointEntity {
     int? weight,
     String? anthropicAuthToken,
     String? anthropicBaseUrl,
-    String? anthropicModel,
-    String? anthropicSmallFastModel,
     String? anthropicDefaultHaikuModel,
     String? anthropicDefaultSonnetModel,
     String? anthropicDefaultOpusModel,
@@ -111,9 +97,6 @@ class EndpointEntity {
       weight: weight ?? this.weight,
       anthropicAuthToken: anthropicAuthToken ?? this.anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl ?? this.anthropicBaseUrl,
-      anthropicModel: anthropicModel ?? this.anthropicModel,
-      anthropicSmallFastModel:
-          anthropicSmallFastModel ?? this.anthropicSmallFastModel,
       anthropicDefaultHaikuModel:
           anthropicDefaultHaikuModel ?? this.anthropicDefaultHaikuModel,
       anthropicDefaultSonnetModel:
@@ -133,8 +116,6 @@ class EndpointEntity {
       weight: weight,
       anthropicAuthToken: anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl,
-      anthropicModel: anthropicModel,
-      anthropicSmallFastModel: anthropicSmallFastModel,
       anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
       anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
       anthropicDefaultOpusModel: anthropicDefaultOpusModel,

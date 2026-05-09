@@ -51,14 +51,9 @@ class SettingViewModel {
   final defaultHaikuModel = signal('');
   final defaultSonnetModel = signal('');
   final defaultOpusModel = signal('');
-  final defaultModel = signal('');
-  final defaultSmallFastModel = signal('');
-
   final defaultHaikuModelController = TextEditingController();
   final defaultSonnetModelController = TextEditingController();
   final defaultOpusModelController = TextEditingController();
-  final defaultModelController = TextEditingController();
-  final defaultSmallFastModelController = TextEditingController();
 
   void dispose() {
     controller.dispose();
@@ -69,8 +64,6 @@ class SettingViewModel {
     defaultHaikuModelController.dispose();
     defaultSonnetModelController.dispose();
     defaultOpusModelController.dispose();
-    defaultModelController.dispose();
-    defaultSmallFastModelController.dispose();
   }
 
   Future<void> editListenPort(BuildContext context) async {
@@ -158,8 +151,6 @@ class SettingViewModel {
     defaultHaikuModel.value = modelConfig.anthropicDefaultHaikuModel;
     defaultSonnetModel.value = modelConfig.anthropicDefaultSonnetModel;
     defaultOpusModel.value = modelConfig.anthropicDefaultOpusModel;
-    defaultModel.value = modelConfig.anthropicModel;
-    defaultSmallFastModel.value = modelConfig.anthropicSmallFastModel;
 
     // 加载通知配置
     notificationEnabled.value = await SharedPreferenceUtil.instance.getNotificationEnabled();
@@ -594,8 +585,6 @@ class SettingViewModel {
 
   Future<void> editDefaultModelMapping(BuildContext context) async {
     // 同步控制器到当前信号值
-    defaultModelController.text = defaultModel.value;
-    defaultSmallFastModelController.text = defaultSmallFastModel.value;
     defaultHaikuModelController.text = defaultHaikuModel.value;
     defaultSonnetModelController.text = defaultSonnetModel.value;
     defaultOpusModelController.text = defaultOpusModel.value;
@@ -607,8 +596,6 @@ class SettingViewModel {
       anthropicDefaultHaikuModel: defaultHaikuModelController.text.trim(),
       anthropicDefaultSonnetModel: defaultSonnetModelController.text.trim(),
       anthropicDefaultOpusModel: defaultOpusModelController.text.trim(),
-      anthropicModel: defaultModelController.text.trim(),
-      anthropicSmallFastModel: defaultSmallFastModelController.text.trim(),
     );
 
     try {
@@ -616,8 +603,6 @@ class SettingViewModel {
       defaultHaikuModel.value = newConfig.anthropicDefaultHaikuModel;
       defaultSonnetModel.value = newConfig.anthropicDefaultSonnetModel;
       defaultOpusModel.value = newConfig.anthropicDefaultOpusModel;
-      defaultModel.value = newConfig.anthropicModel;
-      defaultSmallFastModel.value = newConfig.anthropicSmallFastModel;
       if (!context.mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
@@ -657,24 +642,6 @@ class SettingViewModel {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: ShadInput(
-                  controller: defaultModelController,
-                  placeholder: const Text('默认模型'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ShadInput(
-                  controller: defaultSmallFastModelController,
-                  placeholder: const Text('小型快速模型'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
