@@ -85,7 +85,9 @@ class _SettingPageState extends State<SettingPage> {
           value: viewModel.notificationEnabled.value,
           onChanged: (value) => viewModel.toggleNotificationEnabled(value),
         ),
-        onTap: () => viewModel.toggleNotificationEnabled(!viewModel.notificationEnabled.value),
+        onTap: () => viewModel.toggleNotificationEnabled(
+          !viewModel.notificationEnabled.value,
+        ),
       );
     });
     var sizeTile = Watch((context) {
@@ -152,7 +154,7 @@ class _SettingPageState extends State<SettingPage> {
     });
     var versionTile = Watch((context) {
       return Padding(
-        padding: const EdgeInsets.only(top: ShadcnSpacing.spacing24),
+        padding: const EdgeInsets.symmetric(vertical: ShadcnSpacing.spacing16),
         child: Center(
           child: Text(
             'Code Proxy ${viewModel.version.value}',
