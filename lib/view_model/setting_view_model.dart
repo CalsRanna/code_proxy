@@ -30,6 +30,7 @@ class SettingViewModel {
   final disableNonessentialTraffic = signal(true);
   final attributionHeader = signal(true);
   final disableExperimentalBetas = signal(true);
+  final enableAgentTeams = signal(false);
   final size = signal(0);
   final auditRetainDays = signal(14);
   final version = signal('');
@@ -120,6 +121,9 @@ class SettingViewModel {
 
     disableExperimentalBetas.value = await SharedPreferenceUtil.instance
         .getDisableExperimentalBetas();
+
+    enableAgentTeams.value = await SharedPreferenceUtil.instance
+        .getEnableAgentTeams();
 
     var file = File(Database.instance.path);
     var stats = await file.stat();
@@ -341,6 +345,12 @@ class SettingViewModel {
   Future<void> toggleDisableExperimentalBetas(bool value) async {
     disableExperimentalBetas.value = value;
     await SharedPreferenceUtil.instance.setDisableExperimentalBetas(value);
+    await ClaudeCodeSettingService().updateProxySetting();
+  }
+
+  Future<void> toggleEnableAgentTeams(bool value) async {
+    enableAgentTeams.value = value;
+    await SharedPreferenceUtil.instance.setEnableAgentTeams(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 

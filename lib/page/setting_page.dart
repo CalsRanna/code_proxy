@@ -144,6 +144,18 @@ class _SettingPageState extends State<SettingPage> {
         ),
       );
     });
+    var enableAgentTeamsTile = Watch((context) {
+      return ListTile(
+        title: const Text('启用 Agent Teams'),
+        subtitle: const Text('允许 Claude Code 创建团队模式多代理协作'),
+        trailing: ShadSwitch(
+          value: viewModel.enableAgentTeams.value,
+          onChanged: (value) => viewModel.toggleEnableAgentTeams(value),
+        ),
+        onTap: () =>
+            viewModel.toggleEnableAgentTeams(!viewModel.enableAgentTeams.value),
+      );
+    });
     var defaultModelMappingTile = Watch((context) {
       return ListTile(
         title: const Text('默认模型'),
@@ -202,6 +214,7 @@ class _SettingPageState extends State<SettingPage> {
               attributionHeaderTile,
               disableExperimentalBetasTile,
               disableNonessentialTrafficTile,
+              enableAgentTeamsTile,
               versionTile,
             ],
           ),

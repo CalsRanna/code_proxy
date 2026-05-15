@@ -82,6 +82,8 @@ class ClaudeCodeSettingService {
     env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = disableNonessentialTraffic
         ? 1
         : 0;
+    final enableAgentTeams = await instance.getEnableAgentTeams();
+    env['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'] = enableAgentTeams ? 1 : 0;
     existing['env'] = env;
 
     final json = JsonEncoder.withIndent('  ').convert(existing);

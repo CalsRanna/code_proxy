@@ -20,6 +20,7 @@ class SharedPreferenceUtil {
   final String _keyLaunchAtStartup = 'launch_at_startup';
   final String _keyDisableExperimentalBetas = 'disable_experimental_betas';
   final String _keyNotificationEnabled = 'notification_enabled';
+  final String _keyEnableAgentTeams = 'enable_agent_teams';
 
   SharedPreferenceUtil._();
 
@@ -132,5 +133,13 @@ class SharedPreferenceUtil {
 
   Future<void> setNotificationEnabled(bool value) async {
     await (await _preferences).setBool(_keyNotificationEnabled, value);
+  }
+
+  Future<bool> getEnableAgentTeams() async {
+    return (await _preferences).getBool(_keyEnableAgentTeams) ?? false;
+  }
+
+  Future<void> setEnableAgentTeams(bool value) async {
+    await (await _preferences).setBool(_keyEnableAgentTeams, value);
   }
 }
