@@ -156,6 +156,19 @@ class _SettingPageState extends State<SettingPage> {
             viewModel.toggleEnableAgentTeams(!viewModel.enableAgentTeams.value),
       );
     });
+    var disableAttributionTile = Watch((context) {
+      return ListTile(
+        title: const Text('禁用 AI 归属水印'),
+        subtitle: const Text('在 git 提交和 PR 中隐藏 Claude Code 的 AI 署名'),
+        trailing: ShadSwitch(
+          value: viewModel.disableAttribution.value,
+          onChanged: (value) => viewModel.toggleDisableAttribution(value),
+        ),
+        onTap: () => viewModel.toggleDisableAttribution(
+          !viewModel.disableAttribution.value,
+        ),
+      );
+    });
     var defaultModelMappingTile = Watch((context) {
       return ListTile(
         title: const Text('默认模型'),
@@ -215,6 +228,7 @@ class _SettingPageState extends State<SettingPage> {
               disableExperimentalBetasTile,
               disableNonessentialTrafficTile,
               enableAgentTeamsTile,
+              disableAttributionTile,
               versionTile,
             ],
           ),

@@ -31,6 +31,7 @@ class SettingViewModel {
   final attributionHeader = signal(true);
   final disableExperimentalBetas = signal(true);
   final enableAgentTeams = signal(false);
+  final disableAttribution = signal(false);
   final size = signal(0);
   final auditRetainDays = signal(14);
   final version = signal('');
@@ -124,6 +125,9 @@ class SettingViewModel {
 
     enableAgentTeams.value = await SharedPreferenceUtil.instance
         .getEnableAgentTeams();
+
+    disableAttribution.value = await SharedPreferenceUtil.instance
+        .getDisableAttribution();
 
     var file = File(Database.instance.path);
     var stats = await file.stat();
@@ -351,6 +355,12 @@ class SettingViewModel {
   Future<void> toggleEnableAgentTeams(bool value) async {
     enableAgentTeams.value = value;
     await SharedPreferenceUtil.instance.setEnableAgentTeams(value);
+    await ClaudeCodeSettingService().updateProxySetting();
+  }
+
+  Future<void> toggleDisableAttribution(bool value) async {
+    disableAttribution.value = value;
+    await SharedPreferenceUtil.instance.setDisableAttribution(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 

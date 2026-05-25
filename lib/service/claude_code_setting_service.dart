@@ -86,6 +86,13 @@ class ClaudeCodeSettingService {
     env['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'] = enableAgentTeams ? 1 : 0;
     existing['env'] = env;
 
+    final disableAttribution = await instance.getDisableAttribution();
+    if (disableAttribution) {
+      existing['attribution'] = {'commit': '', 'pr': ''};
+    } else {
+      existing.remove('attribution');
+    }
+
     final json = JsonEncoder.withIndent('  ').convert(existing);
     final tempPath = '$path.tmp';
     await File(tempPath).writeAsString(json);
