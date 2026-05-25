@@ -5,6 +5,7 @@ import 'package:code_proxy/di.dart';
 import 'package:code_proxy/router/router.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/util/notification_util.dart';
+import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/util/tray_util.dart';
 import 'package:code_proxy/util/window_util.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import 'package:signals/signals_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SharedPreferenceUtil.instance.migrateIfNeeded();
   await Database.instance.ensureInitialized();
   DI.ensureInitialized();
   await NotificationUtil.instance.ensureInitialized();

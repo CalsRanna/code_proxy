@@ -29,11 +29,13 @@ class ClaudeCodeSettingService {
     final instance = SharedPreferenceUtil.instance;
     final port = await instance.getPort();
     final apiTimeout = await instance.getApiTimeout();
-    final disableNonessentialTraffic = await instance
-        .getDisableNonessentialTraffic();
-    final disableExperimentalBetas = await instance
-        .getDisableExperimentalBetas();
-    final attributionHeader = await instance.getAttributionHeader();
+    final backgroundDataCollection = await instance
+        .getBackgroundDataCollection();
+    final experimentalApiFeatures = await instance
+        .getExperimentalApiFeatures();
+    final clientAttribution = await instance.getClientAttribution();
+    final enableAgentTeams = await instance.getEnableAgentTeams();
+    final aiCommitAttribution = await instance.getAiCommitAttribution();
     final uuid = const Uuid().v4().replaceAll('-', '');
     final token = 'cp-$uuid';
 
@@ -75,22 +77,20 @@ class ClaudeCodeSettingService {
       }
     } catch (_) {}
     env['API_TIMEOUT_MS'] = apiTimeout;
-    env['CLAUDE_CODE_ATTRIBUTION_HEADER'] = attributionHeader ? 1 : 0;
-    env['CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS'] = disableExperimentalBetas
-        ? 1
-        : 0;
-    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = disableNonessentialTraffic
-        ? 1
-        : 0;
-    final enableAgentTeams = await instance.getEnableAgentTeams();
+    env['CLAUDE_CODE_ATTRIBUTION_HEADER'] = clientAttribution ? 1 : 0;
+    env['CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS'] = experimentalApiFeatures
+        ? 0
+        : 1;
+    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = backgroundDataCollection
+        ? 0
+        : 1;
     env['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'] = enableAgentTeams ? 1 : 0;
     existing['env'] = env;
 
-    final disableAttribution = await instance.getDisableAttribution();
-    if (disableAttribution) {
-      existing['attribution'] = {'commit': '', 'pr': ''};
-    } else {
+    if (aiCommitAttribution) {
       existing.remove('attribution');
+    } else {
+      existing['attribution'] = {'commit': '', 'pr': ''};
     }
 
     final json = JsonEncoder.withIndent('  ').convert(existing);

@@ -27,11 +27,11 @@ class SettingViewModel {
   final apiTimeout = signal(600000);
   final circuitBreakerFailureThreshold = signal(5);
   final circuitBreakerRecoveryTimeout = signal(60);
-  final disableNonessentialTraffic = signal(true);
-  final attributionHeader = signal(true);
-  final disableExperimentalBetas = signal(true);
+  final backgroundDataCollection = signal(false);
+  final clientAttribution = signal(true);
+  final experimentalApiFeatures = signal(false);
   final enableAgentTeams = signal(false);
-  final disableAttribution = signal(false);
+  final aiCommitAttribution = signal(true);
   final size = signal(0);
   final auditRetainDays = signal(14);
   final version = signal('');
@@ -114,20 +114,20 @@ class SettingViewModel {
         .value
         .toString();
 
-    disableNonessentialTraffic.value = await SharedPreferenceUtil.instance
-        .getDisableNonessentialTraffic();
+    backgroundDataCollection.value = await SharedPreferenceUtil.instance
+        .getBackgroundDataCollection();
 
-    attributionHeader.value = await SharedPreferenceUtil.instance
-        .getAttributionHeader();
+    clientAttribution.value = await SharedPreferenceUtil.instance
+        .getClientAttribution();
 
-    disableExperimentalBetas.value = await SharedPreferenceUtil.instance
-        .getDisableExperimentalBetas();
+    experimentalApiFeatures.value = await SharedPreferenceUtil.instance
+        .getExperimentalApiFeatures();
 
     enableAgentTeams.value = await SharedPreferenceUtil.instance
         .getEnableAgentTeams();
 
-    disableAttribution.value = await SharedPreferenceUtil.instance
-        .getDisableAttribution();
+    aiCommitAttribution.value = await SharedPreferenceUtil.instance
+        .getAiCommitAttribution();
 
     var file = File(Database.instance.path);
     var stats = await file.stat();
@@ -334,21 +334,21 @@ class SettingViewModel {
     Navigator.of(context).pop();
   }
 
-  Future<void> toggleDisableNonessentialTraffic(bool value) async {
-    disableNonessentialTraffic.value = value;
-    await SharedPreferenceUtil.instance.setDisableNonessentialTraffic(value);
+  Future<void> toggleBackgroundDataCollection(bool value) async {
+    backgroundDataCollection.value = value;
+    await SharedPreferenceUtil.instance.setBackgroundDataCollection(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 
-  Future<void> toggleAttributionHeader(bool value) async {
-    attributionHeader.value = value;
-    await SharedPreferenceUtil.instance.setAttributionHeader(value);
+  Future<void> toggleClientAttribution(bool value) async {
+    clientAttribution.value = value;
+    await SharedPreferenceUtil.instance.setClientAttribution(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 
-  Future<void> toggleDisableExperimentalBetas(bool value) async {
-    disableExperimentalBetas.value = value;
-    await SharedPreferenceUtil.instance.setDisableExperimentalBetas(value);
+  Future<void> toggleExperimentalApiFeatures(bool value) async {
+    experimentalApiFeatures.value = value;
+    await SharedPreferenceUtil.instance.setExperimentalApiFeatures(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 
@@ -358,9 +358,9 @@ class SettingViewModel {
     await ClaudeCodeSettingService().updateProxySetting();
   }
 
-  Future<void> toggleDisableAttribution(bool value) async {
-    disableAttribution.value = value;
-    await SharedPreferenceUtil.instance.setDisableAttribution(value);
+  Future<void> toggleAiCommitAttribution(bool value) async {
+    aiCommitAttribution.value = value;
+    await SharedPreferenceUtil.instance.setAiCommitAttribution(value);
     await ClaudeCodeSettingService().updateProxySetting();
   }
 

@@ -104,50 +104,53 @@ class _SettingPageState extends State<SettingPage> {
       trailing: const Icon(LucideIcons.chevronRight),
       onTap: () => _showResetToDefaultDialog(context),
     );
-    var attributionHeaderTile = Watch((context) {
+    var clientAttributionTile = Watch((context) {
       return ListTile(
-        title: const Text('归属提示头'),
-        subtitle: const Text('在请求里自动加上归属提示头'),
-        trailing: ShadSwitch(
-          value: viewModel.attributionHeader.value,
-          onChanged: (value) => viewModel.toggleAttributionHeader(value),
+        title: const Text('客户端归属标识'),
+        subtitle: const Text(
+          '在系统提示中附带客户端版本信息，关闭可提升第三方 LLM 网关的 prompt caching 命中率',
         ),
-        onTap: () => viewModel.toggleAttributionHeader(
-          !viewModel.attributionHeader.value,
+        trailing: ShadSwitch(
+          value: viewModel.clientAttribution.value,
+          onChanged: (value) => viewModel.toggleClientAttribution(value),
+        ),
+        onTap: () => viewModel.toggleClientAttribution(
+          !viewModel.clientAttribution.value,
         ),
       );
     });
-    var disableExperimentalBetasTile = Watch((context) {
+    var experimentalApiFeaturesTile = Watch((context) {
       return ListTile(
-        title: const Text('禁用实验性 Beta 头'),
-        subtitle: const Text('通过第三方 LLM 网关时禁用 anthropic-beta 头'),
-        trailing: ShadSwitch(
-          value: viewModel.disableExperimentalBetas.value,
-          onChanged: (value) => viewModel.toggleDisableExperimentalBetas(value),
+        title: const Text('实验性 API 特性'),
+        subtitle: const Text(
+          '在 API 请求中附带 anthropic-beta 请求头及实验性工具字段，第三方网关可能不兼容',
         ),
-        onTap: () => viewModel.toggleDisableExperimentalBetas(
-          !viewModel.disableExperimentalBetas.value,
+        trailing: ShadSwitch(
+          value: viewModel.experimentalApiFeatures.value,
+          onChanged: (value) => viewModel.toggleExperimentalApiFeatures(value),
+        ),
+        onTap: () => viewModel.toggleExperimentalApiFeatures(
+          !viewModel.experimentalApiFeatures.value,
         ),
       );
     });
-    var disableNonessentialTrafficTile = Watch((context) {
+    var backgroundDataCollectionTile = Watch((context) {
       return ListTile(
-        title: const Text('禁用非必要网络请求'),
-        subtitle: const Text('减少 Claude Code 的后台网络活动'),
+        title: const Text('后台数据收集'),
+        subtitle: const Text('允许自动更新检查、反馈收集、错误上报及遥测数据'),
         trailing: ShadSwitch(
-          value: viewModel.disableNonessentialTraffic.value,
-          onChanged: (value) =>
-              viewModel.toggleDisableNonessentialTraffic(value),
+          value: viewModel.backgroundDataCollection.value,
+          onChanged: (value) => viewModel.toggleBackgroundDataCollection(value),
         ),
-        onTap: () => viewModel.toggleDisableNonessentialTraffic(
-          !viewModel.disableNonessentialTraffic.value,
+        onTap: () => viewModel.toggleBackgroundDataCollection(
+          !viewModel.backgroundDataCollection.value,
         ),
       );
     });
     var enableAgentTeamsTile = Watch((context) {
       return ListTile(
-        title: const Text('启用 Agent Teams'),
-        subtitle: const Text('允许 Claude Code 创建团队模式多代理协作'),
+        title: const Text('多代理协作'),
+        subtitle: const Text('允许 Claude Code 以团队模式创建多个代理协作（实验性功能）'),
         trailing: ShadSwitch(
           value: viewModel.enableAgentTeams.value,
           onChanged: (value) => viewModel.toggleEnableAgentTeams(value),
@@ -156,16 +159,16 @@ class _SettingPageState extends State<SettingPage> {
             viewModel.toggleEnableAgentTeams(!viewModel.enableAgentTeams.value),
       );
     });
-    var disableAttributionTile = Watch((context) {
+    var aiCommitAttributionTile = Watch((context) {
       return ListTile(
-        title: const Text('禁用 AI 归属水印'),
-        subtitle: const Text('在 git 提交和 PR 中隐藏 Claude Code 的 AI 署名'),
+        title: const Text('AI 提交署名'),
+        subtitle: const Text('git 提交和 PR 描述中自动添加 Claude Code 的 AI 归属信息'),
         trailing: ShadSwitch(
-          value: viewModel.disableAttribution.value,
-          onChanged: (value) => viewModel.toggleDisableAttribution(value),
+          value: viewModel.aiCommitAttribution.value,
+          onChanged: (value) => viewModel.toggleAiCommitAttribution(value),
         ),
-        onTap: () => viewModel.toggleDisableAttribution(
-          !viewModel.disableAttribution.value,
+        onTap: () => viewModel.toggleAiCommitAttribution(
+          !viewModel.aiCommitAttribution.value,
         ),
       );
     });
@@ -224,11 +227,11 @@ class _SettingPageState extends State<SettingPage> {
             children: [
               defaultModelMappingTile,
               apiTimeoutTile,
-              attributionHeaderTile,
-              disableExperimentalBetasTile,
-              disableNonessentialTrafficTile,
+              clientAttributionTile,
+              experimentalApiFeaturesTile,
+              backgroundDataCollectionTile,
               enableAgentTeamsTile,
-              disableAttributionTile,
+              aiCommitAttributionTile,
               versionTile,
             ],
           ),
