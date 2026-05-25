@@ -22,7 +22,7 @@ dependencies:
   launch_at_startup: ^0.5.1
   laconic: ^1.0.0
   logger: ^2.6.2
-  lucide_icons_flutter: ^3.1.10
+  lucide_icons_flutter: ^3.1.14
   local_notifier: ^0.1.6
   package_info_plus: ^8.3.0
   path: ^1.8.0
