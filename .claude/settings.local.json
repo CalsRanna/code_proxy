@@ -51,7 +51,8 @@
       "Bash(awk *)",
       "Bash(dart --version)",
       "Bash(timeout 480 dart run *)",
-      "Bash(dart run *)"
+      "Bash(dart run *)",
+      "Bash(git -C /Users/cals/Code/code_proxy log --oneline -15)"
     ],
     "deny": []
   }
