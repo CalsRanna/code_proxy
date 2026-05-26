@@ -62,21 +62,37 @@ class ProxyServerRequestHandler {
 
   /// 建立 socket 时启用 TCP keepalive 的 connectionFactory。
   ///
-  /// HttpClient 默认的 factory 等价于 `Socket.startConnect(host, port)`；
-  /// 这里在此基础上对 socket 设置 SO_KEEPALIVE 和 TCP_KEEPALIVE/KEEPIDLE
-  /// 等参数。HTTPS 的 TLS 握手在拿到 Socket 之后由 HttpClient 自己完成，
-  /// 我们在 TLS 之前对底层 TCP socket 配置的选项会一直保留。
+  /// 重要：当设置了自定义 connectionFactory 后，Dart SDK 的 HttpClient
+  /// **不会**自动为 HTTPS 请求做 TLS 升级。SDK 内部的逻辑是：
+  ///   - 没有 connectionFactory → HTTPS 直连用 SecureSocket.startConnect
+  ///   - 有 connectionFactory → 直接调用 factory，拿到什么 socket 就用什么
+  ///
+  /// 因此我们必须自己判断 scheme：
+  ///   - https → 用 SecureSocket.startConnect（返回的 socket 已完成 TLS）
+  ///   - http  → 用 Socket.startConnect（裸 TCP）
+  ///
+  /// TCP keepalive 选项在 TLS 之下的底层 TCP socket 上设置。对于
+  /// SecureSocket，我们通过监听 Future 在 socket 建立后设置选项——
+  /// SecureSocket 底层仍然是 TCP socket，keepalive 探针在 TCP 层工作，
+  /// 不受 TLS 层影响。
   static Future<ConnectionTask<Socket>> _keepaliveConnectionFactory(
     Uri uri,
     String? proxyHost,
     int? proxyPort,
   ) async {
-    final task = await Socket.startConnect(
-      proxyHost ?? uri.host,
-      proxyPort ?? uri.port,
-    );
-    // socket 真正建立后再设置选项。注册顺序保证我们的 setOption 早于
-    // HttpClient 内部对 task.socket 的消费。
+    final host = proxyHost ?? uri.host;
+    final port = proxyPort ?? uri.port;
+    final isSecure = uri.isScheme('https');
+
+    final ConnectionTask<Socket> task;
+    if (isSecure) {
+      task = await SecureSocket.startConnect(host, port);
+    } else {
+      task = await Socket.startConnect(host, port);
+    }
+
+    // socket 真正建立后再设置 keepalive 选项。
+    // SecureSocket 底层仍是 TCP socket，setRawOption 对其同样有效。
     unawaited(task.socket.then(_enableTcpKeepalive).catchError((_) {}));
     return task;
   }
@@ -120,9 +136,7 @@ class ProxyServerRequestHandler {
       // SOL_SOCKET / SO_KEEPALIVE — 所有平台都先把总开关打开
       final solSocket = isLinux ? 1 : 0xffff;
       final soKeepalive = isLinux ? 9 : 0x8;
-      socket.setRawOption(
-        RawSocketOption.fromInt(solSocket, soKeepalive, 1),
-      );
+      socket.setRawOption(RawSocketOption.fromInt(solSocket, soKeepalive, 1));
 
       // 仅 macOS / Linux 调整时序参数；Windows 走系统默认
       if (isLinux || isApple) {
@@ -132,21 +146,23 @@ class ProxyServerRequestHandler {
         final tcpIntvlOpt = isApple ? 0x101 : 5; // TCP_KEEPINTVL
         final tcpCntOpt = isApple ? 0x102 : 6; // TCP_KEEPCNT
 
-        socket.setRawOption(RawSocketOption.fromInt(
-          ipprotoTcp,
-          tcpIdleOpt,
-          _keepaliveIdleSeconds,
-        ));
-        socket.setRawOption(RawSocketOption.fromInt(
-          ipprotoTcp,
-          tcpIntvlOpt,
-          _keepaliveIntervalSeconds,
-        ));
-        socket.setRawOption(RawSocketOption.fromInt(
-          ipprotoTcp,
-          tcpCntOpt,
-          _keepaliveProbeCount,
-        ));
+        socket.setRawOption(
+          RawSocketOption.fromInt(
+            ipprotoTcp,
+            tcpIdleOpt,
+            _keepaliveIdleSeconds,
+          ),
+        );
+        socket.setRawOption(
+          RawSocketOption.fromInt(
+            ipprotoTcp,
+            tcpIntvlOpt,
+            _keepaliveIntervalSeconds,
+          ),
+        );
+        socket.setRawOption(
+          RawSocketOption.fromInt(ipprotoTcp, tcpCntOpt, _keepaliveProbeCount),
+        );
       }
     } catch (e) {
       // setRawOption 失败不致命：socket 仍然能用，只是退化到系统默认的
@@ -186,8 +202,11 @@ class ProxyServerRequestHandler {
   }
 
   /// 构建目标URL
-Uri _buildTargetUrl(EndpointEntity endpoint, shelf.Request request) {
-    final baseUrl = (endpoint.anthropicBaseUrl ?? '').replaceAll(RegExp(r'/$'), '');
+  Uri _buildTargetUrl(EndpointEntity endpoint, shelf.Request request) {
+    final baseUrl = (endpoint.anthropicBaseUrl ?? '').replaceAll(
+      RegExp(r'/$'),
+      '',
+    );
     final path = request.url.path;
     final query = request.url.query;
     final separator = path.startsWith('/') ? '' : '/';
@@ -228,10 +247,7 @@ Uri _buildTargetUrl(EndpointEntity endpoint, shelf.Request request) {
   /// 如果客户端使用 x-api-key，则替换 x-api-key 的值；
   /// 如果客户端使用 Authorization: Bearer，则替换 Bearer token；
   /// 如果两者都没有，则默认使用 x-api-key。
-  void _replaceAuthToken(
-    Map<String, String> headers,
-    EndpointEntity endpoint,
-  ) {
+  void _replaceAuthToken(Map<String, String> headers, EndpointEntity endpoint) {
     final token = endpoint.anthropicAuthToken ?? '';
     if (headers.containsKey('x-api-key')) {
       headers['x-api-key'] = token;
