@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,13 +15,146 @@ class ProxyServerRequestHandler {
   final http.Client _httpClient;
   final ProxyServerConfig config;
 
-  // 禁用 HttpClient 的自动解压，代理透传上游原始压缩数据，
-  // 避免自动解压时遇到异常数据抛出 Zlib error
-  ProxyServerRequestHandler(this.config)
-      : _httpClient = IOClient(HttpClient()..autoUncompress = false);
+  ProxyServerRequestHandler(this.config) : _httpClient = _buildHttpClient();
 
   void close() {
     _httpClient.close();
+  }
+
+  // ===========================================================================
+  // 出站 HttpClient 的构造
+  // ===========================================================================
+  //
+  // 做两件事：
+  //
+  // 1) autoUncompress = false
+  //    代理需要透传上游的原始压缩字节（gzip/deflate/br/zstd）给客户端，
+  //    自身只在需要提取 token 使用量、记录日志时按需解压。打开自动解压会
+  //    在遇到异常字节时直接抛 ZlibException，把可恢复的转发流变成致命错误。
+  //
+  // 2) connectionFactory 注入开了 TCP keepalive 的 socket
+  //    背景：曾出现过大量 `ClientException: Connection closed before full
+  //    header was received` 报错，且上游声称请求已经成功完成。本地复现实验
+  //    证实：
+  //      - Dart IOClient 自己能撑过 120s 完全静默的连接
+  //      - 一旦上游 socket 在 HEADER 到达前被对端关闭，必然抛出与生产
+  //        一字不差的这条 ClientException
+  //    生产场景里上游是 SSE 长 TTFB（200-300s），中间的 NAT / 防火墙 /
+  //    CDN（如 anyrouter 前的 ESA）会把这段完全静默的 TCP 链路当成 dead
+  //    flow 清掉，等数据回来时只剩 RST。
+  //
+  //    `dart:io` 的 HttpClient 创建 Socket 时**不会**默认启用 SO_KEEPALIVE，
+  //    所以没有任何 TCP 层的探针去刷新中间网元的 conntrack 表。我们通过
+  //    `connectionFactory` 自己接管 Socket 创建，开启 SO_KEEPALIVE 并把
+  //    idle/interval/probe count 都调成有用的值（macOS/Linux 的系统默认
+  //    都是 2 小时才开始第一个探针，对我们 200-300s 的场景等于没开）。
+  //
+  //    这是一次性能改造的最小侵入版本。如果未来仍有静默断链问题，下一步
+  //    可以考虑换 `package:cupertino_http` / `package:cronet_http` 拿到
+  //    HTTP/2 PING 帧的应用层 keepalive。
+  // ===========================================================================
+  static http.Client _buildHttpClient() {
+    final httpClient = HttpClient()
+      ..autoUncompress = false
+      ..connectionFactory = _keepaliveConnectionFactory;
+    return IOClient(httpClient);
+  }
+
+  /// 建立 socket 时启用 TCP keepalive 的 connectionFactory。
+  ///
+  /// HttpClient 默认的 factory 等价于 `Socket.startConnect(host, port)`；
+  /// 这里在此基础上对 socket 设置 SO_KEEPALIVE 和 TCP_KEEPALIVE/KEEPIDLE
+  /// 等参数。HTTPS 的 TLS 握手在拿到 Socket 之后由 HttpClient 自己完成，
+  /// 我们在 TLS 之前对底层 TCP socket 配置的选项会一直保留。
+  static Future<ConnectionTask<Socket>> _keepaliveConnectionFactory(
+    Uri uri,
+    String? proxyHost,
+    int? proxyPort,
+  ) async {
+    final task = await Socket.startConnect(
+      proxyHost ?? uri.host,
+      proxyPort ?? uri.port,
+    );
+    // socket 真正建立后再设置选项。注册顺序保证我们的 setOption 早于
+    // HttpClient 内部对 task.socket 的消费。
+    unawaited(task.socket.then(_enableTcpKeepalive).catchError((_) {}));
+    return task;
+  }
+
+  /// 在已连接 socket 上启用 TCP keepalive 并把时序参数调小。
+  ///
+  /// 默认 OS 行为：
+  ///   - macOS: 7200s 空闲后才发第一个探针，间隔 75s，共 8 次 —— 对我们
+  ///     无意义，conntrack 早过期了。
+  ///   - Linux: 同样 7200s / 75s / 9 次。
+  ///
+  /// 我们调整为：30s 空闲就开始探针、每 15s 一次、共 4 次。这样在长
+  /// TTFB 静默期，TCP 层每 15s 就有一次 keepalive 包来回，足以让中间
+  /// 网元持续认为这条连接是 live 的。
+  ///
+  /// 平台常量列表 (level / option)：
+  ///   - SO_KEEPALIVE (开启总开关)
+  ///       macOS:  SOL_SOCKET=0xffff, SO_KEEPALIVE=0x0008
+  ///       Linux:  SOL_SOCKET=1,      SO_KEEPALIVE=9
+  ///   - 首次探针前的空闲时长 (秒)
+  ///       macOS:  IPPROTO_TCP=6,     TCP_KEEPALIVE=0x10
+  ///       Linux:  IPPROTO_TCP=6,     TCP_KEEPIDLE=4
+  ///   - 探针之间的间隔 (秒)
+  ///       macOS:  IPPROTO_TCP=6,     TCP_KEEPINTVL=0x101
+  ///       Linux:  IPPROTO_TCP=6,     TCP_KEEPINTVL=5
+  ///   - 判定链路死亡前的最大探针次数
+  ///       macOS:  IPPROTO_TCP=6,     TCP_KEEPCNT=0x102
+  ///       Linux:  IPPROTO_TCP=6,     TCP_KEEPCNT=6
+  ///
+  /// Windows 走的是 WSAIoctl(SIO_KEEPALIVE_VALS)，无法通过 setRawOption
+  /// 直接表达，这里只开总开关，让系统按默认参数发探针。
+  static const int _keepaliveIdleSeconds = 30;
+  static const int _keepaliveIntervalSeconds = 15;
+  static const int _keepaliveProbeCount = 4;
+
+  static void _enableTcpKeepalive(Socket socket) {
+    try {
+      final isLinux = Platform.isLinux;
+      final isApple = Platform.isMacOS || Platform.isIOS;
+
+      // SOL_SOCKET / SO_KEEPALIVE — 所有平台都先把总开关打开
+      final solSocket = isLinux ? 1 : 0xffff;
+      final soKeepalive = isLinux ? 9 : 0x8;
+      socket.setRawOption(
+        RawSocketOption.fromInt(solSocket, soKeepalive, 1),
+      );
+
+      // 仅 macOS / Linux 调整时序参数；Windows 走系统默认
+      if (isLinux || isApple) {
+        const ipprotoTcp = 6;
+
+        final tcpIdleOpt = isApple ? 0x10 : 4; // TCP_KEEPALIVE / TCP_KEEPIDLE
+        final tcpIntvlOpt = isApple ? 0x101 : 5; // TCP_KEEPINTVL
+        final tcpCntOpt = isApple ? 0x102 : 6; // TCP_KEEPCNT
+
+        socket.setRawOption(RawSocketOption.fromInt(
+          ipprotoTcp,
+          tcpIdleOpt,
+          _keepaliveIdleSeconds,
+        ));
+        socket.setRawOption(RawSocketOption.fromInt(
+          ipprotoTcp,
+          tcpIntvlOpt,
+          _keepaliveIntervalSeconds,
+        ));
+        socket.setRawOption(RawSocketOption.fromInt(
+          ipprotoTcp,
+          tcpCntOpt,
+          _keepaliveProbeCount,
+        ));
+      }
+    } catch (e) {
+      // setRawOption 失败不致命：socket 仍然能用，只是退化到系统默认的
+      // keepalive 行为（即"等同没开"）。打个 warn 方便后续排查。
+      LoggerUtil.instance.w(
+        'Failed to configure TCP keepalive on outbound socket: $e',
+      );
+    }
   }
 
   /// 转发HTTP请求

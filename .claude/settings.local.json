@@ -46,7 +46,12 @@
       "Bash(per_page=50 2>&1)",
       "Bash(git remote *)",
       "mcp__dart-mcp-server__read_package_uris",
-      "Bash(gh run *)"
+      "Bash(gh run *)",
+      "Skill(superpowers:systematic-debugging)",
+      "Bash(awk *)",
+      "Bash(dart --version)",
+      "Bash(timeout 480 dart run *)",
+      "Bash(dart run *)"
     ],
     "deny": []
   }
