@@ -473,7 +473,6 @@ class ResponseProcessor {
               DateTime.now().millisecondsSinceEpoch - startTime;
 
           if (isCompressed && rawChunks != null) {
-            // 将所有块合并后统一解压
             final allBytes = rawChunks.expand((c) => c).toList();
             final decompressed = ResponseDecompressor.decompress(
               allBytes,
@@ -481,16 +480,19 @@ class ResponseProcessor {
             );
             final text = utf8.decode(decompressed, allowMalformed: true);
             responseChunks.add(text);
-            inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
-            outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
-            cacheCreationTokens =
-                extractor.extractCacheCreationTokens(text) ??
-                cacheCreationTokens;
-            cacheReadTokens =
-                extractor.extractCacheReadTokens(text) ?? cacheReadTokens;
           }
 
           final responseBody = responseChunks.join();
+
+          final usage = extractor.extractUsage(responseBody);
+          if (usage != null) {
+            inputTokens = usage['input'] ?? inputTokens;
+            outputTokens = usage['output'] ?? outputTokens;
+            cacheCreationTokens =
+                usage['cache_creation'] ?? cacheCreationTokens;
+            cacheReadTokens = usage['cache_read'] ?? cacheReadTokens;
+          }
+
           recordStats(
             {
               'input': inputTokens,
@@ -519,7 +521,13 @@ class ResponseProcessor {
   }
 }
 
-/// Token 提取器 - 使用正则从 API 响应中提取 token 使用量
+/// Token 提取器 - 从 API 响应中提取 token 使用量
+///
+/// [extractUsage] 是权威方法，使用 JSON 解析精确提取 usage 对象中的各字段，
+/// 支持非流式（单个 JSON 对象）和流式 SSE（多个 data: 行）两种格式。
+///
+/// 逐块正则方法（[extractInputTokens] 等）仅用于流式实时提取，
+/// 会在 [handleDone] 阶段被 [extractUsage] 的 JSON 解析结果覆盖。
 class TokenExtractor {
   static final _inputPattern = RegExp(r'"input_tokens"\s*:\s*(\d+)');
   static final _outputPattern = RegExp(r'"output_tokens"\s*:\s*(\d+)');
@@ -532,43 +540,104 @@ class TokenExtractor {
 
   const TokenExtractor();
 
-  /// 从文本中提取 input_tokens
   int? extractInputTokens(String text) {
     final match = _inputPattern.firstMatch(text);
     return match != null ? int.tryParse(match.group(1)!) : null;
   }
 
-  /// 从文本中提取 output_tokens（取最后一个匹配，因为是累积值）
   int? extractOutputTokens(String text) {
     final matches = _outputPattern.allMatches(text);
     if (matches.isEmpty) return null;
     return int.tryParse(matches.last.group(1)!);
   }
 
-  /// 从文本中提取 cache_creation_input_tokens
   int? extractCacheCreationTokens(String text) {
     final match = _cacheCreationPattern.firstMatch(text);
     return match != null ? int.tryParse(match.group(1)!) : null;
   }
 
-  /// 从文本中提取 cache_read_input_tokens
   int? extractCacheReadTokens(String text) {
     final match = _cacheReadPattern.firstMatch(text);
     return match != null ? int.tryParse(match.group(1)!) : null;
   }
 
-  /// 从文本中提取完整的 usage
+  /// 从完整响应文本中提取 usage（权威方法，使用 JSON 解析）。
+  ///
+  /// 先尝试解析为单个 JSON 对象（非流式响应），
+  /// 失败后尝试解析 SSE 文本中的 data: 行（流式响应）。
   Map<String, int?>? extractUsage(String text) {
-    final input = extractInputTokens(text);
-    final output = extractOutputTokens(text);
-    final cacheCreation = extractCacheCreationTokens(text);
-    final cacheRead = extractCacheReadTokens(text);
-    if (input == null && output == null) return null;
+    final singleJsonUsage = _tryExtractFromJson(text);
+    if (singleJsonUsage != null) return singleJsonUsage;
+
+    return _extractUsageFromSSE(text);
+  }
+
+  Map<String, int?>? _tryExtractFromJson(String text) {
+    try {
+      final json = jsonDecode(text) as Map<String, dynamic>;
+      final usage = json['usage'] as Map<String, dynamic>?;
+      if (usage != null) {
+        return _extractFromUsageMap(usage);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 从 SSE 文本的 data: 行中解析 JSON 并累积 usage。
+  ///
+  /// 对 message_start 事件，usage 位于 message.usage 路径下；
+  /// 对 message_delta 事件，usage 位于顶层。
+  Map<String, int?>? _extractUsageFromSSE(String text) {
+    int? inputTokens;
+    int? outputTokens;
+    int? cacheCreationTokens;
+    int? cacheReadTokens;
+
+    for (final line in text.split('\n')) {
+      final trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) continue;
+      final jsonStr = trimmed.substring(6);
+
+      try {
+        final json = jsonDecode(jsonStr);
+        if (json is! Map<String, dynamic>) continue;
+
+        Map<String, dynamic>? usage;
+        if (json['type'] == 'message_start') {
+          final message = json['message'] as Map<String, dynamic>?;
+          usage = message?['usage'] as Map<String, dynamic>?;
+        } else {
+          usage = json['usage'] as Map<String, dynamic>?;
+        }
+
+        if (usage != null) {
+          inputTokens = (usage['input_tokens'] as int?) ?? inputTokens;
+          final output = usage['output_tokens'] as int?;
+          if (output != null) outputTokens = output;
+          cacheCreationTokens =
+              (usage['cache_creation_input_tokens'] as int?) ??
+              cacheCreationTokens;
+          cacheReadTokens =
+              (usage['cache_read_input_tokens'] as int?) ?? cacheReadTokens;
+        }
+      } catch (_) {}
+    }
+
+    if (inputTokens == null && outputTokens == null) return null;
     return {
-      'input': input,
-      'output': output,
-      'cache_creation': cacheCreation,
-      'cache_read': cacheRead,
+      'input': inputTokens,
+      'output': outputTokens,
+      'cache_creation': cacheCreationTokens,
+      'cache_read': cacheReadTokens,
+    };
+  }
+
+  Map<String, int?> _extractFromUsageMap(Map<String, dynamic> usage) {
+    return {
+      'input': usage['input_tokens'] as int?,
+      'output': usage['output_tokens'] as int?,
+      'cache_creation': usage['cache_creation_input_tokens'] as int?,
+      'cache_read': usage['cache_read_input_tokens'] as int?,
     };
   }
 }
