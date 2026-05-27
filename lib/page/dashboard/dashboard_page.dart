@@ -53,7 +53,7 @@ class _DashboardPageState extends State<DashboardPage> {
       final subtitle = total > 0
           ? '代理状态与成本总览（合计花费 \$${total.toStringAsFixed(2)}）'
           : '代理状态与成本总览';
-      return PageHeader(title: '概览', subtitle: subtitle);
+      return PageHeader(title: 'CODE PROXY', subtitle: subtitle);
     });
   }
 
