@@ -32,6 +32,12 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# Suppress the hard STL1011 error emitted by recent MSVC toolchains (VS 18.6 /
+# MSVC 14.51+) when C++/WinRT-based plugins (e.g. flutter_local_notifications_windows)
+# pull in the deprecated <experimental/coroutine> header under C++17. Defined
+# globally before any add_subdirectory() so it also applies to plugin targets.
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
