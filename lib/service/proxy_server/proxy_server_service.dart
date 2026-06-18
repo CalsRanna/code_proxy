@@ -166,6 +166,29 @@ class ProxyServerService {
         }
         // 失败响应：统一通过路由器中的断路器机制决定重试或故障转移
       } catch (e) {
+        // header 未达瞬时错误:原端点透明重试,不污染断路器/不重建 client。
+        if (routeSession.shouldTransientRetry(endpoint, e)) {
+          final used = routeSession.transientRetriesUsedFor(endpoint);
+          routeSession.recordTransientRetry(endpoint);
+          LoggerUtil.instance.w(
+            'Transient header-not-received on ${endpoint.name}, '
+            'retrying same endpoint (${used + 1}/2)',
+          );
+          _responseHandler.recordException(
+            endpoint: endpoint,
+            request: request,
+            requestBodyBytes: rawBody,
+            startTime: startTime,
+            error: e,
+            mappedRequestBodyBytes: preparedRequest?.bodyBytes,
+            forwardedHeaders: preparedRequest?.headers,
+            retryLabel: 'transient-retry ${used + 1}/2',
+          );
+          startTime = null;
+          previousSucceeded = null; // 跳过 hasNext 的断路器逻辑,直接重进循环体
+          continue;
+        }
+
         // 异常默认走统一失败处理；黑名单路径会直接返回原始错误
         previousSucceeded = false;
         applyCircuitBreakerOnPreviousFailure = allowCircuitBreakerOnFailure;
