@@ -261,5 +261,63 @@ void main() {
       session.hasNext(false);
       expect(session.shouldTransientRetry(ep1, headerError), isFalse);
     });
+
+    test('断路器已 open 的端点不应透明重试(并发已判其不健康)', () {
+      final registry = ProxyServerCircuitBreakerRegistry(
+        failureThreshold: 1,
+        recoveryTimeoutMs: 60000,
+      );
+      final router = ProxyServerRouter(
+        config: const ProxyServerConfig(circuitBreakerFailureThreshold: 1),
+        circuitBreakerRegistry: registry,
+      );
+      router.setEndpoints([
+        const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
+      ]);
+      final session = router.startRequest();
+      const ep1 = EndpointEntity(id: 'ep-1', name: 'Endpoint 1');
+      final headerError = http.ClientException(
+        'Connection closed before full header was received',
+      );
+
+      // 模拟其他并发请求把 ep-1 打到 open
+      registry.getBreaker('ep-1').recordFailure();
+      expect(
+        registry.getBreaker('ep-1').state,
+        ProxyServerCircuitBreakerState.open,
+      );
+
+      // 预算仍充足,但断路器已 open → 不透明重试
+      expect(session.shouldTransientRetry(ep1, headerError), isFalse);
+    });
+
+    test('halfOpen 探测期不应透明重试(探测应如实反映成败)', () async {
+      final registry = ProxyServerCircuitBreakerRegistry(
+        failureThreshold: 1,
+        recoveryTimeoutMs: 1,
+      );
+      final router = ProxyServerRouter(
+        config: const ProxyServerConfig(circuitBreakerFailureThreshold: 1),
+        circuitBreakerRegistry: registry,
+      );
+      router.setEndpoints([
+        const EndpointEntity(id: 'ep-1', name: 'Endpoint 1'),
+      ]);
+      final session = router.startRequest();
+      const ep1 = EndpointEntity(id: 'ep-1', name: 'Endpoint 1');
+      final headerError = http.ClientException(
+        'Connection closed before full header was received',
+      );
+
+      // 打开断路器,等待恢复超时(1ms)后 evaluateState 转为 halfOpen
+      registry.getBreaker('ep-1').recordFailure();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(
+        registry.getBreaker('ep-1').evaluateState(),
+        ProxyServerCircuitBreakerState.halfOpen,
+      );
+
+      expect(session.shouldTransientRetry(ep1, headerError), isFalse);
+    });
   });
 }

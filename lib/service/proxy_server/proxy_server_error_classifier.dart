@@ -15,4 +15,20 @@ class ProxyServerErrorClassifier {
           'Connection closed before full header was received',
         );
   }
+
+  /// 是否为"疑似 header 未达但未被 [isHeaderNotReceived] 精确命中"的变体。
+  ///
+  /// 用途:[isHeaderNotReceived] 依赖 Dart SDK 私有错误文案的精确匹配,
+  /// 一旦 SDK 改措辞,匹配会静默失效——透明重试悄悄退化为不再触发,难以察觉。
+  /// 本函数对"看起来像 header 未达、但没精确命中"的 ClientException 返回 true,
+  /// 供 service 层打 WARNING 作为静默降级的预警信号。
+  ///
+  /// 收窄条件(大小写无关):同时包含 'header' 与 'connection closed',
+  /// 且不是已被精确识别的那条——避免对连接拒绝/重置等正常异常产生噪音。
+  static bool isPossibleHeaderNotReceivedVariant(Object error) {
+    if (error is! http.ClientException) return false;
+    if (isHeaderNotReceived(error)) return false;
+    final message = error.message.toLowerCase();
+    return message.contains('header') && message.contains('connection closed');
+  }
 }

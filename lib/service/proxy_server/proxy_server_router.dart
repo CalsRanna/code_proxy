@@ -114,11 +114,20 @@ class ProxyServerRouteSession {
 
   List<EndpointEntity> get endpoints => List.unmodifiable(_endpoints);
 
-  /// 当前端点是否可对该错误做透明重试(header 未达 且 预算未尽)。
+  /// 当前端点是否可对该错误做透明重试。
+  ///
+  /// 三个条件全部满足才允许:
+  /// 1. 错误是 header 未达的瞬时传输错误;
+  /// 2. 该端点透明重试预算未耗尽;
+  /// 3. 该端点断路器仍为 closed —— 若已被其他并发请求打到 open,或处于
+  ///    halfOpen 探测期,则不透明重试:并发信号比单请求的乐观假设更可信,
+  ///    且 halfOpen 探测必须如实反映成败,不应被透明重试掩盖。
   bool shouldTransientRetry(EndpointEntity endpoint, Object error) {
     if (!ProxyServerErrorClassifier.isHeaderNotReceived(error)) return false;
     final used = _transientRetriesUsed[endpoint.id] ?? 0;
-    return used < _maxTransientRetries;
+    if (used >= _maxTransientRetries) return false;
+    final breaker = _router._circuitBreakerRegistry.getBreaker(endpoint.id);
+    return breaker.evaluateState() == ProxyServerCircuitBreakerState.closed;
   }
 
   /// 记录一次透明重试消耗。

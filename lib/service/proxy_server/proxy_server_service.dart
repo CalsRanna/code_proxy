@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_error_classifier.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
@@ -167,26 +168,35 @@ class ProxyServerService {
         // 失败响应：统一通过路由器中的断路器机制决定重试或故障转移
       } catch (e) {
         // header 未达瞬时错误:原端点透明重试,不污染断路器/不重建 client。
-        if (routeSession.shouldTransientRetry(endpoint, e)) {
+        //
+        // 安全性说明:此时代理虽未向客户端写入任何字节,但**无法确定上游是否
+        // 已执行甚至完成推理**——重发 POST 可能导致上游重复推理与重复计费。
+        // 这是经权衡后接受的风险(换取长任务的成功率),并非无副作用的安全重试。
+        //
+        // 黑名单路径(如 count_tokens)语义为"失败即返回、不重试不故障转移",
+        // 故以 allowCircuitBreakerOnFailure 为前置守卫,不对其透明重试。
+        if (allowCircuitBreakerOnFailure &&
+            routeSession.shouldTransientRetry(endpoint, e)) {
           final used = routeSession.transientRetriesUsedFor(endpoint);
           routeSession.recordTransientRetry(endpoint);
+          // 中间失败仅记日志,不入 request_logs,避免污染失败率/请求量统计。
           LoggerUtil.instance.w(
             'Transient header-not-received on ${endpoint.name}, '
-            'retrying same endpoint (${used + 1}/2)',
-          );
-          _responseHandler.recordException(
-            endpoint: endpoint,
-            request: request,
-            requestBodyBytes: rawBody,
-            startTime: startTime,
-            error: e,
-            mappedRequestBodyBytes: preparedRequest?.bodyBytes,
-            forwardedHeaders: preparedRequest?.headers,
-            retryLabel: 'transient-retry ${used + 1}/2',
+            'retrying same endpoint (${used + 1}/2); '
+            'upstream may have executed — possible duplicate billing',
           );
           startTime = null;
           previousSucceeded = null; // 跳过 hasNext 的断路器逻辑,直接重进循环体
           continue;
+        }
+
+        // 预警:疑似 header 未达但未被分类器精确命中(可能 SDK 改了错误文案,
+        // 导致透明重试静默失效)。窄范围匹配,避免对正常传输异常产生噪音。
+        if (ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant(e)) {
+          LoggerUtil.instance.w(
+            'Possible unrecognized header-not-received variant '
+            '(classifier may be stale): $e',
+          );
         }
 
         // 异常默认走统一失败处理；黑名单路径会直接返回原始错误

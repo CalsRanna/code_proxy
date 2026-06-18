@@ -60,4 +60,53 @@ void main() {
       );
     });
   });
+
+  group('ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant', () {
+    test('精确命中的不算变体(避免与正常路径重复告警)', () {
+      final error = http.ClientException(
+        'Connection closed before full header was received',
+      );
+      expect(
+        ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant(error),
+        isFalse,
+      );
+    });
+
+    test('措辞接近但不精确命中算变体(疑似 SDK 改了文案)', () {
+      final error = http.ClientException(
+        'Connection closed while awaiting response header',
+      );
+      expect(
+        ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant(error),
+        isTrue,
+      );
+    });
+
+    test('大小写不同仍算变体', () {
+      final error = http.ClientException(
+        'CONNECTION CLOSED before the HEADER arrived',
+      );
+      expect(
+        ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant(error),
+        isTrue,
+      );
+    });
+
+    test('普通连接重置不算变体(无 header 关键词)', () {
+      final error = http.ClientException('Connection closed by peer');
+      expect(
+        ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant(error),
+        isFalse,
+      );
+    });
+
+    test('非 ClientException 不算变体', () {
+      expect(
+        ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant(
+          const SocketException('failed'),
+        ),
+        isFalse,
+      );
+    });
+  });
 }
