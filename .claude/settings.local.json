@@ -52,7 +52,12 @@
       "Bash(dart --version)",
       "Bash(timeout 480 dart run *)",
       "Bash(dart run *)",
-      "Bash(git -C /Users/cals/Code/code_proxy log --oneline -15)"
+      "Bash(git -C /Users/cals/Code/code_proxy log --oneline -15)",
+      "Read(//Users/cals/.code_proxy/**)",
+      "Read(//Users/cals/Library/Logs/**)",
+      "Read(//Users/cals/Library/Containers/**)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ],
     "deny": []
   }
