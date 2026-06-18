@@ -1,7 +1,7 @@
 PODS:
-  - FlutterMacOS (1.0.0)
-  - local_notifier (0.1.0):
+  - flutter_local_notifications (0.0.1):
     - FlutterMacOS
+  - FlutterMacOS (1.0.0)
   - package_info_plus (0.0.1):
     - FlutterMacOS
   - path_provider_foundation (0.0.1):
@@ -18,8 +18,8 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - flutter_local_notifications (from `Flutter/ephemeral/.symlinks/plugins/flutter_local_notifications/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - local_notifier (from `Flutter/ephemeral/.symlinks/plugins/local_notifier/macos`)
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - screen_retriever_macos (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos`)
@@ -28,10 +28,10 @@ DEPENDENCIES:
   - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
 
 EXTERNAL SOURCES:
+  flutter_local_notifications:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_local_notifications/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
-  local_notifier:
-    :path: Flutter/ephemeral/.symlinks/plugins/local_notifier/macos
   package_info_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos
   path_provider_foundation:
@@ -46,8 +46,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/window_manager/macos
 
 SPEC CHECKSUMS:
+  flutter_local_notifications: 1fc7ffb10a83d6a2eeeeddb152d43f1944b0aad0
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  local_notifier: ebf072651e35ae5e47280ad52e2707375cb2ae4e
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   screen_retriever_macos: 452e51764a9e1cdb74b3c541238795849f21557f
