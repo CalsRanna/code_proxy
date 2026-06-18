@@ -11,27 +11,14 @@ import 'package:http/io_client.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 /// 请求处理器 - 负责请求准备和转发
-///
-/// 内置 HTTP 客户端健康检查与自动重建机制：
-/// - 所有上游请求共用同一个 [IOClient] 实例以复用连接池
-/// - 当连续发生 3 次传输层异常（[ClientException]、[SocketException]、
-///   [HandshakeException]、[TlsException]）时判定客户端内部状态可能已损坏，
-///   自动创建新实例替换
-/// - 旧客户端等待所有 in-flight 请求完成后安全关闭，保证零中断
 class ProxyServerRequestHandler {
-  http.Client _httpClient;
+  final http.Client _httpClient;
   final ProxyServerConfig config;
-
-  http.Client? _oldClient;
-  int _inFlightCount = 0;
-  int _consecutiveConnectionErrors = 0;
-  static const int _maxConsecutiveConnectionErrors = 3;
 
   ProxyServerRequestHandler(this.config) : _httpClient = _buildHttpClient();
 
   void close() {
     _httpClient.close();
-    _oldClient?.close();
   }
 
   // ===========================================================================
@@ -187,60 +174,11 @@ class ProxyServerRequestHandler {
   }
 
   /// 转发HTTP请求
-  ///
-  /// 请求成功时重置连续传输错误计数；
-  /// 发生传输层异常时累加计数，连续达到 [_maxConsecutiveConnectionErrors]
-  /// 次后自动重建 [_httpClient] 实例。
   Future<http.StreamedResponse> forwardRequest(http.Request request) async {
-    _inFlightCount++;
-    try {
-      final response = await _httpClient
-          .send(request)
-          .timeout(Duration(milliseconds: config.apiTimeoutMs));
-      _consecutiveConnectionErrors = 0;
-      return response;
-    } on http.ClientException {
-      _onConnectionError();
-      rethrow;
-    } on SocketException {
-      _onConnectionError();
-      rethrow;
-    } on HandshakeException {
-      _onConnectionError();
-      rethrow;
-    } on TlsException {
-      _onConnectionError();
-      rethrow;
-    } finally {
-      _inFlightCount--;
-      _tryCloseOldClient();
-    }
-  }
-
-  void _onConnectionError() {
-    _consecutiveConnectionErrors++;
-    if (_consecutiveConnectionErrors >= _maxConsecutiveConnectionErrors &&
-        _oldClient == null) {
-      _rebuildClient();
-    }
-  }
-
-  void _rebuildClient() {
-    LoggerUtil.instance.w(
-      'Rebuilding HTTP client after $_maxConsecutiveConnectionErrors '
-      'consecutive transport errors',
-    );
-    _oldClient = _httpClient;
-    _httpClient = _buildHttpClient();
-    _consecutiveConnectionErrors = 0;
-  }
-
-  void _tryCloseOldClient() {
-    if (_oldClient != null && _inFlightCount == 0) {
-      _oldClient!.close();
-      _oldClient = null;
-      LoggerUtil.instance.d('Closed old HTTP client after rebuild');
-    }
+    final response = await _httpClient
+        .send(request)
+        .timeout(Duration(milliseconds: config.apiTimeoutMs));
+    return response;
   }
 
   /// 为端点准备HTTP请求
