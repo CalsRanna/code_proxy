@@ -151,6 +151,7 @@ class ProxyServerResponseHandler {
     int statusCode = HttpStatus.badGateway,
     List<int>? mappedRequestBodyBytes,
     Map<String, String>? forwardedHeaders,
+    String? retryLabel,
   }) {
     // 如果 startTime 为 null，说明在请求准备阶段就失败了，没有真正发起 API 请求
     final responseTime = startTime != null
@@ -171,7 +172,9 @@ class ProxyServerResponseHandler {
       statusCode: statusCode,
       headers: {},
       responseTime: responseTime,
-      errorBody: error.toString(),
+      errorBody: retryLabel == null
+          ? error.toString()
+          : '[$retryLabel] ${error.toString()}',
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
