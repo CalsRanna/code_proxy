@@ -4,6 +4,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_error_classifier.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 /// 端点路由器 - 统一通过断路器管理失败重试与故障转移
@@ -90,6 +91,11 @@ class ProxyServerRouteSession {
   int _currentEndpointIndex = 0;
   int _currentAttempt = 1;
 
+  /// 每端点已用的透明重试次数(endpointId -> count)。
+  /// 归属端点、本请求内一次性消耗,断路器打回同端点时不重置 → 防止重试放大。
+  final Map<String, int> _transientRetriesUsed = {};
+  static const int _maxTransientRetries = 2;
+
   ProxyServerRouteSession._({
     required ProxyServerRouter router,
     required List<EndpointEntity> endpoints,
@@ -107,6 +113,23 @@ class ProxyServerRouteSession {
   }
 
   List<EndpointEntity> get endpoints => List.unmodifiable(_endpoints);
+
+  /// 当前端点是否可对该错误做透明重试(header 未达 且 预算未尽)。
+  bool shouldTransientRetry(EndpointEntity endpoint, Object error) {
+    if (!ProxyServerErrorClassifier.isHeaderNotReceived(error)) return false;
+    final used = _transientRetriesUsed[endpoint.id] ?? 0;
+    return used < _maxTransientRetries;
+  }
+
+  /// 记录一次透明重试消耗。
+  void recordTransientRetry(EndpointEntity endpoint) {
+    _transientRetriesUsed[endpoint.id] =
+        (_transientRetriesUsed[endpoint.id] ?? 0) + 1;
+  }
+
+  /// 读取某端点当前已用的透明重试次数(用于日志与审计标签)。
+  int transientRetriesUsedFor(EndpointEntity endpoint) =>
+      _transientRetriesUsed[endpoint.id] ?? 0;
 
   /// 判断是否还有下一个端点或需要重试。
   ///
