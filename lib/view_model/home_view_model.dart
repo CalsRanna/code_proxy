@@ -165,7 +165,7 @@ class HomeViewModel {
 
     ClaudeCodeAuditService.instance.cleanExpiredLogs();
     await ModelPricingService.instance.load();
-    _autoStartServer();
+    await _autoStartServer();
     _subscription ??= WindowUtil.instance.stream.listen((event) {
       if (event == WindowEvent.shown && selectedIndex.value == 0) {
         final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
@@ -270,7 +270,18 @@ class HomeViewModel {
 
   /// 更新代理服务器的端点列表
   void updateProxyEndpoints(List<EndpointEntity> enabledEndpoints) {
-    _proxyServer?.endpoints = enabledEndpoints;
+    final server = _proxyServer;
+    if (server == null) {
+      LoggerUtil.instance.w(
+        'updateProxyEndpoints called but proxy server is not running, '
+        'endpoint changes will not take effect until server restarts',
+      );
+      return;
+    }
+    server.endpoints = enabledEndpoints;
+    LoggerUtil.instance.d(
+      'Proxy server endpoints updated: ${enabledEndpoints.length} enabled',
+    );
   }
 
   /// 移除端点的断路器实例（端点被删除时调用）

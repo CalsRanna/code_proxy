@@ -249,6 +249,10 @@ class ProxyServerRequestHandler {
   /// 如果两者都没有，则默认使用 x-api-key。
   void _replaceAuthToken(Map<String, String> headers, EndpointEntity endpoint) {
     final token = endpoint.anthropicAuthToken ?? '';
+    final tokenPreview = token.length > 8 ? '${token.substring(0, 4)}...${token.substring(token.length - 4)}' : '<empty or short>';
+    LoggerUtil.instance.d(
+      'Auth token for endpoint ${endpoint.name}: $tokenPreview',
+    );
     if (headers.containsKey('x-api-key')) {
       headers['x-api-key'] = token;
     } else if (headers.containsKey('authorization')) {
