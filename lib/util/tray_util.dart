@@ -16,8 +16,8 @@ class TrayUtil with TrayListener {
 
   Future<void> ensureInitialized() async {
     trayManager.addListener(this);
-    await _setTrayIcon();
     await _setContextMenu();
+    await _setTrayIcon();
   }
 
   @override
