@@ -27,7 +27,7 @@ class TrayUtil with TrayListener {
 
   @override
   void onTrayIconRightMouseDown() {
-    // 右键弹出菜单由系统托盘原生菜单处理，此处留空
+    trayManager.popUpContextMenu();
   }
 
   @override
