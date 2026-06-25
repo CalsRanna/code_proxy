@@ -17,6 +17,7 @@ class TrayUtil with TrayListener {
   Future<void> ensureInitialized() async {
     trayManager.addListener(this);
     await _setTrayIcon();
+    await _setContextMenu();
   }
 
   @override
@@ -26,7 +27,21 @@ class TrayUtil with TrayListener {
 
   @override
   void onTrayIconRightMouseDown() {
-    WindowUtil.instance.show();
+    // 右键弹出菜单由系统托盘原生菜单处理，此处留空
+  }
+
+  @override
+  void onTrayMenuItemClick(MenuItem menuItem) {
+    if (menuItem.key == 'quit') {
+      WindowUtil.instance.destroy();
+    }
+  }
+
+  Future<void> _setContextMenu() async {
+    final menu = Menu(items: [
+      MenuItem(key: 'quit', label: '退出'),
+    ]);
+    await trayManager.setContextMenu(menu);
   }
 
   Future<void> _setTrayIcon() async {

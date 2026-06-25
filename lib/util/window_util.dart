@@ -7,7 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 enum WindowEvent { shown }
 
-class WindowUtil {
+class WindowUtil with WindowListener {
   static final WindowUtil instance = WindowUtil._();
 
   final _controller = StreamController<WindowEvent>();
@@ -17,6 +17,7 @@ class WindowUtil {
   Stream<WindowEvent> get stream => _controller.stream;
 
   Future<void> destroy() async {
+    windowManager.removeListener(this);
     await _controller.close();
     await windowManager.destroy();
   }
@@ -39,15 +40,17 @@ class WindowUtil {
       windowButtonVisibility: false,
       title: 'Code Proxy',
     );
-    bool isPreventClose = true;
-    if (Platform.isWindows) {
-      isPreventClose = false;
-    }
+    windowManager.addListener(this);
     windowManager.waitUntilReadyToShow(options, () async {
       await windowManager.show();
       await windowManager.focus();
-      await windowManager.setPreventClose(isPreventClose);
+      await windowManager.setPreventClose(true);
     });
+  }
+
+  @override
+  void onWindowClose() {
+    hide();
   }
 
   Future<void> hide() async {
