@@ -289,11 +289,6 @@ class HomeViewModel {
     _proxyServer?.removeCircuitBreaker(endpointId);
   }
 
-  Future<void> stopProxyServer() async {
-    await _proxyServer?.stop();
-    _proxyServer = null;
-  }
-
   void dispose() {
     _subscription?.cancel();
     _subscription = null;

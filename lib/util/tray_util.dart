@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/window_util.dart';
-import 'package:code_proxy/view_model/home_view_model.dart';
-import 'package:get_it/get_it.dart';
 import 'package:tray_manager/tray_manager.dart';
 
 class TrayUtil with TrayListener {
@@ -35,10 +33,7 @@ class TrayUtil with TrayListener {
   @override
   void onTrayMenuItemClick(MenuItem menuItem) {
     if (menuItem.key == 'quit') {
-      try {
-        GetIt.instance.get<HomeViewModel>().stopProxyServer();
-      } catch (_) {}
-      WindowUtil.instance.destroy();
+      exit(0);
     }
   }
 
