@@ -57,7 +57,8 @@
       "Read(//Users/cals/Library/Logs/**)",
       "Read(//Users/cals/Library/Containers/**)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(dart pub *)"
     ],
     "deny": []
   }
