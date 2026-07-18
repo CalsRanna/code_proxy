@@ -27,7 +27,11 @@ class TrayUtil with TrayListener {
 
   @override
   void onTrayIconRightMouseDown() {
-    trayManager.popUpContextMenu();
+    // bringAppToFront 使 Windows 在 TrackPopupMenu 前调用
+    // SetForegroundWindow，否则托盘菜单点击外部无法关闭（Windows 经典行为）。
+    // 该参数被 tray_manager 标记 deprecated（仅 Windows、未来移除）但无替代 API。
+    // ignore: deprecated_member_use
+    trayManager.popUpContextMenu(bringAppToFront: true);
   }
 
   @override
