@@ -182,7 +182,10 @@ class _RequestLogPageState extends State<RequestLogPage> {
                 break;
               case 2:
                 child = Text(
-                  log.model ?? '',
+                  (log.originalModel?.isNotEmpty == true
+                          ? log.originalModel
+                          : log.model) ??
+                      '-',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 );
