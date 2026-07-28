@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
@@ -237,64 +236,12 @@ class ProxyServerService {
     }
 
     if (finalResponse != null) {
-      return await _enhanceModelListResponse(request, finalResponse);
+      return finalResponse;
     } else {
       final message = lastException != null
           ? 'All endpoints failed: $lastException'
           : 'All endpoints failed';
       return shelf.Response.internalServerError(body: message);
-    }
-  }
-
-  /// 增强 /v1/models 响应，为每个模型添加 supports1m 标记。
-  ///
-  /// Claude Desktop 的网关自动发现不会自动为模型启用 1M 上下文选项，
-  /// 需要模型列表中包含 supports1m 元数据。代理在这里注入该标记。
-  Future<shelf.Response> _enhanceModelListResponse(
-    shelf.Request request,
-    shelf.Response response,
-  ) async {
-    if (request.method != 'GET') return response;
-    if (_normalizePath(request.requestedUri.path) != '/v1/models') {
-      return response;
-    }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      return response;
-    }
-
-    try {
-      final bodyBytes = await response.read().expand((x) => x).toList();
-      final body = utf8.decode(bodyBytes, allowMalformed: true);
-      final modelJson = jsonDecode(body) as Map<String, dynamic>;
-      final data = modelJson['data'] as List<dynamic>?;
-      if (data == null || data.isEmpty) return response;
-
-      var modified = false;
-      for (final model in data) {
-        if (model is Map<String, dynamic> && !model.containsKey('supports1m')) {
-          model['supports1m'] = true;
-          modified = true;
-        }
-      }
-
-      if (!modified) return response;
-
-      final enhancedBody = jsonEncode(modelJson);
-      final enhancedBytes = utf8.encode(enhancedBody);
-
-      final headers = Map<String, String>.from(response.headers)
-        ..remove('content-encoding')
-        ..remove('transfer-encoding')
-        ..['content-length'] = enhancedBytes.length.toString();
-
-      return shelf.Response(
-        response.statusCode,
-        headers: headers,
-        body: enhancedBytes,
-      );
-    } catch (e) {
-      LoggerUtil.instance.w('Failed to enhance /v1/models response: $e');
-      return response;
     }
   }
 

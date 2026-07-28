@@ -63,7 +63,18 @@
       "Bash(xargs -I{} cat ~/.code_proxy/audit/2026-07-28/{})",
       "Bash(read f *)",
       "Bash(read id *)",
-      "Bash(cat ~/.claude/settings.json 2>/dev/null || echo \"File not found\")"
+      "Bash(cat ~/.claude/settings.json 2>/dev/null || echo \"File not found\")",
+      "Bash(ls /Users/cals/.claude/skills/ 2>/dev/null)",
+      "Bash(cp /Users/cals/.codex/skills/yt-task-management/scripts/yt-get.sh /Users/cals/.claude/skills/yt-task-management/scripts/yt-get.sh)",
+      "Bash(chmod +x /Users/cals/.claude/skills/yt-task-management/scripts/yt-get.sh)",
+      "Bash(cp /Users/cals/.codex/skills/yt-task-management/references/youtrack-api.md /Users/cals/.claude/skills/yt-task-management/references/youtrack-api.md)",
+      "Bash(rm /Users/cals/.claude/skills/yt-task-management/scripts/example.py /Users/cals/.claude/skills/yt-task-management/references/api_reference.md /Users/cals/.claude/skills/yt-task-management/assets/example_asset.txt)",
+      "Bash(rmdir /Users/cals/.claude/skills/yt-task-management/assets 2>/dev/null; echo \"done\")",
+      "Bash(bash /Users/cals/.claude/skills/yt-task-management/scripts/yt-get.sh issue DE4-342090)",
+      "Bash(bash /Users/cals/.claude/skills/yt-task-management/scripts/yt-get.sh comments DE4-342090 100)",
+      "Bash(grep -rl \"YT_TOKEN\" /Users/cals/.zshrc /Users/cals/.zprofile /Users/cals/.bash_profile /Users/cals/.bashrc /Users/cals/.zshenv 2>/dev/null; echo \"---done---\")",
+      "Bash(cat ~/.claude/settings.json 2>/dev/null | python3 -m json.tool 2>/dev/null || cat ~/.claude/settings.json 2>/dev/null || echo \"文件不存在\")",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

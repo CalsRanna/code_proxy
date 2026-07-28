@@ -11,7 +11,7 @@ import 'package:signals/signals.dart';
 
 class ModelPricingService {
   static final ModelPricingService instance = ModelPricingService._();
-  static const int _cacheSchemaVersion = 2;
+  static const int _cacheSchemaVersion = 3;
   static const List<String> _supportedProviders = [
     'anthropic',
     'deepseek',
@@ -203,6 +203,10 @@ class ModelPricingService {
 
       final modelId = entry.key.replaceFirst('$provider/', '');
 
+      final limit = modelData['limit'] as Map<String, dynamic>?;
+      final contextWindow =
+          (limit?['context'] as num?)?.toInt();
+
       _pricingMap.putIfAbsent(
         modelId,
         () => ModelPricingEntity(
@@ -211,6 +215,7 @@ class ModelPricingService {
           outputPrice: outputPrice,
           cacheWritePrice: cacheWritePrice,
           cacheReadPrice: cacheReadPrice,
+          contextWindow: contextWindow,
         ),
       );
     }

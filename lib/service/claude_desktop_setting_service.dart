@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
@@ -141,9 +140,6 @@ class ClaudeDesktopSettingService {
   }
 
   Map<String, dynamic> _buildProfile(int port, String token) {
-    // 尝试从上游获取模型列表
-    final models = _buildModelList();
-
     return {
       'inferenceProvider': 'gateway',
       'inferenceGatewayBaseUrl': 'http://localhost:$port',
@@ -152,44 +148,7 @@ class ClaudeDesktopSettingService {
       'inferenceCredentialKind': 'static',
       'disableDeploymentModeChooser': true,
       'coworkEgressAllowedHosts': ['*'],
-      if (models.isNotEmpty) 'inferenceModels': models,
     };
-  }
-
-  /// 从 Code Proxy 端点配置和 default_model.yaml 获取模型列表。
-  ///
-  /// 所有模型均标记 supports1m，因为当前上游端点（如 AnyRouter）
-  /// 已将 1M 上下文设为默认要求。
-  static List<Map<String, dynamic>> _buildModelList() {
-    final models = <Map<String, dynamic>>[];
-    final seen = <String>{};
-
-    try {
-      final config = ClaudeCodeModelConfigService.instance.config;
-      for (final modelId in [
-        config.anthropicDefaultOpusModel,
-        config.anthropicDefaultSonnetModel,
-        config.anthropicDefaultHaikuModel,
-      ]) {
-        if (modelId.isNotEmpty && seen.add(modelId)) {
-          models.add({
-            'name': modelId,
-            'supports1m': true,
-            'prefer1m': true,
-          });
-        }
-      }
-    } catch (_) {}
-
-    // 如果配置为空，使用 fallback 列表
-    if (models.isEmpty) {
-      models.addAll([
-        {'name': 'claude-opus-5', 'supports1m': true, 'prefer1m': true},
-        {'name': 'claude-fable-5', 'supports1m': true, 'prefer1m': true},
-      ]);
-    }
-
-    return models;
   }
 
   /// 在指定的 claude_desktop_config.json 中设置 deploymentMode。
