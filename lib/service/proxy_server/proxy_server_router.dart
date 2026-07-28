@@ -27,6 +27,9 @@ class ProxyServerRouter {
        _onEndpointUnavailable = onEndpointUnavailable,
        _onEndpointRestored = onEndpointRestored;
 
+  /// 是否有至少一个端点可用（断路器未打开）。
+  bool get hasAvailableEndpoints => _buildAvailableEndpoints().isNotEmpty;
+
   /// 获取当前可用端点列表（供调试使用）
   List<EndpointEntity> get endpoints =>
       List.unmodifiable(_buildAvailableEndpoints());

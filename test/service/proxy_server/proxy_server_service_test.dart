@@ -24,14 +24,13 @@ void main() {
       upstreamServers.clear();
     });
 
-    test('count_tokens 黑名单命中 5xx 时应直接返回首个上游响应', () async {
+    test('count_tokens 由本地应答器处理，不转发到上游', () async {
       var firstHits = 0;
       var secondHits = 0;
       upstreamServers.add(
         await _startUpstreamServer((request) async {
           firstHits++;
           request.response.statusCode = HttpStatus.internalServerError;
-          request.response.write('count_tokens unsupported');
           await request.response.close();
         }),
       );
@@ -67,27 +66,33 @@ void main() {
           'content-type': 'application/json',
           'x-api-key': 'client-token',
         },
-        body: jsonEncode({'model': 'claude-3-7-sonnet'}),
+        body: jsonEncode({
+          'model': 'claude-opus-5',
+          'messages': [{'role': 'user', 'content': 'Hello'}],
+        }),
       );
 
-      expect(response.statusCode, HttpStatus.internalServerError);
-      expect(response.body, 'count_tokens unsupported');
-      expect(firstHits, 1);
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      expect(body.containsKey('input_tokens'), isTrue);
+      expect(body['input_tokens'], greaterThan(0));
+      // 不应转发到上游
+      expect(firstHits, 0);
       expect(secondHits, 0);
+      // 不应触发断路器
       expect(
         service!.getOpenCircuitBreakerEndpointIds({'ep-1', 'ep-2'}),
         isEmpty,
       );
     });
 
-    test('count_tokens 黑名单命中异常时应直接返回原始错误且不故障转移', () async {
-      var secondHits = 0;
-      final unusedPort = await _allocateUnusedPort();
+    test('count_tokens 异常也由本地应答器安全兜底', () async {
+      // 本地应答器即使没有端点也不会转发，返回 200 + 估算值
+      var hit = false;
       upstreamServers.add(
         await _startUpstreamServer((request) async {
-          secondHits++;
+          hit = true;
           request.response.statusCode = HttpStatus.ok;
-          request.response.write('should not be reached');
           await request.response.close();
         }),
       );
@@ -100,9 +105,9 @@ void main() {
           circuitBreakerFailureThreshold: 1,
         ),
       );
+      // 只有一个端点，但 count_tokens 不应使用它
       service!.endpoints = [
-        _buildEndpoint('ep-1', unusedPort),
-        _buildEndpoint('ep-2', upstreamServers[0].port),
+        _buildEndpoint('ep-1', upstreamServers[0].port),
       ];
       await service!.start();
 
@@ -111,23 +116,12 @@ void main() {
         Uri.parse(
           'http://127.0.0.1:${service!.boundPort}/v1/messages/count_tokens',
         ),
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': 'client-token',
-        },
+        headers: {'content-type': 'application/json', 'x-api-key': 'ct'},
         body: jsonEncode({'model': 'claude-3-7-sonnet'}),
       );
 
-      expect(response.statusCode, HttpStatus.internalServerError);
-      expect(
-        response.body,
-        anyOf(contains('Connection refused'), contains('SocketException')),
-      );
-      expect(secondHits, 0);
-      expect(
-        service!.getOpenCircuitBreakerEndpointIds({'ep-1', 'ep-2'}),
-        isEmpty,
-      );
+      expect(response.statusCode, HttpStatus.ok);
+      expect(hit, false);
     });
 
     test('4xx 响应应直接返回且不重试不熔断', () async {
@@ -201,11 +195,4 @@ Future<HttpServer> _startUpstreamServer(
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   server.listen(handler);
   return server;
-}
-
-Future<int> _allocateUnusedPort() async {
-  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-  final port = server.port;
-  await server.close(force: true);
-  return port;
 }

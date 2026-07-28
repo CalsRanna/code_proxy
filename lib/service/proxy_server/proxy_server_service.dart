@@ -9,6 +9,7 @@ import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -17,9 +18,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 class ProxyServerService {
-  static const Set<String> _failurePassthroughPaths = {
-    '/v1/messages/count_tokens',
-  };
+  static const Set<String> _failurePassthroughPaths = <String>{};
 
   final ProxyServerConfig config;
 
@@ -31,6 +30,7 @@ class ProxyServerService {
   late final ProxyServerRouter _router;
   late final ProxyServerRequestHandler _requestHandler;
   late final ProxyServerResponseHandler _responseHandler;
+  late final ProxyServerLocalResponder _localResponder;
   late final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
   HttpServer? _server;
 
@@ -54,6 +54,7 @@ class ProxyServerService {
     _responseHandler = ProxyServerResponseHandler(
       onRequestCompleted: onRequestCompleted,
     );
+    _localResponder = ProxyServerLocalResponder(_router);
   }
 
   set endpoints(List<EndpointEntity> endpoints) {
@@ -110,6 +111,12 @@ class ProxyServerService {
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
     final rawBody = await request.read().expand((x) => x).toList();
+
+    // 本地应答: 对健康检查、count_tokens 等请求直接返回，
+    // 避免不必要的上游网络往返。
+    final localResponse = _localResponder.tryRespond(request, rawBody);
+    if (localResponse != null) return localResponse;
+
     final routeSession = _router.startRequest();
     final allowCircuitBreakerOnFailure = !_shouldPassthroughFailureHandling(
       request.requestedUri.path,
