@@ -74,7 +74,9 @@
       "Bash(bash /Users/cals/.claude/skills/yt-task-management/scripts/yt-get.sh comments DE4-342090 100)",
       "Bash(grep -rl \"YT_TOKEN\" /Users/cals/.zshrc /Users/cals/.zprofile /Users/cals/.bash_profile /Users/cals/.bashrc /Users/cals/.zshenv 2>/dev/null; echo \"---done---\")",
       "Bash(cat ~/.claude/settings.json 2>/dev/null | python3 -m json.tool 2>/dev/null || cat ~/.claude/settings.json 2>/dev/null || echo \"文件不存在\")",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)"
     ],
     "deny": []
   }
