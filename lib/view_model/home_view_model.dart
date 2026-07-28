@@ -7,6 +7,7 @@ import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/claude_code_audit_service.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
+import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/notification_util.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
@@ -233,6 +234,7 @@ class HomeViewModel {
     await _proxyServer?.stop();
     _proxyServer = null;
     await ClaudeCodeSettingService().updateProxySetting();
+    await ClaudeDesktopSettingService().updateProxySetting();
     final instance = SharedPreferenceUtil.instance;
     final apiTimeout = await instance.getApiTimeout();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
@@ -330,6 +332,7 @@ class HomeViewModel {
       circuitBreakerRecoveryTimeoutMs: cbRecovery,
     );
     await ClaudeCodeSettingService().updateProxySetting();
+    await ClaudeDesktopSettingService().updateProxySetting();
     _proxyServer ??= ProxyServerService(
       config: config,
       onRequestCompleted: handleRequestCompleted,

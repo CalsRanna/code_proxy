@@ -193,8 +193,12 @@ class ProxyServerRequestHandler {
     // 准备请求头
     final headers = _prepareHeaders(request, endpoint);
 
-    // 处理请求体中的模型映射
-    final processedBody = _processRequestBody(rawBody, endpoint);
+    // 处理请求体中的模型映射和 1M 上下文参数
+    final processedBody = _processRequestBody(
+      rawBody,
+      endpoint,
+      path: request.url.path,
+    );
 
     return http.Request(request.method, uri)
       ..headers.addAll(headers)
@@ -239,7 +243,38 @@ class ProxyServerRequestHandler {
     //   - es_compression (pub.dev/packages/es_compression): FFI 实现，
     //     同时支持 brotli/lz4/zstd，性能更好但需要预编译二进制
     headers['accept-encoding'] = 'gzip, deflate';
+
+    // 自动注入 1M 上下文支持头。
+    //
+    // 某些上游端点（如 AnyRouter）已将 1M 上下文设为默认要求，
+    // 不携带此头的请求会被拒绝。Claude Desktop 的健康检查探针
+    // 不发送此头，会导致探针失败。
+    _injectOneMContextHeader(headers, request.requestedUri.path);
+
     return headers;
+  }
+
+  /// 注入 1M 上下文需要的 beta 头和请求体参数。
+  ///
+  /// 某些上游端点（如 AnyRouter）要求同时具备：
+  ///   - anthropic-beta: context-1m-2025-08-07,max-tokens-1m
+  ///   - thinking: {"type": "adaptive"}
+  ///   - max_tokens >= 32000
+  ///
+  /// Claude Desktop 的健康检查探针不包含这些参数，会导致 400 错误。
+  void _injectOneMContextHeader(Map<String, String> headers, String path) {
+    if (path != '/v1/messages') return;
+
+    // 注入 context-1m 和 max-tokens-1m beta 标记
+    const requiredBetas = ['context-1m-2025-08-07', 'max-tokens-1m'];
+    final existing = headers['anthropic-beta'];
+    final parts = existing != null ? existing.split(',') : <String>[];
+    for (final beta in requiredBetas) {
+      if (!parts.any((p) => p.trim() == beta)) {
+        parts.add(beta);
+      }
+    }
+    headers['anthropic-beta'] = parts.join(',');
   }
 
   /// 根据客户端原始的认证方式替换 key 值
@@ -262,14 +297,19 @@ class ProxyServerRequestHandler {
     }
   }
 
-  /// 处理请求体中的模型映射
-  List<int> _processRequestBody(List<int> rawBody, EndpointEntity endpoint) {
+  /// 处理请求体中的模型映射和 1M 上下文参数注入。
+  List<int> _processRequestBody(
+    List<int> rawBody,
+    EndpointEntity endpoint, {
+    String path = '/v1/messages',
+  }) {
     try {
       final bodyString = utf8.decode(rawBody, allowMalformed: true);
       if (bodyString.isEmpty) return rawBody;
 
       final bodyJson = jsonDecode(bodyString) as Map<String, dynamic>;
 
+      // 模型映射
       if (bodyJson.containsKey('model')) {
         final originalModel = bodyJson['model'] as String?;
         final mappedModel = ProxyServerModelMapper.mapModel(
@@ -286,10 +326,37 @@ class ProxyServerRequestHandler {
         }
       }
 
+      // 注入 1M 上下文参数（仅 /v1/messages）
+      if (path == '/v1/messages') {
+        _injectOneMContextBody(bodyJson);
+      }
+
       return utf8.encode(jsonEncode(bodyJson));
     } catch (e) {
       LoggerUtil.instance.w('Failed to parse/replace model in body: $e');
       return rawBody;
+    }
+  }
+
+  /// 注入 1M 上下文需要的请求体参数。
+  ///
+  /// 仅当客户端未自行提供这些参数时才注入：
+  ///   - thinking 缺失时注入 adaptive thinking
+  ///   - max_tokens 缺失或 < 32000 时设为 32000
+  ///
+  /// Claude Code 已自行发送这些参数，此注入对其无影响。
+  void _injectOneMContextBody(Map<String, dynamic> body) {
+    // 仅对 Claude 族模型注入（避免影响 DeepSeek 等非 Claude 端点）
+    final model = body['model'] as String?;
+    if (model == null || !model.startsWith('claude-')) return;
+
+    if (!body.containsKey('thinking')) {
+      body['thinking'] = {'type': 'adaptive'};
+    }
+
+    final maxTokens = body['max_tokens'];
+    if (maxTokens == null || (maxTokens is int && maxTokens < 32000)) {
+      body['max_tokens'] = 32000;
     }
   }
 }

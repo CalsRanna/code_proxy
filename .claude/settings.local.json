@@ -58,7 +58,11 @@
       "Read(//Users/cals/Library/Containers/**)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(dart pub *)"
+      "Bash(dart pub *)",
+      "Bash(xargs -I{} cat \"~/.code_proxy/audit/2026-07-28/{}\")",
+      "Bash(xargs -I{} cat ~/.code_proxy/audit/2026-07-28/{})",
+      "Bash(read f *)",
+      "Bash(read id *)"
     ],
     "deny": []
   }
