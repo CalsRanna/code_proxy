@@ -182,20 +182,15 @@ class _RequestLogPageState extends State<RequestLogPage> {
                 break;
               case 2:
                 child = Text(
-                  (log.originalModel?.isNotEmpty == true
-                          ? log.originalModel
-                          : log.model) ??
-                      '-',
+                  log.model ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 );
                 break;
               case 3:
                 child = statusCode == 200
-                    ? ShadBadge.secondary(
-                        child: Text(statusCode.toString()))
-                    : ShadBadge.destructive(
-                        child: Text(statusCode.toString()));
+                    ? ShadBadge.secondary(child: Text(statusCode.toString()))
+                    : ShadBadge.destructive(child: Text(statusCode.toString()));
                 break;
               case 4:
                 child = Text(
@@ -203,9 +198,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
                 );
                 break;
               case 5:
-                child = Text(
-                  statusCode != 200 ? '-' : tokenText,
-                );
+                child = Text(statusCode != 200 ? '-' : tokenText);
                 break;
               default:
                 child = const SizedBox.shrink();
@@ -254,9 +247,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
               builder: (context) => RequestLogDetailDialog(
                 log: log,
                 onAudit: () {
-                  context.router.push(
-                    AuditDetailRoute(log: log),
-                  );
+                  context.router.push(AuditDetailRoute(log: log));
                 },
               ),
             );

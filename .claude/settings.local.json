@@ -62,7 +62,8 @@
       "Bash(xargs -I{} cat \"~/.code_proxy/audit/2026-07-28/{}\")",
       "Bash(xargs -I{} cat ~/.code_proxy/audit/2026-07-28/{})",
       "Bash(read f *)",
-      "Bash(read id *)"
+      "Bash(read id *)",
+      "Bash(cat ~/.claude/settings.json 2>/dev/null || echo \"File not found\")"
     ],
     "deny": []
   }
