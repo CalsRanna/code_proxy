@@ -6,6 +6,68 @@ import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
 import 'package:uuid/uuid.dart';
 
+class ClaudeDesktopConfigPaths {
+  const ClaudeDesktopConfigPaths({
+    required this.normalConfigDir,
+    required this.threepConfigDir,
+  });
+
+  factory ClaudeDesktopConfigPaths.current() {
+    return ClaudeDesktopConfigPaths.resolve(
+      operatingSystem: Platform.operatingSystem,
+      environment: Platform.environment,
+      homeDirectory: PathUtil.instance.getHomeDirectory(),
+    );
+  }
+
+  factory ClaudeDesktopConfigPaths.resolve({
+    required String operatingSystem,
+    required Map<String, String> environment,
+    required String homeDirectory,
+  }) {
+    switch (operatingSystem) {
+      case 'macos':
+        final applicationSupport = join(
+          homeDirectory,
+          'Library',
+          'Application Support',
+        );
+        return ClaudeDesktopConfigPaths(
+          normalConfigDir: join(applicationSupport, 'Claude'),
+          threepConfigDir: join(applicationSupport, 'Claude-3p'),
+        );
+      case 'windows':
+        final appData = environment['APPDATA'];
+        final localAppData = environment['LOCALAPPDATA'];
+        final normalConfigRoot = appData == null || appData.trim().isEmpty
+            ? join(homeDirectory, 'AppData', 'Roaming')
+            : appData;
+        final threepConfigRoot =
+            localAppData == null || localAppData.trim().isEmpty
+            ? join(homeDirectory, 'AppData', 'Local')
+            : localAppData;
+        return ClaudeDesktopConfigPaths(
+          normalConfigDir: join(normalConfigRoot, 'Claude'),
+          threepConfigDir: join(threepConfigRoot, 'Claude-3p'),
+        );
+      case 'linux':
+        final configRoot = join(homeDirectory, '.config');
+        return ClaudeDesktopConfigPaths(
+          normalConfigDir: join(configRoot, 'Claude'),
+          threepConfigDir: join(configRoot, 'Claude-3p'),
+        );
+      default:
+        return ClaudeDesktopConfigPaths(
+          normalConfigDir: join(homeDirectory, '.claude'),
+          threepConfigDir: join(homeDirectory, '.claude-3p'),
+        );
+    }
+  }
+
+  final String normalConfigDir;
+  final String threepConfigDir;
+}
+
 /// 管理 Claude Desktop 的第三方推理 (3P) 配置。
 ///
 /// ## 工作原理
@@ -30,29 +92,13 @@ class ClaudeDesktopSettingService {
   static const _profileName = 'Code Proxy';
   static const _profileId = '00000000-0000-4000-8000-0000c0de0001';
 
-  String get _home => PathUtil.instance.getHomeDirectory();
+  ClaudeDesktopSettingService({ClaudeDesktopConfigPaths? paths})
+    : _paths = paths ?? ClaudeDesktopConfigPaths.current();
 
-  String get _normalConfigDir {
-    if (Platform.isMacOS) {
-      return join(_home, 'Library', 'Application Support', 'Claude');
-    } else if (Platform.isWindows) {
-      return join(_home, 'AppData', 'Roaming', 'Claude');
-    } else if (Platform.isLinux) {
-      return join(_home, '.config', 'Claude');
-    }
-    return join(_home, '.claude');
-  }
+  final ClaudeDesktopConfigPaths _paths;
 
-  String get _threepConfigDir {
-    if (Platform.isMacOS) {
-      return join(_home, 'Library', 'Application Support', 'Claude-3p');
-    } else if (Platform.isWindows) {
-      return join(_home, 'AppData', 'Roaming', 'Claude-3p');
-    } else if (Platform.isLinux) {
-      return join(_home, '.config', 'Claude-3p');
-    }
-    return join(_home, '.claude-3p');
-  }
+  String get _normalConfigDir => _paths.normalConfigDir;
+  String get _threepConfigDir => _paths.threepConfigDir;
 
   String get _configLibraryDir => join(_threepConfigDir, 'configLibrary');
   String get _profilePath => join(_configLibraryDir, '$_profileId.json');
