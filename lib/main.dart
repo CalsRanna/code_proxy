@@ -56,6 +56,9 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
   }
 
   bool _handleKeyEvent(KeyEvent event) {
+    // Cmd+W 隐藏窗口仅适用于 macOS（隐藏标题栏 + 自定义按钮的配套行为）。
+    // Windows 的 Win+W（小组件面板）和 Linux 的 Meta+W 不应触发此逻辑。
+    if (!Platform.isMacOS) return false;
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.keyW &&
         HardwareKeyboard.instance.isMetaPressed) {

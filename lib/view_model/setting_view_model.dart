@@ -9,6 +9,7 @@ import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/app_restart_util.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
 import 'package:flutter/material.dart';
@@ -150,15 +151,23 @@ class SettingViewModel {
     }
     _loadPricingInfo();
 
-    // 加载默认模型映射
+    // 加载默认模型映射（配置缺失/损坏时降级为空值，不阻塞设置页）
     final configService = ClaudeCodeModelConfigService.instance;
+    String defaultHaiku = '';
+    String defaultSonnet = '';
+    String defaultOpus = '';
     try {
       await configService.load();
-    } catch (_) {}
-    final modelConfig = configService.config;
-    defaultHaikuModel.value = modelConfig.anthropicDefaultHaikuModel;
-    defaultSonnetModel.value = modelConfig.anthropicDefaultSonnetModel;
-    defaultOpusModel.value = modelConfig.anthropicDefaultOpusModel;
+      final modelConfig = configService.config;
+      defaultHaiku = modelConfig.anthropicDefaultHaikuModel;
+      defaultSonnet = modelConfig.anthropicDefaultSonnetModel;
+      defaultOpus = modelConfig.anthropicDefaultOpusModel;
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to load default model mapping: $e');
+    }
+    defaultHaikuModel.value = defaultHaiku;
+    defaultSonnetModel.value = defaultSonnet;
+    defaultOpusModel.value = defaultOpus;
 
     // 加载通知配置
     notificationEnabled.value = await SharedPreferenceUtil.instance.getNotificationEnabled();
@@ -187,10 +196,27 @@ class SettingViewModel {
       Navigator.of(context).pop();
       return;
     }
-    SharedPreferenceUtil.instance.setPort(newPort);
+    final oldPort = port.value;
+    await SharedPreferenceUtil.instance.setPort(newPort);
     port.value = newPort;
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
-    await homeViewModel.restartProxyServer(newPort);
+    try {
+      await homeViewModel.restartProxyServer(newPort);
+    } catch (e) {
+      // 重启失败：回滚端口设置（旧服务已由 restartProxyServer 恢复）
+      LoggerUtil.instance.e('Failed to restart proxy server on new port: $e');
+      await SharedPreferenceUtil.instance.setPort(oldPort);
+      port.value = oldPort;
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return _buildAlertDialog(context, '监听端口', '代理服务器启动失败：$e\n已恢复原端口。');
+        },
+      );
+      return;
+    }
     if (!context.mounted) return;
     Navigator.of(context).pop();
     showShadDialog(
@@ -264,7 +290,19 @@ class SettingViewModel {
     if (!context.mounted) return;
     Navigator.of(context).pop();
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
-    await homeViewModel.restartProxyServer(port.value);
+    try {
+      await homeViewModel.restartProxyServer(port.value);
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to restart proxy server: $e');
+      if (!context.mounted) return;
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return _buildAlertDialog(context, '端点熔断阈值', '代理服务器重启失败：$e');
+        },
+      );
+      return;
+    }
     if (!context.mounted) return;
     showShadDialog(
       context: context,
@@ -303,7 +341,19 @@ class SettingViewModel {
     if (!context.mounted) return;
     Navigator.of(context).pop();
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
-    await homeViewModel.restartProxyServer(port.value);
+    try {
+      await homeViewModel.restartProxyServer(port.value);
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to restart proxy server: $e');
+      if (!context.mounted) return;
+      showShadDialog(
+        context: context,
+        builder: (context) {
+          return _buildAlertDialog(context, '端点恢复超时', '代理服务器重启失败：$e');
+        },
+      );
+      return;
+    }
     if (!context.mounted) return;
     showShadDialog(
       context: context,

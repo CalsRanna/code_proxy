@@ -47,7 +47,6 @@ class EndpointViewModel {
     String? note,
     String? anthropicAuthToken,
     String? anthropicBaseUrl,
-    int? apiTimeoutMs,
     String? anthropicDefaultHaikuModel,
     String? anthropicDefaultSonnetModel,
     String? anthropicDefaultOpusModel,
@@ -151,13 +150,11 @@ class EndpointViewModel {
   }
 
   /// 重新排序端点列表并更新 weight 字段
+  ///
+  /// 注意：newIndex 来自 onReorderItem 回调，已按移除 oldIndex 后的
+  /// 列表调整过，直接插入即可。
   Future<void> reorderEndpoints(int oldIndex, int newIndex) async {
     final currentEndpoints = List<EndpointEntity>.from(endpoints.value);
-
-    // 如果目标位置在原位置之前，调整索引
-    if (newIndex > oldIndex) {
-      newIndex -= 1;
-    }
 
     // 移动元素
     final movedEndpoint = currentEndpoints.removeAt(oldIndex);

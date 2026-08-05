@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
@@ -122,13 +123,25 @@ void main() {
         expect(response, isNull);
       });
 
-      test('GET /v1/models 返回 null（正常转发）', () {
+      test('GET /v1/models 返回本地模型列表（与 Profile 配置一致）', () async {
+        // 写入一份默认模型配置，确保 /v1/models 有可用的数据源
+        final service = ClaudeCodeModelConfigService.instance;
+        // 配置加载失败时（如未初始化），本地应答器返回空模型列表而非崩溃
+        try {
+          await service.load();
+        } catch (_) {}
         final request = shelf.Request(
           'GET',
           Uri.parse('http://localhost:9000/v1/models'),
         );
         final response = responder.tryRespond(request, []);
-        expect(response, isNull);
+        expect(response, isNotNull);
+        expect(response!.statusCode, 200);
+        final respBody = await response.readAsString();
+        final json = jsonDecode(respBody) as Map<String, dynamic>;
+        expect(json['data'], isA<List<dynamic>>());
+        // 至少返回默认配置里的 Haiku / Sonnet / Opus 三个模型
+        expect(json['data'], isNotEmpty);
       });
     });
   });

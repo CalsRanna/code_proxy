@@ -81,6 +81,20 @@ class ProxyServerRouter {
       _onEndpointRestored?.call(endpoint);
     }
   }
+
+  /// 记录一次失败（供流式响应中途中断等主循环之外的异步失败路径使用）。
+  ///
+  /// 与主循环中 hasNext 的失败处理共享同一个断路器计数与打开回调。
+  void recordFailure(EndpointEntity endpoint) {
+    final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
+    breaker.recordFailure();
+    if (breaker.state == ProxyServerCircuitBreakerState.open) {
+      LoggerUtil.instance.w(
+        'Endpoint ${endpoint.name} circuit breaker opened (stream failure)',
+      );
+      _onEndpointUnavailable?.call(endpoint);
+    }
+  }
 }
 
 /// 单个请求的路由会话。
@@ -151,7 +165,8 @@ class ProxyServerRouteSession {
   /// - false: 上一次失败，统一按断路器机制决定重试或故障转移
   ///
   /// [applyCircuitBreakerOnFailure] 为 false 时，失败不会触发重试、
-  /// 故障转移或断路器计数，调用方会直接返回当前结果。
+  /// 故障转移或断路器计数，调用方会直接返回当前结果
+  /// （该能力当前由黑名单路径测试覆盖）。
   Future<bool> hasNext(
     bool? previousSucceeded, {
     bool applyCircuitBreakerOnFailure = true,

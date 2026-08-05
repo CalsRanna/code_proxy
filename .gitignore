@@ -4,6 +4,9 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Windows 保留设备名（防止重定向误写产生名为 nul 的文件）
+/nul
 .atom/
 .build/
 .buildlog/

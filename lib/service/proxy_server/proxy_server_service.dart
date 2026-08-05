@@ -17,8 +17,6 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 class ProxyServerService {
-  static const Set<String> _failurePassthroughPaths = <String>{};
-
   final ProxyServerConfig config;
 
   final void Function(EndpointEntity)? onEndpointUnavailable;
@@ -52,6 +50,8 @@ class ProxyServerService {
     _requestHandler = ProxyServerRequestHandler(config);
     _responseHandler = ProxyServerResponseHandler(
       onRequestCompleted: onRequestCompleted,
+      // 流式响应中途中断时补记一次失败，避免断路器把损坏的流记为成功
+      onStreamError: (endpoint) => _router.recordFailure(endpoint),
     );
     _localResponder = ProxyServerLocalResponder(_router);
   }
@@ -117,24 +117,12 @@ class ProxyServerService {
     if (localResponse != null) return localResponse;
 
     final routeSession = _router.startRequest();
-    final allowCircuitBreakerOnFailure = !_shouldPassthroughFailureHandling(
-      request.requestedUri.path,
-    );
-    var applyCircuitBreakerOnPreviousFailure = allowCircuitBreakerOnFailure;
-    String? skipFailureHandlingReason = allowCircuitBreakerOnFailure
-        ? null
-        : 'request path ${_normalizePath(request.requestedUri.path)} bypasses failure handling';
-
     bool? previousSucceeded;
     shelf.Response? finalResponse;
     Object? lastException;
 
     // 循环尝试端点
-    while (await routeSession.hasNext(
-      previousSucceeded,
-      applyCircuitBreakerOnFailure: applyCircuitBreakerOnPreviousFailure,
-      skipFailureHandlingReason: skipFailureHandlingReason,
-    )) {
+    while (await routeSession.hasNext(previousSucceeded)) {
       final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
@@ -160,30 +148,27 @@ class ProxyServerService {
           forwardedHeaders: preparedRequest.headers,
         );
 
-        previousSucceeded =
-            response.statusCode >= 200 && response.statusCode < 300;
-        applyCircuitBreakerOnPreviousFailure =
-            allowCircuitBreakerOnFailure &&
-            _shouldApplyCircuitBreakerOnFailure(response.statusCode);
-        skipFailureHandlingReason = applyCircuitBreakerOnPreviousFailure
-            ? null
-            : 'upstream returned ${response.statusCode}';
-
-        if (previousSucceeded) {
+        // 2xx/3xx 均为成功透传：3xx（重定向/缓存语义）不视为端点故障，
+        // 不重试、不进断路器。
+        if (response.statusCode >= 200 && response.statusCode < 400) {
+          previousSucceeded = true;
           break;
         }
-        // 失败响应：统一通过路由器中的断路器机制决定重试或故障转移
+        // 4xx 为客户端错误：直接返回，不重试、不熔断、不故障转移
+        // （端点本身没有故障，是请求的问题）。
+        if (response.statusCode >= 400 && response.statusCode < 500) {
+          previousSucceeded = false;
+          break;
+        }
+        // 5xx 及以上：端点故障，统一通过断路器机制决定重试或故障转移
+        previousSucceeded = false;
       } catch (e) {
         // header 未达瞬时错误:原端点透明重试,不污染断路器/不重建 client。
         //
         // 安全性说明:此时代理虽未向客户端写入任何字节,但**无法确定上游是否
         // 已执行甚至完成推理**——重发 POST 可能导致上游重复推理与重复计费。
         // 这是经权衡后接受的风险(换取长任务的成功率),并非无副作用的安全重试。
-        //
-        // 黑名单路径(如 count_tokens)语义为"失败即返回、不重试不故障转移",
-        // 故以 allowCircuitBreakerOnFailure 为前置守卫,不对其透明重试。
-        if (allowCircuitBreakerOnFailure &&
-            routeSession.shouldTransientRetry(endpoint, e)) {
+        if (routeSession.shouldTransientRetry(endpoint, e)) {
           final used = routeSession.transientRetriesUsedFor(endpoint);
           routeSession.recordTransientRetry(endpoint);
           // 中间失败仅记日志,不入 request_logs,避免污染失败率/请求量统计。
@@ -206,12 +191,8 @@ class ProxyServerService {
           );
         }
 
-        // 异常默认走统一失败处理；黑名单路径会直接返回原始错误
+        // 异常走统一失败处理
         previousSucceeded = false;
-        applyCircuitBreakerOnPreviousFailure = allowCircuitBreakerOnFailure;
-        skipFailureHandlingReason = allowCircuitBreakerOnFailure
-            ? null
-            : 'request path ${_normalizePath(request.requestedUri.path)} bypasses failure handling';
         lastException = e;
         LoggerUtil.instance.e('Exception during request: $e');
 
@@ -222,16 +203,10 @@ class ProxyServerService {
           requestBodyBytes: rawBody,
           startTime: startTime,
           error: e,
-          statusCode: allowCircuitBreakerOnFailure
-              ? HttpStatus.badGateway
-              : HttpStatus.internalServerError,
+          statusCode: HttpStatus.badGateway,
           mappedRequestBodyBytes: preparedRequest?.bodyBytes,
           forwardedHeaders: preparedRequest?.headers,
         );
-
-        if (!allowCircuitBreakerOnFailure) {
-          finalResponse = _responseHandler.buildExceptionResponse(e);
-        }
       }
     }
 
@@ -243,18 +218,5 @@ class ProxyServerService {
           : 'All endpoints failed';
       return shelf.Response.internalServerError(body: message);
     }
-  }
-
-  static bool _shouldPassthroughFailureHandling(String path) {
-    return _failurePassthroughPaths.contains(_normalizePath(path));
-  }
-
-  static bool _shouldApplyCircuitBreakerOnFailure(int statusCode) {
-    return statusCode < 400 || statusCode >= 500;
-  }
-
-  static String _normalizePath(String path) {
-    if (path.isEmpty) return '/';
-    return path.startsWith('/') ? path : '/$path';
   }
 }

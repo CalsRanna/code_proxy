@@ -16,12 +16,17 @@ class ProxyServerResponseHandler {
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   _onRequestCompleted;
 
+  /// 流式响应中途中断时回调（用于对端点补记失败）。
+  final void Function(EndpointEntity)? _onStreamError;
+
   ProxyServerResponseHandler({
     void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
     onRequestCompleted,
+    void Function(EndpointEntity)? onStreamError,
   }) : _processor = const ResponseProcessor(),
        _tokenExtractor = const TokenExtractor(),
-       _onRequestCompleted = onRequestCompleted;
+       _onRequestCompleted = onRequestCompleted,
+       _onStreamError = onStreamError;
 
   /// 处理HTTP响应并判断是否需要继续
   Future<shelf.Response?> handleResponse(
@@ -237,6 +242,7 @@ class ProxyServerResponseHandler {
           mappedRequestBodyBytes: mappedRequestBodyBytes,
           forwardedHeaders: forwardedHeaders,
         ),
+        onStreamError: () => _onStreamError?.call(endpoint),
       );
     } else {
       // 非流式响应：在读取完响应体后计算响应时间并提取 token
@@ -305,7 +311,6 @@ class ProxyServerResponseHandler {
       headers: response.headers,
       forwardedHeaders: forwardedResponseHeaders,
       responseTime: responseTime,
-      timeToFirstByte: null,
       usage: tokenUsage,
       errorBody: errorBody,
       responseBody: responseBody,
@@ -437,8 +442,9 @@ class ResponseProcessor {
       String responseBody,
     )
     recordStats,
-    void Function(Object error) recordException,
-  ) {
+    void Function(Object error) recordException, {
+    void Function()? onStreamError,
+  }) {
     int? inputTokens;
     int? outputTokens;
     int? cacheCreationTokens;
@@ -446,6 +452,18 @@ class ResponseProcessor {
     final responseChunks = <String>[];
     final isCompressed = contentEncoding != null && contentEncoding.isNotEmpty;
     final rawChunks = isCompressed ? <List<int>>[] : null;
+
+    // 非压缩流：使用带内部状态的 chunked decoder。
+    // 逐 chunk 独立 decode 会把跨 chunk 边界的多字节 UTF-8 字符截断成
+    // U+FFFD 替换符（中文响应体审计日志偶发乱码），chunked 模式在
+    // decoder 内部维护 carry 字节，只有真正损坏的序列才产生替换符。
+    final utf8Buffer = StringBuffer();
+    final utf8Sink = isCompressed
+        ? null
+        : const Utf8Decoder(allowMalformed: true).startChunkedConversion(
+            // StringBuffer 不是 Sink<String>，需经 StringConversionSink 桥接
+            StringConversionSink.fromStringSink(utf8Buffer),
+          );
 
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
@@ -457,7 +475,10 @@ class ResponseProcessor {
             // 压缩数据先收集，流结束后统一解压
             rawChunks!.add(chunk);
           } else {
-            final text = utf8.decode(chunk, allowMalformed: true);
+            utf8Sink!.add(chunk);
+            final text = utf8Buffer.toString();
+            utf8Buffer.clear();
+            if (text.isEmpty) return;
             responseChunks.add(text);
             inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
             outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
@@ -480,6 +501,11 @@ class ResponseProcessor {
             );
             final text = utf8.decode(decompressed, allowMalformed: true);
             responseChunks.add(text);
+          } else {
+            // 刷新 decoder 尾部缓冲（跨 chunk 的不完整序列在此收尾）
+            utf8Sink!.close();
+            final tail = utf8Buffer.toString();
+            if (tail.isNotEmpty) responseChunks.add(tail);
           }
 
           final responseBody = responseChunks.join();
@@ -508,6 +534,9 @@ class ResponseProcessor {
         handleError: (error, stackTrace, sink) {
           LoggerUtil.instance.w('Upstream stream error: $error');
           recordException(error);
+          // 流中途失败：通知断路器对该端点补记失败，
+          // 避免“成功开始但中途损坏”的流被记为成功。
+          onStreamError?.call();
           sink.addError(error, stackTrace);
         },
       ),

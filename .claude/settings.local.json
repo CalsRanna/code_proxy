@@ -76,7 +76,14 @@
       "Bash(cat ~/.claude/settings.json 2>/dev/null | python3 -m json.tool 2>/dev/null || cat ~/.claude/settings.json 2>/dev/null || echo \"文件不存在\")",
       "WebFetch(domain:github.com)",
       "Skill(claude-api)",
-      "Skill(claude-api:*)"
+      "Skill(claude-api:*)",
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(claude --version)",
+      "Bash(scoop list *)",
+      "Bash(cat ~/scoop/apps/claude/current/manifest.json 2>&1 | head -60)",
+      "Bash(ls ~/scoop/apps/claude/current/ 2>&1 | head -40)",
+      "Bash(gh search *)",
+      "WebFetch(domain:support.claude.com)"
     ],
     "deny": []
   }

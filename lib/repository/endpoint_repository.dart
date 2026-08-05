@@ -22,16 +22,16 @@ class EndpointRepository {
 
   /// Get endpoint by ID
   Future<EndpointEntity?> getById(String id) async {
-    try {
-      final result = await _database.laconic
-          .table('endpoints')
-          .where('id', id)
-          .first();
+    // 用 limit 1 查询而非 first()：找不到时返回空列表而非抛异常，
+    // 同时不吞掉真正的数据库错误。
+    final results = await _database.laconic
+        .table('endpoints')
+        .where('id', id)
+        .limit(1)
+        .get();
 
-      return _fromRow(result.toMap());
-    } catch (e) {
-      return null;
-    }
+    if (results.isEmpty) return null;
+    return _fromRow(results.first.toMap());
   }
 
   /// Insert a new endpoint

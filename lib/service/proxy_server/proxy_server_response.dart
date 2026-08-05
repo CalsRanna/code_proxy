@@ -12,10 +12,6 @@ class ProxyServerResponse {
   /// 响应时间（毫秒）- 总时间
   final int responseTime;
 
-  /// 首字节时间（毫秒）- Time To First Byte
-  /// 对于流式响应（如 SSE），这个值表示接收到第一个数据块的时间
-  final int? timeToFirstByte;
-
   /// Token 使用量 {'input': inputTokens, 'output': outputTokens}
   /// 在 ResponseHandler 中统一解析（流式和非流式）
   /// 值可能为 null 表示解析失败
@@ -33,7 +29,6 @@ class ProxyServerResponse {
     required this.headers,
     required this.responseTime,
     this.forwardedHeaders,
-    this.timeToFirstByte,
     this.usage,
     this.errorBody,
     this.responseBody,

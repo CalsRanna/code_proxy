@@ -1,6 +1,7 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/request_log_entity.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:signals/signals.dart';
 
 class RequestLogViewModel {
@@ -26,26 +27,31 @@ class RequestLogViewModel {
   }
 
   Future<void> loadLogs() async {
-    final filter = statusCodeFilter.value;
+    try {
+      final filter = statusCodeFilter.value;
 
-    // 先获取总数，再根据总数计算有效页码，避免重复查库
-    final totalCount = await _requestLogRepository.getTotalCount(
-      statusCodeFilter: filter,
-    );
-    total.value = totalCount;
+      // 先获取总数，再根据总数计算有效页码，避免重复查库
+      final totalCount = await _requestLogRepository.getTotalCount(
+        statusCodeFilter: filter,
+      );
+      total.value = totalCount;
 
-    // 修正越界页码
-    if (currentPage.value > totalPages.value) {
-      currentPage.value = totalPages.value;
+      // 修正越界页码
+      if (currentPage.value > totalPages.value) {
+        currentPage.value = totalPages.value;
+      }
+
+      final startIndex = (currentPage.value - 1) * pageSize.value;
+      final dbLogs = await _requestLogRepository.getAll(
+        limit: pageSize.value,
+        offset: startIndex,
+        statusCodeFilter: filter,
+      );
+      logs.value = dbLogs;
+    } catch (e) {
+      // 查询失败不崩溃（该方法是代理主流程回调的常见入口）
+      LoggerUtil.instance.e('Failed to load request logs: $e');
     }
-
-    final startIndex = (currentPage.value - 1) * pageSize.value;
-    final dbLogs = await _requestLogRepository.getAll(
-      limit: pageSize.value,
-      offset: startIndex,
-      statusCodeFilter: filter,
-    );
-    logs.value = dbLogs;
   }
 
   void nextPage() {

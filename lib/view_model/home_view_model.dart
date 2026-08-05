@@ -126,10 +126,17 @@ class HomeViewModel {
       response: response,
     );
 
-    // 2. 插入数据库
-    await _requestLogRepository.insert(log);
+    // 2. 插入数据库。日志写入失败不影响代理主流程（请求已转发完成），
+    //    只记日志避免未处理异常使代理崩溃。
+    try {
+      await _requestLogRepository.insert(log);
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to insert request log: $e');
+      // 没有 log.id 则审计日志也无法归档，直接返回
+      return;
+    }
 
-    // 3. 刷新请求日志页面
+    // 3. 刷新请求日志页面（loadLogs 内部已有异常保护）
     try {
       final logViewModel = GetIt.instance.get<RequestLogViewModel>();
       logViewModel.loadLogs();
@@ -158,6 +165,7 @@ class HomeViewModel {
     } on ModelConfigException catch (e) {
       LoggerUtil.instance.e('模型配置加载失败: ${e.message}');
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
         _showConfigErrorDialog(context, e.message);
       });
       // 配置错误时不启动代理服务器
@@ -166,7 +174,8 @@ class HomeViewModel {
 
     ClaudeCodeAuditService.instance.cleanExpiredLogs();
     await ModelPricingService.instance.load();
-    await _autoStartServer();
+    if (!context.mounted) return;
+    await _autoStartServer(context);
     _subscription ??= WindowUtil.instance.stream.listen((event) {
       if (event == WindowEvent.shown && selectedIndex.value == 0) {
         final dashboardViewModel = GetIt.instance.get<DashboardViewModel>();
@@ -230,11 +239,15 @@ class HomeViewModel {
   }
 
   /// 重启代理服务器（用于端口变更等配置修改）
+  ///
+  /// 顺序：先在新端口监听成功，再改写 Claude Code 配置。
+  /// 启动失败时恢复旧服务并抛出异常，保证 Claude Code 不会指向
+  /// 一个不存在的服务；调用方负责向用户展示错误。
   Future<void> restartProxyServer(int newPort) async {
-    await _proxyServer?.stop();
+    final oldServer = _proxyServer;
+    await oldServer?.stop();
     _proxyServer = null;
-    await ClaudeCodeSettingService().updateProxySetting();
-    await ClaudeDesktopSettingService().updateProxySetting();
+
     final instance = SharedPreferenceUtil.instance;
     final apiTimeout = await instance.getApiTimeout();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
@@ -246,13 +259,34 @@ class HomeViewModel {
       circuitBreakerFailureThreshold: cbThreshold,
       circuitBreakerRecoveryTimeoutMs: cbRecovery,
     );
-    _proxyServer = ProxyServerService(
+    final newServer = ProxyServerService(
       config: config,
       onRequestCompleted: handleRequestCompleted,
       onEndpointUnavailable: handleEndpointUnavailable,
       onEndpointRestored: handleEndpointRestored,
     );
-    await _proxyServer?.start();
+
+    try {
+      // 先监听成功，失败则 settings.json 保持原样
+      await newServer.start();
+      _proxyServer = newServer;
+      // 服务已就绪后再改写 Claude Code 配置
+      await _writeProxySettings();
+    } catch (e) {
+      // 启动失败：尝试恢复旧服务，避免 Claude Code 悬空指向已停止的端口
+      if (oldServer != null) {
+        try {
+          await oldServer.start();
+          _proxyServer = oldServer;
+        } catch (e2) {
+          LoggerUtil.instance.e(
+            'Failed to restore proxy server on old port: $e2',
+          );
+        }
+      }
+      rethrow;
+    }
+
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     final enabledEndpoints = endpointViewModel.enabledEndpoints;
     _proxyServer?.endpoints = enabledEndpoints;
@@ -317,7 +351,13 @@ class HomeViewModel {
     }
   }
 
-  Future<void> _autoStartServer() async {
+  /// 将 Claude Code / Claude Desktop 配置指向当前代理端口
+  Future<void> _writeProxySettings() async {
+    await ClaudeCodeSettingService().updateProxySetting();
+    await ClaudeDesktopSettingService().updateProxySetting();
+  }
+
+  Future<void> _autoStartServer(BuildContext context) async {
     var instance = SharedPreferenceUtil.instance;
     final port = await instance.getPort();
     final apiTimeout = await instance.getApiTimeout();
@@ -331,17 +371,53 @@ class HomeViewModel {
       circuitBreakerFailureThreshold: cbThreshold,
       circuitBreakerRecoveryTimeoutMs: cbRecovery,
     );
-    await ClaudeCodeSettingService().updateProxySetting();
-    await ClaudeDesktopSettingService().updateProxySetting();
-    _proxyServer ??= ProxyServerService(
+    final server = ProxyServerService(
       config: config,
       onRequestCompleted: handleRequestCompleted,
       onEndpointUnavailable: handleEndpointUnavailable,
       onEndpointRestored: handleEndpointRestored,
     );
-    await _proxyServer?.start();
+
+    try {
+      // 先监听成功再写 Claude Code 配置：端口被占用时不能把
+      // settings.json 指向一个不存在的服务。
+      await server.start();
+      _proxyServer = server;
+      await _writeProxySettings();
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to start proxy server: $e');
+      _proxyServer = null;
+      // Claude Code 配置保持原样，明确告知用户启动失败原因
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          _showStartupErrorDialog(context, port, e);
+        }
+      });
+      return;
+    }
+
     final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
     final enabledEndpoints = endpointViewModel.enabledEndpoints;
     _proxyServer?.endpoints = enabledEndpoints;
+  }
+
+  void _showStartupErrorDialog(BuildContext context, int port, Object error) {
+    showShadDialog(
+      context: context,
+      builder: (context) => ShadDialog.alert(
+        title: const Text('代理服务器启动失败'),
+        description: Text(
+          '无法在端口 $port 上启动代理服务器：\n$error\n\n'
+          'Claude Code 的配置未被修改。请检查端口是否被其他程序占用，'
+          '然后在设置中更换监听端口。',
+        ),
+        actions: [
+          ShadButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 }

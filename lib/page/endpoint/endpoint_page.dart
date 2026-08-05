@@ -80,7 +80,7 @@ class _EndpointPageState extends State<EndpointPage> {
         // 返回不带阴影的装饰器
         return child;
       },
-      onReorder: (oldIndex, newIndex) {
+      onReorderItem: (oldIndex, newIndex) {
         viewModel.reorderEndpoints(oldIndex, newIndex);
       },
     );

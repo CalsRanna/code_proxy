@@ -1,6 +1,7 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:signals/signals.dart';
 
 class DashboardViewModel {
@@ -18,32 +19,36 @@ class DashboardViewModel {
   }
 
   Future<void> _loadChartData() async {
-    final repository = RequestLogRepository(Database.instance);
-    final endDate = DateTime.now();
-    final startDate = endDate.subtract(const Duration(days: 15));
+    try {
+      final repository = RequestLogRepository(Database.instance);
+      final endDate = DateTime.now();
+      final startDate = endDate.subtract(const Duration(days: 15));
 
-    final results = await Future.wait([
-      repository.getDailyRequestStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      ),
-      repository.getEndpointTokenStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      ),
-      repository.getModelDateTokenStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      ),
-    ]);
+      final results = await Future.wait([
+        repository.getDailyRequestStats(
+          startTimestamp: startDate.millisecondsSinceEpoch,
+          endTimestamp: endDate.millisecondsSinceEpoch,
+        ),
+        repository.getEndpointTokenStats(
+          startTimestamp: startDate.millisecondsSinceEpoch,
+          endTimestamp: endDate.millisecondsSinceEpoch,
+        ),
+        repository.getModelDateTokenStats(
+          startTimestamp: startDate.millisecondsSinceEpoch,
+          endTimestamp: endDate.millisecondsSinceEpoch,
+        ),
+      ]);
 
-    dailyRequests.value = results[0] as Map<String, int>;
-    endpointTokenUsage.value = results[1] as Map<String, int>;
-    modelDateTokenUsage.value =
-        results[2] as Map<String, Map<String, Map<String, int>>>;
+      dailyRequests.value = results[0] as Map<String, int>;
+      endpointTokenUsage.value = results[1] as Map<String, int>;
+      modelDateTokenUsage.value =
+          results[2] as Map<String, Map<String, Map<String, int>>>;
 
-    // 加载费用数据（图表用15天，总费用查全部）
-    await _loadCostData(repository, startDate, endDate);
+      // 加载费用数据（图表用15天，总费用查全部）
+      await _loadCostData(repository, startDate, endDate);
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to load dashboard chart data: $e');
+    }
   }
 
   Future<void> _loadCostData(
@@ -99,14 +104,18 @@ class DashboardViewModel {
   }
 
   Future<void> _loadHeatmapData() async {
-    final repository = RequestLogRepository(Database.instance);
-    final now = DateTime.now();
-    final startDate = DateTime(now.year, 1, 1);
-    final endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
-    final stats = await repository.getDailyRequestStats(
-      startTimestamp: startDate.millisecondsSinceEpoch,
-      endTimestamp: endDate.millisecondsSinceEpoch,
-    );
-    dailyHeatmapRequests.value = stats;
+    try {
+      final repository = RequestLogRepository(Database.instance);
+      final now = DateTime.now();
+      final startDate = DateTime(now.year, 1, 1);
+      final endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
+      final stats = await repository.getDailyRequestStats(
+        startTimestamp: startDate.millisecondsSinceEpoch,
+        endTimestamp: endDate.millisecondsSinceEpoch,
+      );
+      dailyHeatmapRequests.value = stats;
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to load heatmap data: $e');
+    }
   }
 }
