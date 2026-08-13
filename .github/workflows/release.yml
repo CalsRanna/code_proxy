@@ -60,7 +60,10 @@ jobs:
       - run: flutter build windows
 
       - name: Package Windows app
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath CodeProxy-Windows.zip
+        run: |
+          # zip 内 exe 名必须与 asset 名匹配（scoop manifest 按 asset 名解析 bin 字段）
+          Rename-Item build/windows/x64/runner/Release/code_proxy.exe CodeProxy-Windows.exe
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath CodeProxy-Windows.zip
         shell: pwsh
 
       - uses: actions/upload-artifact@v4
