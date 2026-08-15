@@ -15,6 +15,15 @@ ProxyServerCircuitBreaker createBreaker({
 EndpointEntity createEndpoint({
   String id = 'ep-1',
   String name = 'Endpoint 1',
+  EndpointAuthMode authMode = EndpointAuthMode.preserve,
+  String? anthropicAuthToken,
+  String? anthropicBaseUrl,
 }) {
-  return EndpointEntity(id: id, name: name);
+  return EndpointEntity(
+    id: id,
+    name: name,
+    authMode: authMode,
+    anthropicAuthToken: anthropicAuthToken,
+    anthropicBaseUrl: anthropicBaseUrl,
+  );
 }

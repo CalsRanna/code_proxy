@@ -277,23 +277,34 @@ class ProxyServerRequestHandler {
     headers['anthropic-beta'] = parts.join(',');
   }
 
-  /// 根据客户端原始的认证方式替换 key 值
+  /// 根据端点的认证方式配置替换 key 值
   ///
-  /// 如果客户端使用 x-api-key，则替换 x-api-key 的值；
-  /// 如果客户端使用 Authorization: Bearer，则替换 Bearer token；
-  /// 如果两者都没有，则默认使用 x-api-key。
+  /// - preserve: 保持客户端原始的认证方式（如果客户端使用 x-api-key，
+  ///   则替换 x-api-key 的值；如果客户端使用 Authorization: Bearer，
+  ///   则替换 Bearer token；两者都没有则默认 x-api-key）
+  /// - xApiKey: 强制使用 x-api-key（如 OpenCode Go 的 /v1/messages 只认此头）
+  /// - bearer: 强制使用 Authorization: Bearer
   void _replaceAuthToken(Map<String, String> headers, EndpointEntity endpoint) {
     final token = endpoint.anthropicAuthToken ?? '';
     final tokenPreview = token.length > 8 ? '${token.substring(0, 4)}...${token.substring(token.length - 4)}' : '<empty or short>';
     LoggerUtil.instance.d(
       'Auth token for endpoint ${endpoint.name}: $tokenPreview',
     );
-    if (headers.containsKey('x-api-key')) {
-      headers['x-api-key'] = token;
-    } else if (headers.containsKey('authorization')) {
-      headers['authorization'] = 'Bearer $token';
-    } else {
-      headers['x-api-key'] = token;
+    switch (endpoint.authMode) {
+      case EndpointAuthMode.preserve:
+        if (headers.containsKey('x-api-key')) {
+          headers['x-api-key'] = token;
+        } else if (headers.containsKey('authorization')) {
+          headers['authorization'] = 'Bearer $token';
+        } else {
+          headers['x-api-key'] = token;
+        }
+      case EndpointAuthMode.xApiKey:
+        headers.remove('authorization');
+        headers['x-api-key'] = token;
+      case EndpointAuthMode.bearer:
+        headers.remove('x-api-key');
+        headers['authorization'] = 'Bearer $token';
     }
   }
 

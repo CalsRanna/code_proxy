@@ -26,6 +26,8 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController opusModelController;
   late final TextEditingController weightController;
 
+  late EndpointAuthMode _authMode;
+
   @override
   Widget build(BuildContext context) {
     return ShadDialog(
@@ -44,15 +46,16 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
               spacing: ShadcnSpacing.spacing16,
               children: [
                 Expanded(
-                  child: ShadInput(
+                  child: ShadInputFormField(
                     controller: nameController,
+                    label: const Text('名称'),
                     placeholder: const Text('端点名称'),
                   ),
                 ),
                 Expanded(
-                  child: ShadInput(
+                  child: ShadInputFormField(
                     controller: noteController,
-                    placeholder: const Text('备注'),
+                    label: const Text('备注'),
                   ),
                 ),
               ],
@@ -61,14 +64,16 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
               spacing: ShadcnSpacing.spacing16,
               children: [
                 Expanded(
-                  child: ShadInput(
+                  child: ShadInputFormField(
                     controller: authTokenController,
-                    placeholder: const Text('API Key'),
+                    label: const Text('API Key'),
+                    placeholder: const Text('sk-...'),
                   ),
                 ),
                 Expanded(
-                  child: ShadInput(
+                  child: ShadInputFormField(
                     controller: baseUrlController,
+                    label: const Text('Base URL'),
                     placeholder: const Text('https://api.example.com'),
                   ),
                 ),
@@ -78,29 +83,43 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
               spacing: ShadcnSpacing.spacing16,
               children: [
                 Expanded(
-                  child: ShadInput(
+                  child: ShadInputFormField(
                     controller: haikuModelController,
+                    label: const Text('Haiku 模型'),
                     placeholder: const Text('Haiku模型'),
                   ),
                 ),
                 Expanded(
-                  child: ShadInput(
+                  child: ShadInputFormField(
                     controller: sonnetModelController,
+                    label: const Text('Sonnet 模型'),
                     placeholder: const Text('Sonnet模型'),
                   ),
                 ),
               ],
             ),
-            Row(
+            ShadInputFormField(
+              controller: opusModelController,
+              label: const Text('Opus 模型'),
+              placeholder: const Text('Opus模型'),
+            ),
+            // 认证方式：label 由 ShadInputDecorator 渲染，样式与其他字段一致
+            ShadRadioGroupFormField<EndpointAuthMode>(
+              label: const Text('认证方式'),
+              axis: Axis.horizontal,
               spacing: ShadcnSpacing.spacing16,
-              children: [
-                Expanded(
-                  child: ShadInput(
-                    controller: opusModelController,
-                    placeholder: const Text('Opus模型'),
-                  ),
-                ),
-              ],
+              initialValue: _authMode,
+              onChanged: (value) {
+                if (value != null) _authMode = value;
+              },
+              items: EndpointAuthMode.values
+                  .map(
+                    (mode) => ShadRadio(
+                      value: mode,
+                      label: Text(_authModeLabel(mode)),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),
@@ -145,6 +164,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     weightController = TextEditingController(
       text: widget.endpoint?.weight.toString() ?? '1',
     );
+    _authMode = widget.endpoint?.authMode ?? EndpointAuthMode.preserve;
   }
 
   String _buildTitle() {
@@ -196,6 +216,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           anthropicDefaultOpusModel: opusModelController.text.isEmpty
               ? null
               : opusModelController.text,
+          authMode: _authMode,
         );
       } else {
         // 更新端点
@@ -205,6 +226,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
             note: noteController.text.isEmpty ? null : noteController.text,
             weight:
                 int.tryParse(weightController.text) ?? widget.endpoint!.weight,
+            authMode: _authMode,
             anthropicAuthToken: authTokenController.text,
             anthropicBaseUrl: baseUrlController.text,
             anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
@@ -236,6 +258,18 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       return uri.hasScheme && uri.hasAuthority;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// 认证方式的显示文案
+  String _authModeLabel(EndpointAuthMode mode) {
+    switch (mode) {
+      case EndpointAuthMode.preserve:
+        return '保持原样（默认）';
+      case EndpointAuthMode.xApiKey:
+        return '强制 x-api-key';
+      case EndpointAuthMode.bearer:
+        return '强制 Bearer';
     }
   }
 }

@@ -50,6 +50,7 @@ class EndpointViewModel {
     String? anthropicDefaultHaikuModel,
     String? anthropicDefaultSonnetModel,
     String? anthropicDefaultOpusModel,
+    EndpointAuthMode authMode = EndpointAuthMode.preserve,
     bool claudeCodeDisableNonessentialTraffic = false,
   }) async {
     // 计算新的 weight 值：当前列表数量 + 1（作为最后一个）
@@ -61,6 +62,7 @@ class EndpointViewModel {
       note: note,
       weight: newWeight,
       enabled: true,
+      authMode: authMode,
       anthropicAuthToken: anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl,
       anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
