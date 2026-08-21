@@ -106,4 +106,47 @@ void main() {
     );
     expect(radioGroupFormField.initialValue, EndpointAuthMode.xApiKey);
   });
+
+  testWidgets('端点表单渲染 API 格式区块，默认选中 Anthropic', (tester) async {
+    final viewModel = EndpointViewModel();
+
+    await tester.pumpWidget(
+      ShadApp(
+        home: Scaffold(
+          body: EndpointFormDialog(endpoint: null, viewModel: viewModel),
+        ),
+      ),
+    );
+
+    expect(find.text('API 格式'), findsOneWidget);
+    expect(find.text('Anthropic（默认）'), findsOneWidget);
+    expect(find.text('OpenAI 兼容（自动转换）'), findsOneWidget);
+
+    final formatField = tester.widget<ShadRadioGroupFormField<EndpointApiFormat>>(
+      find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
+    );
+    expect(formatField.initialValue, EndpointApiFormat.anthropic);
+  });
+
+  testWidgets('编辑已有端点时 API 格式初始化为端点配置值', (tester) async {
+    final viewModel = EndpointViewModel();
+
+    await tester.pumpWidget(
+      ShadApp(
+        home: Scaffold(
+          body: EndpointFormDialog(
+            endpoint: createEndpoint(
+              apiFormat: EndpointApiFormat.openai,
+            ),
+            viewModel: viewModel,
+          ),
+        ),
+      ),
+    );
+
+    final formatField = tester.widget<ShadRadioGroupFormField<EndpointApiFormat>>(
+      find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
+    );
+    expect(formatField.initialValue, EndpointApiFormat.openai);
+  });
 }

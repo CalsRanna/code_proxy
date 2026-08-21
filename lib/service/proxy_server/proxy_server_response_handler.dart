@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_compat_response_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_compat_stream_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -13,6 +15,8 @@ import 'package:shelf/shelf.dart' as shelf;
 class ProxyServerResponseHandler {
   final ResponseProcessor _processor;
   final TokenExtractor _tokenExtractor;
+  final OpenAiCompatResponseConverter _openAiResponseConverter =
+      const OpenAiCompatResponseConverter();
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   _onRequestCompleted;
 
@@ -65,6 +69,21 @@ class ProxyServerResponseHandler {
         contentEncoding,
       );
 
+      // OpenAI 兼容端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
+      if (endpoint.apiFormat == EndpointApiFormat.openai) {
+        return _openAiErrorResponse(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          originalRequestBodyBytes: requestBodyBytes,
+          response: response,
+          startTime: startTime,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
+          forwardedHeaders: forwardedHeaders,
+          upstreamErrorBody: bodyStr,
+        );
+      }
+
       // 转发响应头（移除 transfer-encoding 因为 http 包已自动解码 chunked，
       // 保留 content-encoding 让客户端自行解压）
       final forwardedResponseHeaders =
@@ -105,6 +124,21 @@ class ProxyServerResponseHandler {
         contentEncoding,
       );
       final usage = _tokenExtractor.extractUsage(bodyStr);
+
+      // OpenAI 兼容端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
+      if (endpoint.apiFormat == EndpointApiFormat.openai) {
+        return _openAiErrorResponse(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          originalRequestBodyBytes: requestBodyBytes,
+          response: response,
+          startTime: startTime,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
+          forwardedHeaders: forwardedHeaders,
+          upstreamErrorBody: bodyStr,
+        );
+      }
 
       // 转发响应头
       final forwardedResponseHeaders =
@@ -208,6 +242,32 @@ class ProxyServerResponseHandler {
       ..remove('transfer-encoding')
       ..remove('content-length');
 
+    // OpenAI 兼容端点：响应体需要整体转换后重发，走独立的处理路径
+    if (endpoint.apiFormat == EndpointApiFormat.openai) {
+      return isStream
+          ? _buildOpenAiStreamResponse(
+              response,
+              endpoint,
+              request,
+              requestBodyBytes: requestBodyBytes,
+              originalRequestBodyBytes: originalRequestBodyBytes,
+              startTime: startTime,
+              mappedRequestBodyBytes: mappedRequestBodyBytes,
+              forwardedHeaders: forwardedHeaders,
+            )
+          : await _processOpenAiNormalResponse(
+              response,
+              endpoint,
+              request,
+              requestBodyBytes: requestBodyBytes,
+              originalRequestBodyBytes: originalRequestBodyBytes,
+              startTime: startTime,
+              contentEncoding: contentEncoding,
+              mappedRequestBodyBytes: mappedRequestBodyBytes,
+              forwardedHeaders: forwardedHeaders,
+            );
+    }
+
     if (isStream) {
       // 流式响应：在流完成时才计算响应时间
       return _processor.processStreamResponse(
@@ -269,6 +329,203 @@ class ProxyServerResponseHandler {
       );
     }
   }
+
+  /// OpenAI 兼容端点的错误响应：转换错误体并记录日志后返回。
+  ///
+  /// 返回给客户端的是 Anthropic 错误格式；审计中 responseBody/errorBody
+  /// 均记录客户端实际收到的转换后文本。
+  shelf.Response _openAiErrorResponse({
+    required EndpointEntity endpoint,
+    required shelf.Request request,
+    required List<int> requestBodyBytes,
+    required List<int> originalRequestBodyBytes,
+    required http.StreamedResponse response,
+    required int startTime,
+    List<int>? mappedRequestBodyBytes,
+    Map<String, String>? forwardedHeaders,
+    required String upstreamErrorBody,
+  }) {
+    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+    final convertedJson = _openAiResponseConverter.convertErrorBody(
+      upstreamErrorBody,
+    );
+    final clientFacingBody = jsonEncode(convertedJson);
+
+    _recordRequestWithBody(
+      endpoint: endpoint,
+      request: request,
+      requestBodyBytes: requestBodyBytes,
+      originalRequestBodyBytes: originalRequestBodyBytes,
+      response: response,
+      responseTime: responseTime,
+      mappedRequestBodyBytes: mappedRequestBodyBytes,
+      forwardedHeaders: forwardedHeaders,
+      forwardedResponseHeaders: _openAiJsonHeaders(),
+      errorBody: clientFacingBody,
+      responseBody: clientFacingBody,
+    );
+
+    return shelf.Response(
+      response.statusCode,
+      headers: _openAiJsonHeaders(),
+      body: clientFacingBody,
+    );
+  }
+
+  /// OpenAI 兼容端点：非流式响应转换（chat.completion → Anthropic message）。
+  Future<shelf.Response> _processOpenAiNormalResponse(
+    http.StreamedResponse response,
+    EndpointEntity endpoint,
+    shelf.Request request, {
+    required List<int> requestBodyBytes,
+    required List<int> originalRequestBodyBytes,
+    required int startTime,
+    String? contentEncoding,
+    List<int>? mappedRequestBodyBytes,
+    Map<String, String>? forwardedHeaders,
+  }) async {
+    final responseBodyBytes = await response.stream.toBytes();
+    final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+
+    // 上游已要求 identity，但防御个别网关仍返回压缩体
+    final decompressed = ResponseDecompressor.decompress(
+      responseBodyBytes,
+      contentEncoding,
+    );
+    final decoded = utf8.decode(decompressed, allowMalformed: true);
+
+    String clientFacingBody;
+    Map<String, int?>? usage;
+
+    try {
+      final decodedJson = jsonDecode(decoded);
+      if (decodedJson is Map<String, dynamic>) {
+        final converted = _openAiResponseConverter.convertResponse(
+          decodedJson,
+          originalModel: _extractOriginalModel(originalRequestBodyBytes),
+        );
+        clientFacingBody = jsonEncode(converted);
+        // 转换结果为标准 Anthropic 格式，直接复用现有提取器统计 usage
+        usage = _tokenExtractor.extractUsage(clientFacingBody);
+      } else {
+        clientFacingBody = decoded;
+      }
+    } catch (e) {
+      LoggerUtil.instance.w(
+        'OpenAI non-stream response is not valid JSON, passing through: $e',
+      );
+      clientFacingBody = decoded;
+    }
+
+    _recordRequestWithBody(
+      endpoint: endpoint,
+      request: request,
+      requestBodyBytes: requestBodyBytes,
+      originalRequestBodyBytes: originalRequestBodyBytes,
+      response: response,
+      responseTime: responseTime,
+      mappedRequestBodyBytes: mappedRequestBodyBytes,
+      forwardedHeaders: forwardedHeaders,
+      forwardedResponseHeaders: _openAiJsonHeaders(),
+      tokenUsage: usage,
+      responseBody: clientFacingBody,
+    );
+
+    return shelf.Response(
+      response.statusCode,
+      headers: _openAiJsonHeaders(),
+      body: clientFacingBody,
+    );
+  }
+
+  /// OpenAI 兼容端点：流式响应转换（OpenAI SSE chunk 流 → Anthropic 事件流）。
+  ///
+  /// message_start/ping 在上游首字节到达前先行产出，保证客户端尽快收到响应。
+  shelf.Response _buildOpenAiStreamResponse(
+    http.StreamedResponse response,
+    EndpointEntity endpoint,
+    shelf.Request request, {
+    required List<int> requestBodyBytes,
+    required List<int> originalRequestBodyBytes,
+    required int startTime,
+    List<int>? mappedRequestBodyBytes,
+    Map<String, String>? forwardedHeaders,
+  }) {
+    final converter = OpenAiSseStreamConverter(
+      originalModel: _extractOriginalModel(originalRequestBodyBytes),
+    );
+    // 转换后的完整事件文本（供审计记录）
+    final outputChunks = <String>[];
+
+    Stream<List<int>> convert(Stream<List<int>> source) async* {
+      yield converter.initialEvents();
+      try {
+        await for (final chunk in source) {
+          final out = converter.handleData(chunk);
+          if (out.isNotEmpty) {
+            outputChunks.add(utf8.decode(out));
+            yield out;
+          }
+        }
+        final tail = converter.handleDone();
+        if (tail.isNotEmpty) {
+          outputChunks.add(utf8.decode(tail));
+          yield tail;
+        }
+
+        final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+        _recordRequestWithBody(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          originalRequestBodyBytes: originalRequestBodyBytes,
+          response: response,
+          responseTime: responseTime,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
+          forwardedHeaders: forwardedHeaders,
+          forwardedResponseHeaders: _openAiStreamHeaders(),
+          tokenUsage: converter.finalUsage,
+          responseBody: outputChunks.join(),
+        );
+      } catch (error) {
+        LoggerUtil.instance.w('Upstream OpenAI stream error: $error');
+        // 流中途失败：对端点补记失败，避免损坏的流被记为成功
+        _onStreamError?.call(endpoint);
+        recordException(
+          endpoint: endpoint,
+          request: request,
+          requestBodyBytes: requestBodyBytes,
+          startTime: startTime,
+          error: error,
+          mappedRequestBodyBytes: mappedRequestBodyBytes,
+          forwardedHeaders: forwardedHeaders,
+        );
+
+        // 以标准 Anthropic error 事件优雅终止
+        yield converter.handleError(error);
+      }
+    }
+
+    return shelf.Response(
+      response.statusCode,
+      headers: _openAiStreamHeaders(),
+      body: convert(response.stream),
+    );
+  }
+
+  /// OpenAI 兼容端点非流式响应的转发头。
+  ///
+  /// 响应体已整体重写（解压 + 格式转换），content-encoding/content-length
+  /// 均不再适用。
+  Map<String, String> _openAiJsonHeaders() => const {
+        'content-type': 'application/json',
+      };
+
+  /// OpenAI 兼容端点流式响应的转发头
+  Map<String, String> _openAiStreamHeaders() => const {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache',
+      };
 
   /// 从原始请求体字节中提取客户端发送的原始模型名称
   String? _extractOriginalModel(List<int> requestBodyBytes) {

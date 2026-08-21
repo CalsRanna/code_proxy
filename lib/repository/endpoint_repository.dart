@@ -44,6 +44,7 @@ class EndpointRepository {
         'enabled': endpoint.enabled ? 1 : 0,
         'weight': endpoint.weight,
         'auth_mode': endpoint.authMode.name,
+        'api_format': endpoint.apiFormat.name,
         'anthropic_auth_token': endpoint.anthropicAuthToken,
         'anthropic_base_url': endpoint.anthropicBaseUrl,
         'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
@@ -61,6 +62,7 @@ class EndpointRepository {
       'enabled': endpoint.enabled ? 1 : 0,
       'weight': endpoint.weight,
       'auth_mode': endpoint.authMode.name,
+      'api_format': endpoint.apiFormat.name,
       'anthropic_auth_token': endpoint.anthropicAuthToken,
       'anthropic_base_url': endpoint.anthropicBaseUrl,
       'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
@@ -102,6 +104,7 @@ class EndpointRepository {
         (mode) => mode.name == row['auth_mode'],
         orElse: () => EndpointAuthMode.preserve,
       ),
+      apiFormat: apiFormatFromString(row['api_format'] as String?),
       anthropicAuthToken: row['anthropic_auth_token'] as String?,
       anthropicBaseUrl: row['anthropic_base_url'] as String?,
       anthropicDefaultHaikuModel:

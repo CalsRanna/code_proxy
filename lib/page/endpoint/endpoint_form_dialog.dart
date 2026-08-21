@@ -27,6 +27,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController weightController;
 
   late EndpointAuthMode _authMode;
+  late EndpointApiFormat _apiFormat;
 
   @override
   Widget build(BuildContext context) {
@@ -121,6 +122,24 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                   )
                   .toList(),
             ),
+            // API 协议格式：openai 格式端点由代理自动完成协议转换
+            ShadRadioGroupFormField<EndpointApiFormat>(
+              label: const Text('API 格式'),
+              axis: Axis.horizontal,
+              spacing: ShadcnSpacing.spacing16,
+              initialValue: _apiFormat,
+              onChanged: (value) {
+                if (value != null) _apiFormat = value;
+              },
+              items: EndpointApiFormat.values
+                  .map(
+                    (format) => ShadRadio(
+                      value: format,
+                      label: Text(_apiFormatLabel(format)),
+                    ),
+                  )
+                  .toList(),
+            ),
           ],
         ),
       ),
@@ -165,6 +184,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       text: widget.endpoint?.weight.toString() ?? '1',
     );
     _authMode = widget.endpoint?.authMode ?? EndpointAuthMode.preserve;
+    _apiFormat = widget.endpoint?.apiFormat ?? EndpointApiFormat.anthropic;
   }
 
   String _buildTitle() {
@@ -217,6 +237,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
               ? null
               : opusModelController.text,
           authMode: _authMode,
+          apiFormat: _apiFormat,
         );
       } else {
         // 更新端点
@@ -227,6 +248,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
             weight:
                 int.tryParse(weightController.text) ?? widget.endpoint!.weight,
             authMode: _authMode,
+            apiFormat: _apiFormat,
             anthropicAuthToken: authTokenController.text,
             anthropicBaseUrl: baseUrlController.text,
             anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
@@ -270,6 +292,16 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         return '强制 x-api-key';
       case EndpointAuthMode.bearer:
         return '强制 Bearer';
+    }
+  }
+
+  /// API 格式的显示文案
+  String _apiFormatLabel(EndpointApiFormat format) {
+    switch (format) {
+      case EndpointApiFormat.anthropic:
+        return 'Anthropic（默认）';
+      case EndpointApiFormat.openai:
+        return 'OpenAI 兼容（自动转换）';
     }
   }
 }

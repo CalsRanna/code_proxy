@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_compat_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -14,6 +15,8 @@ import 'package:shelf/shelf.dart' as shelf;
 class ProxyServerRequestHandler {
   final http.Client _httpClient;
   final ProxyServerConfig config;
+  final OpenAiCompatRequestConverter _openAiRequestConverter =
+      const OpenAiCompatRequestConverter();
 
   ProxyServerRequestHandler(this.config) : _httpClient = _buildHttpClient();
 
@@ -211,7 +214,7 @@ class ProxyServerRequestHandler {
       RegExp(r'/$'),
       '',
     );
-    final path = request.url.path;
+    final path = _resolveForwardPath(endpoint, request.url.path);
     final query = request.url.query;
     final separator = path.startsWith('/') ? '' : '/';
     final url = query.isNotEmpty
@@ -220,12 +223,51 @@ class ProxyServerRequestHandler {
     return Uri.parse(url);
   }
 
+  /// 解析实际转发路径。
+  ///
+  /// OpenAI 兼容端点将 POST /v1/messages 重写为 chat completions：
+  /// - baseUrl 已以 /v1 结尾 → /chat/completions
+  /// - baseUrl 不带 /v1      → /v1/chat/completions
+  ///
+  /// 其他路径（正常流量中不会出现：count_tokens/models 由 LocalResponder
+  /// 本地应答）原样透传并告警。
+  ///
+  /// 注意：`request.url.path` 是不带前导斜杠的相对路径
+  /// （_proxyHandler 直接挂载在 shelf_io.serve 上，无前缀剥离），
+  /// 这里统一归一化为绝对路径再比较。
+  String _resolveForwardPath(EndpointEntity endpoint, String originalPath) {
+    if (endpoint.apiFormat != EndpointApiFormat.openai) return originalPath;
+
+    final normalized =
+        originalPath.startsWith('/') ? originalPath : '/$originalPath';
+    if (normalized != '/v1/messages') {
+      LoggerUtil.instance.w(
+        'OpenAI-format endpoint received unexpected path "$originalPath", '
+        'forwarding as-is',
+      );
+      return originalPath;
+    }
+    final baseUrl = (endpoint.anthropicBaseUrl ?? '').replaceAll(
+      RegExp(r'/+$'),
+      '',
+    );
+    return baseUrl.endsWith('/v1')
+        ? '/chat/completions'
+        : '/v1/chat/completions';
+  }
+
   /// 准备请求头
   Map<String, String> _prepareHeaders(
     shelf.Request request,
     EndpointEntity endpoint,
   ) {
     final headers = Map<String, String>.from(request.headers);
+
+    // OpenAI 兼容端点走独立的头部处理
+    if (endpoint.apiFormat == EndpointApiFormat.openai) {
+      return _prepareOpenAiHeaders(headers, endpoint);
+    }
+
     // 保留客户端原始的认证方式，只替换 key 值
     _replaceAuthToken(headers, endpoint);
     headers.remove('host');
@@ -308,6 +350,37 @@ class ProxyServerRequestHandler {
     }
   }
 
+  /// OpenAI 兼容端点的请求头处理。
+  ///
+  /// - 认证统一为 Authorization: Bearer（authMode 配置对 openai 端点
+  ///   不生效，OpenAI 生态标准认证方式即 Bearer）
+  /// - 移除 Anthropic 专有头，避免严格网关对未知头报错
+  /// - accept-encoding 强制 identity：响应体需要整体转换后重发给客户端，
+  ///   不透传压缩字节，流式转换无需边解压边转
+  Map<String, String> _prepareOpenAiHeaders(
+    Map<String, String> headers,
+    EndpointEntity endpoint,
+  ) {
+    final token = endpoint.anthropicAuthToken ?? '';
+    final tokenPreview = token.length > 8
+        ? '${token.substring(0, 4)}...${token.substring(token.length - 4)}'
+        : '<empty or short>';
+    LoggerUtil.instance.d(
+      'Auth token for OpenAI-format endpoint ${endpoint.name}: $tokenPreview',
+    );
+
+    headers
+      ..remove('x-api-key')
+      ..remove('anthropic-beta')
+      ..remove('anthropic-version')
+      ..remove('host')
+      ..remove('content-length')
+      ..remove('accept-encoding');
+    headers['authorization'] = 'Bearer $token';
+    headers['accept-encoding'] = 'identity';
+    return headers;
+  }
+
   /// 处理请求体中的模型映射和 1M 上下文参数注入。
   List<int> _processRequestBody(
     List<int> rawBody,
@@ -335,6 +408,12 @@ class ProxyServerRequestHandler {
         if (mappedModel != null && mappedModel.isNotEmpty) {
           bodyJson['model'] = mappedModel;
         }
+      }
+
+      // OpenAI 兼容端点：整体转换为 chat completions 格式。
+      // 模型映射已先行完成；1M 上下文注入为 Anthropic 专有逻辑不适用。
+      if (endpoint.apiFormat == EndpointApiFormat.openai) {
+        return utf8.encode(jsonEncode(_openAiRequestConverter.convert(bodyJson)));
       }
 
       // 注入 1M 上下文参数（仅 /v1/messages）

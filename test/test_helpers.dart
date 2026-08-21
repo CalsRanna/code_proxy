@@ -16,6 +16,7 @@ EndpointEntity createEndpoint({
   String id = 'ep-1',
   String name = 'Endpoint 1',
   EndpointAuthMode authMode = EndpointAuthMode.preserve,
+  EndpointApiFormat apiFormat = EndpointApiFormat.anthropic,
   String? anthropicAuthToken,
   String? anthropicBaseUrl,
 }) {
@@ -23,6 +24,7 @@ EndpointEntity createEndpoint({
     id: id,
     name: name,
     authMode: authMode,
+    apiFormat: apiFormat,
     anthropicAuthToken: anthropicAuthToken,
     anthropicBaseUrl: anthropicBaseUrl,
   );

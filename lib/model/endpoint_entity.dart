@@ -6,6 +6,22 @@
 /// - [bearer]: 强制使用 Authorization: Bearer 头
 enum EndpointAuthMode { preserve, xApiKey, bearer }
 
+/// 端点 API 协议格式
+///
+/// 控制代理与该端点通信时使用的协议格式：
+/// - [anthropic]: Anthropic Messages API 格式（默认，直接透传）
+/// - [openai]: OpenAI 兼容格式，代理自动完成
+///   Anthropic ↔ OpenAI 双向协议转换（请求体、响应体、SSE 流、错误体）
+enum EndpointApiFormat { anthropic, openai }
+
+/// 从字符串解析 API 协议格式，无法识别时兜底为 anthropic。
+EndpointApiFormat apiFormatFromString(String? value) {
+  return EndpointApiFormat.values.firstWhere(
+    (format) => format.name == value,
+    orElse: () => EndpointApiFormat.anthropic,
+  );
+}
+
 /// 端点配置模型
 class EndpointEntity {
   /// 唯一标识符
@@ -25,6 +41,9 @@ class EndpointEntity {
 
   /// 认证方式
   final EndpointAuthMode authMode;
+
+  /// API 协议格式
+  final EndpointApiFormat apiFormat;
 
   /// Anthropic API 认证令牌
   final String? anthropicAuthToken;
@@ -48,6 +67,7 @@ class EndpointEntity {
     this.enabled = true,
     this.weight = 1,
     this.authMode = EndpointAuthMode.preserve,
+    this.apiFormat = EndpointApiFormat.anthropic,
     this.anthropicAuthToken,
     this.anthropicBaseUrl,
     this.anthropicDefaultHaikuModel,
@@ -64,6 +84,7 @@ class EndpointEntity {
       enabled: json['enabled'] as bool? ?? true,
       weight: json['weight'] as int? ?? 1,
       authMode: _authModeFromString(json['authMode'] as String?),
+      apiFormat: apiFormatFromString(json['apiFormat'] as String?),
       anthropicAuthToken: json['anthropicAuthToken'] as String?,
       anthropicBaseUrl: json['anthropicBaseUrl'] as String?,
       anthropicDefaultHaikuModel: json['anthropicDefaultHaikuModel'] as String?,
@@ -82,6 +103,7 @@ class EndpointEntity {
       'enabled': enabled,
       'weight': weight,
       'authMode': authMode.name,
+      'apiFormat': apiFormat.name,
       'anthropicAuthToken': anthropicAuthToken,
       'anthropicBaseUrl': anthropicBaseUrl,
       'anthropicDefaultHaikuModel': anthropicDefaultHaikuModel,
@@ -98,6 +120,7 @@ class EndpointEntity {
     bool? enabled,
     int? weight,
     EndpointAuthMode? authMode,
+    EndpointApiFormat? apiFormat,
     String? anthropicAuthToken,
     String? anthropicBaseUrl,
     String? anthropicDefaultHaikuModel,
@@ -111,6 +134,7 @@ class EndpointEntity {
       enabled: enabled ?? this.enabled,
       weight: weight ?? this.weight,
       authMode: authMode ?? this.authMode,
+      apiFormat: apiFormat ?? this.apiFormat,
       anthropicAuthToken: anthropicAuthToken ?? this.anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl ?? this.anthropicBaseUrl,
       anthropicDefaultHaikuModel:
@@ -131,6 +155,7 @@ class EndpointEntity {
       enabled: enabled,
       weight: weight,
       authMode: authMode,
+      apiFormat: apiFormat,
       anthropicAuthToken: anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl,
       anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,

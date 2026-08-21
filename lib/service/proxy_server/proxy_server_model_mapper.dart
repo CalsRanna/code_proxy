@@ -1,3 +1,4 @@
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 
@@ -9,21 +10,27 @@ class ProxyServerModelMapper {
     if (originalModel == null) return null;
 
     final upper = originalModel.toUpperCase();
-    final defaultConfig = ClaudeCodeModelConfigService.instance.config;
+
+    // 全局默认配置加载失败时降级为仅端点级映射，
+    // 不应让整个请求体处理（含格式转换）失败
+    DefaultModelMapperEntity? defaultConfig;
+    try {
+      defaultConfig = ClaudeCodeModelConfigService.instance.config;
+    } catch (_) {}
 
     return switch (upper) {
       'ANTHROPIC_DEFAULT_HAIKU_MODEL' =>
         endpoint.anthropicDefaultHaikuModel ??
-            defaultConfig.anthropicDefaultHaikuModel,
+            defaultConfig?.anthropicDefaultHaikuModel,
       'ANTHROPIC_SMALL_FAST_MODEL' =>
         endpoint.anthropicDefaultHaikuModel ??
-            defaultConfig.anthropicDefaultHaikuModel,
+            defaultConfig?.anthropicDefaultHaikuModel,
       'ANTHROPIC_DEFAULT_SONNET_MODEL' =>
         endpoint.anthropicDefaultSonnetModel ??
-            defaultConfig.anthropicDefaultSonnetModel,
+            defaultConfig?.anthropicDefaultSonnetModel,
       'ANTHROPIC_DEFAULT_OPUS_MODEL' =>
         endpoint.anthropicDefaultOpusModel ??
-            defaultConfig.anthropicDefaultOpusModel,
+            defaultConfig?.anthropicDefaultOpusModel,
       _ => _mapByFamily(originalModel, endpoint),
     };
   }
