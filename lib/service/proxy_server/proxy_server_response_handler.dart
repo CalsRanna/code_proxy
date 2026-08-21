@@ -203,6 +203,7 @@ class ProxyServerResponseHandler {
     int statusCode = HttpStatus.badGateway,
     List<int>? mappedRequestBodyBytes,
     Map<String, String>? forwardedHeaders,
+    String? rawResponseBody,
   }) {
     // 如果 startTime 为 null，说明在请求准备阶段就失败了，没有真正发起 API 请求
     final responseTime = startTime != null
@@ -215,6 +216,7 @@ class ProxyServerResponseHandler {
       method: request.method,
       body: utf8.decode(bodyBytesToUse, allowMalformed: true),
       originalModel: _extractOriginalModel(requestBodyBytes),
+      originalBody: utf8.decode(requestBodyBytes, allowMalformed: true),
       headers: request.headers,
       forwardedHeaders: forwardedHeaders,
     );
@@ -224,6 +226,7 @@ class ProxyServerResponseHandler {
       headers: {},
       responseTime: responseTime,
       errorBody: error.toString(),
+      rawResponseBody: rawResponseBody,
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
@@ -378,6 +381,7 @@ class ProxyServerResponseHandler {
       forwardedResponseHeaders: _openAiJsonHeaders(),
       errorBody: clientFacingBody,
       responseBody: clientFacingBody,
+      rawResponseBody: upstreamErrorBody,
     );
 
     return shelf.Response(
@@ -449,6 +453,7 @@ class ProxyServerResponseHandler {
       forwardedResponseHeaders: _openAiJsonHeaders(),
       tokenUsage: usage,
       responseBody: clientFacingBody,
+      rawResponseBody: decoded,
     );
 
     return shelf.Response(
@@ -478,11 +483,19 @@ class ProxyServerResponseHandler {
             : OpenAiSseStreamConverter(originalModel: originalModel);
     // 转换后的完整事件文本（供审计记录）
     final outputChunks = <String>[];
+    // 上游原始字节（协议转换前，供审计对照）。accept-encoding 已强制
+    // identity，无需解压；流结束后整体解码，天然规避跨 chunk 的 UTF-8 截断。
+    final rawChunks = <List<int>>[];
 
     Stream<List<int>> convert(Stream<List<int>> source) async* {
-      yield converter.initialEvents();
+      final head = converter.initialEvents();
+      if (head.isNotEmpty) {
+        outputChunks.add(utf8.decode(head));
+        yield head;
+      }
       try {
         await for (final chunk in source) {
+          rawChunks.add(chunk);
           final out = converter.handleData(chunk);
           if (out.isNotEmpty) {
             outputChunks.add(utf8.decode(out));
@@ -496,6 +509,10 @@ class ProxyServerResponseHandler {
         }
 
         final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+        final rawStreamText = utf8.decode(
+          rawChunks.expand((c) => c).toList(),
+          allowMalformed: true,
+        );
         _recordRequestWithBody(
           endpoint: endpoint,
           request: request,
@@ -508,6 +525,7 @@ class ProxyServerResponseHandler {
           forwardedResponseHeaders: _openAiStreamHeaders(),
           tokenUsage: converter.finalUsage,
           responseBody: outputChunks.join(),
+          rawResponseBody: rawStreamText,
         );
       } catch (error) {
         LoggerUtil.instance.w('Upstream OpenAI stream error: $error');
@@ -521,6 +539,11 @@ class ProxyServerResponseHandler {
           error: error,
           mappedRequestBodyBytes: mappedRequestBodyBytes,
           forwardedHeaders: forwardedHeaders,
+          // 已收到的半截原始流一并留存，便于排查中断点
+          rawResponseBody: utf8.decode(
+            rawChunks.expand((c) => c).toList(),
+            allowMalformed: true,
+          ),
         );
 
         // 以标准 Anthropic error 事件优雅终止
@@ -574,6 +597,7 @@ class ProxyServerResponseHandler {
     Map<String, int?>? tokenUsage,
     String? errorBody,
     String? responseBody,
+    String? rawResponseBody,
   }) {
     final bodyBytesToUse = mappedRequestBodyBytes ?? requestBodyBytes;
     final proxyRequest = ProxyServerRequest(
@@ -581,6 +605,7 @@ class ProxyServerResponseHandler {
       method: request.method,
       body: utf8.decode(bodyBytesToUse, allowMalformed: true),
       originalModel: _extractOriginalModel(originalRequestBodyBytes),
+      originalBody: utf8.decode(originalRequestBodyBytes, allowMalformed: true),
       headers: request.headers,
       forwardedHeaders: forwardedHeaders,
     );
@@ -593,6 +618,7 @@ class ProxyServerResponseHandler {
       usage: tokenUsage,
       errorBody: errorBody,
       responseBody: responseBody,
+      rawResponseBody: rawResponseBody,
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);

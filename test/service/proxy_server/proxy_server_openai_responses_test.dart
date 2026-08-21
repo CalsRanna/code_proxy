@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -73,8 +75,14 @@ void main() {
         }),
       );
 
+      ProxyServerRequest? loggedRequest;
+      ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
+        onRequestCompleted: (endpoint, request, response) {
+          loggedRequest = request;
+          loggedResponse = response;
+        },
       );
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
@@ -112,6 +120,25 @@ void main() {
         (capturedBody!['input'] as List),
         isNot(contains('anthropic-beta')),
       );
+
+      // 审计记录：请求双向留痕（原文 Anthropic 格式 + 转发 Responses 格式）
+      final clientRequestBody =
+          jsonDecode(loggedRequest!.originalBody!) as Map<String, dynamic>;
+      expect(clientRequestBody['model'], 'test-model-x');
+      expect(clientRequestBody['max_tokens'], 1024);
+      expect(jsonDecode(loggedRequest!.body), capturedBody);
+
+      // 审计记录：响应双向留痕（上游 JSON 原文 + 转换后 Anthropic 格式）
+      final rawResponseJson =
+          jsonDecode(loggedResponse!.rawResponseBody!) as Map<String, dynamic>;
+      expect(rawResponseJson['id'], 'resp_123');
+      expect(rawResponseJson['object'], 'response');
+      final convertedLogBody =
+          jsonDecode(loggedResponse!.responseBody!) as Map<String, dynamic>;
+      expect(convertedLogBody['type'], 'message');
+      expect(convertedLogBody['content'], [
+        {'type': 'text', 'text': 'Hello from GPT'},
+      ]);
 
       // 客户端收到的是 Anthropic 格式
       expect(response.statusCode, HttpStatus.ok);
@@ -261,8 +288,12 @@ void main() {
         }),
       );
 
+      ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
+        onRequestCompleted: (endpoint, request, response) {
+          loggedResponse = response;
+        },
       );
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
@@ -312,6 +343,14 @@ void main() {
       expect(events[6].$2['delta']['stop_reason'], 'end_turn');
 
       expect(capturedPath, '/v1/responses');
+
+      // 审计记录：rawResponseBody 为上游 Responses SSE 原文，
+      // responseBody 为转换后的 Anthropic SSE 文本
+      expect(loggedResponse!.rawResponseBody, contains('response.created'));
+      expect(loggedResponse!.rawResponseBody,
+          contains('"input_tokens_details"'));
+      expect(loggedResponse!.responseBody, contains('message_start'));
+      expect(loggedResponse!.responseBody, contains('message_stop'));
     });
 
     test('流式思考：reasoning summary delta → thinking block', () async {
@@ -399,8 +438,12 @@ void main() {
         }),
       );
 
+      ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
+        onRequestCompleted: (endpoint, request, response) {
+          loggedResponse = response;
+        },
       );
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
@@ -423,6 +466,11 @@ void main() {
       expect(body['type'], 'error');
       expect(body['error']['type'], 'authentication_error');
       expect(body['error']['message'], 'Incorrect API key provided');
+
+      // 审计记录：rawResponseBody 为上游错误 JSON 原文
+      final rawError =
+          jsonDecode(loggedResponse!.rawResponseBody!) as Map<String, dynamic>;
+      expect(rawError['error']['code'], 'invalid_api_key');
     });
 
     test('baseUrl 以 /v1 结尾时路径重写为 /responses', () async {

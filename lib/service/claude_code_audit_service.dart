@@ -35,6 +35,8 @@ class ClaudeCodeAuditService {
     required String id,
     required String request,
     required String response,
+    String? originalRequest,
+    String? rawResponse,
     Map<String, String>? requestHeaders,
     Map<String, String>? forwardedHeaders,
     Map<String, String>? responseHeaders,
@@ -57,6 +59,15 @@ class ClaudeCodeAuditService {
 
       await File('${dir.path}/request_body').writeAsString(request);
 
+      // 协议/模型转换前的原始数据：仅在与转发内容存在差异时落盘，
+      // 文件存在即代表存在转换，避免透传端点产生冗余副本。
+      if (originalRequest != null &&
+          originalRequest.isNotEmpty &&
+          originalRequest != request) {
+        await File('${dir.path}/original_request_body')
+            .writeAsString(originalRequest);
+      }
+
       final responseHeadersData = {
         'original': responseHeaders ?? {},
         'forwarded': forwardedResponseHeaders ?? {},
@@ -65,6 +76,12 @@ class ClaudeCodeAuditService {
           .writeAsString(jsonEncode(responseHeadersData));
 
       await File('${dir.path}/response_body').writeAsString(response);
+
+      if (rawResponse != null &&
+          rawResponse.isNotEmpty &&
+          rawResponse != response) {
+        await File('${dir.path}/raw_response_body').writeAsString(rawResponse);
+      }
     } catch (e) {
       LoggerUtil.instance.e('Failed to write audit log: $e');
     }
@@ -122,14 +139,29 @@ class ClaudeCodeAuditService {
         responseBody = await responseBodyFile.readAsString();
       }
 
+      // 转换前的原始数据（旧审计目录或透传端点不存在这两个文件）
+      String originalRequestBody = '';
+      final originalRequestBodyFile = File('$path/original_request_body');
+      if (await originalRequestBodyFile.exists()) {
+        originalRequestBody = await originalRequestBodyFile.readAsString();
+      }
+
+      String rawResponseBody = '';
+      final rawResponseBodyFile = File('$path/raw_response_body');
+      if (await rawResponseBodyFile.exists()) {
+        rawResponseBody = await rawResponseBodyFile.readAsString();
+      }
+
       return AuditReadResult.success(
         AuditDetailEntity(
           originalRequestHeaders: originalRequestHeaders,
           forwardedRequestHeaders: forwardedRequestHeaders,
           requestBody: requestBody,
+          originalRequestBody: originalRequestBody,
           originalResponseHeaders: originalResponseHeaders,
           forwardedResponseHeaders: forwardedResponseHeaders,
           responseBody: responseBody,
+          rawResponseBody: rawResponseBody,
         ),
       );
     } catch (e) {

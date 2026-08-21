@@ -283,6 +283,12 @@ class _AuditDetailPageState extends State<AuditDetailPage> {
           _buildSectionTitle('请求体'),
           const SizedBox(height: ShadcnSpacing.spacing8),
           _buildBodySection(detail.requestBody),
+          if (detail.originalRequestBody.isNotEmpty) ...[
+            const SizedBox(height: ShadcnSpacing.spacing24),
+            _buildSectionTitle('原始请求体（客户端）'),
+            const SizedBox(height: ShadcnSpacing.spacing8),
+            _buildBodySection(detail.originalRequestBody),
+          ],
         ],
       ),
     );
@@ -304,6 +310,12 @@ class _AuditDetailPageState extends State<AuditDetailPage> {
           _buildSectionTitle('响应体'),
           const SizedBox(height: ShadcnSpacing.spacing8),
           _buildBodySection(detail.responseBody),
+          if (detail.rawResponseBody.isNotEmpty) ...[
+            const SizedBox(height: ShadcnSpacing.spacing24),
+            _buildSectionTitle('原始响应体（上游）'),
+            const SizedBox(height: ShadcnSpacing.spacing8),
+            _buildBodySection(detail.rawResponseBody),
+          ],
         ],
       ),
     );

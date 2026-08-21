@@ -150,6 +150,8 @@ class HomeViewModel {
         id: log.id,
         request: request.body,
         response: response.responseBody!,
+        originalRequest: request.originalBody,
+        rawResponse: response.rawResponseBody,
         requestHeaders: request.headers,
         forwardedHeaders: request.forwardedHeaders,
         responseHeaders: response.headers,

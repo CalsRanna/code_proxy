@@ -24,6 +24,10 @@ class ProxyServerResponse {
   /// 完整响应体（用于审计日志）
   final String? responseBody;
 
+  /// 上游原始响应体（协议转换前），用于审计对照。
+  /// 仅转换端点（OpenAI 格式）填充；Anthropic 端点透传，无转换差异。
+  final String? rawResponseBody;
+
   const ProxyServerResponse({
     required this.statusCode,
     required this.headers,
@@ -32,5 +36,6 @@ class ProxyServerResponse {
     this.usage,
     this.errorBody,
     this.responseBody,
+    this.rawResponseBody,
   });
 }
