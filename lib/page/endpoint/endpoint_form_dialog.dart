@@ -211,7 +211,9 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       if (mounted) {
         ShadSonner.of(context).show(
           const ShadToast(
-            description: Text('请输入有效的 URL（如：https://api.example.com 或 http://localhost:8080）'),
+            description: Text(
+              '请输入有效的 URL（如：https://api.example.com 或 http://localhost:8080）',
+            ),
           ),
         );
       }
@@ -287,11 +289,11 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   String _authModeLabel(EndpointAuthMode mode) {
     switch (mode) {
       case EndpointAuthMode.preserve:
-        return '保持原样（默认）';
+        return 'Default';
       case EndpointAuthMode.xApiKey:
-        return '强制 x-api-key';
+        return 'x-api-key';
       case EndpointAuthMode.bearer:
-        return '强制 Bearer';
+        return 'Bearer';
     }
   }
 
@@ -299,9 +301,11 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   String _apiFormatLabel(EndpointApiFormat format) {
     switch (format) {
       case EndpointApiFormat.anthropic:
-        return 'Anthropic（默认）';
+        return 'Anthropic';
       case EndpointApiFormat.openai:
-        return 'OpenAI 兼容（自动转换）';
+        return 'Chat Completions';
+      case EndpointApiFormat.openaiResponses:
+        return 'Responses';
     }
   }
 }

@@ -46,10 +46,9 @@ void main() {
       ),
     );
     expect(radioGroup.axis, Axis.horizontal);
-    expect(find.text('保持原样（默认）'), findsOneWidget);
-    expect(find.text('强制 x-api-key'), findsOneWidget);
-    expect(find.text('强制 Bearer'), findsOneWidget);
-    expect(find.textContaining('只认特定认证头'), findsNothing);
+    expect(find.text('Default'), findsOneWidget);
+    expect(find.text('x-api-key'), findsOneWidget);
+    expect(find.text('Bearer'), findsOneWidget);
 
     // 所有标签（字段标签 + 认证方式 + radio 选项）统一遵循 shadcn 规范
     // label 样式：由 ShadInputDecorator / ShadRadio 通过 DefaultTextStyle
@@ -70,9 +69,9 @@ void main() {
       'Sonnet 模型',
       'Opus 模型',
       '认证方式',
-      '保持原样（默认）',
-      '强制 x-api-key',
-      '强制 Bearer',
+      'Default',
+      'x-api-key',
+      'Bearer',
     ];
     for (final text in allLabelTexts) {
       final inherited = DefaultTextStyle.of(tester.element(find.text(text)));
@@ -119,8 +118,9 @@ void main() {
     );
 
     expect(find.text('API 格式'), findsOneWidget);
-    expect(find.text('Anthropic（默认）'), findsOneWidget);
-    expect(find.text('OpenAI 兼容（自动转换）'), findsOneWidget);
+    expect(find.text('Anthropic'), findsOneWidget);
+    expect(find.text('Chat Completions'), findsOneWidget);
+    expect(find.text('Responses'), findsOneWidget);
 
     final formatField = tester.widget<ShadRadioGroupFormField<EndpointApiFormat>>(
       find.byType(ShadRadioGroupFormField<EndpointApiFormat>),

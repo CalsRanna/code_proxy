@@ -4,15 +4,17 @@
 /// - [preserve]: 保持客户端原始的认证方式（默认，历史行为）
 /// - [xApiKey]: 强制使用 x-api-key 头（如 OpenCode Go 的 /v1/messages 只认此头）
 /// - [bearer]: 强制使用 Authorization: Bearer 头
-enum EndpointAuthMode { preserve, xApiKey, bearer }
+enum EndpointAuthMode { preserve, bearer, xApiKey }
 
 /// 端点 API 协议格式
 ///
 /// 控制代理与该端点通信时使用的协议格式：
 /// - [anthropic]: Anthropic Messages API 格式（默认，直接透传）
-/// - [openai]: OpenAI 兼容格式，代理自动完成
+/// - [openai]: OpenAI Chat Completions 兼容格式，代理自动完成
 ///   Anthropic ↔ OpenAI 双向协议转换（请求体、响应体、SSE 流、错误体）
-enum EndpointApiFormat { anthropic, openai }
+/// - [openaiResponses]: OpenAI Responses API 格式（POST /v1/responses），
+///   转换方式同 [openai]，请求/响应/SSE 流按 Responses API 结构映射
+enum EndpointApiFormat { anthropic, openaiResponses, openai }
 
 /// 从字符串解析 API 协议格式，无法识别时兜底为 anthropic。
 EndpointApiFormat apiFormatFromString(String? value) {

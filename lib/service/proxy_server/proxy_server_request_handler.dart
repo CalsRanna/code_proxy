@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_compat_request_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_responses_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -17,6 +18,12 @@ class ProxyServerRequestHandler {
   final ProxyServerConfig config;
   final OpenAiCompatRequestConverter _openAiRequestConverter =
       const OpenAiCompatRequestConverter();
+  final OpenAiResponsesRequestConverter _openAiResponsesRequestConverter =
+      const OpenAiResponsesRequestConverter();
+
+  /// 端点是否需要代理完成协议转换（OpenAI 两大 API 格式）
+  static bool _needsConversion(EndpointEntity endpoint) =>
+      endpoint.apiFormat != EndpointApiFormat.anthropic;
 
   ProxyServerRequestHandler(this.config) : _httpClient = _buildHttpClient();
 
@@ -225,9 +232,10 @@ class ProxyServerRequestHandler {
 
   /// 解析实际转发路径。
   ///
-  /// OpenAI 兼容端点将 POST /v1/messages 重写为 chat completions：
-  /// - baseUrl 已以 /v1 结尾 → /chat/completions
-  /// - baseUrl 不带 /v1      → /v1/chat/completions
+  /// OpenAI 格式端点将 POST /v1/messages 重写为对应 API 路径：
+  /// - chat completions：baseUrl 已以 /v1 结尾 → /chat/completions，
+  ///   否则 → /v1/chat/completions
+  /// - responses：baseUrl 已以 /v1 结尾 → /responses，否则 → /v1/responses
   ///
   /// 其他路径（正常流量中不会出现：count_tokens/models 由 LocalResponder
   /// 本地应答）原样透传并告警。
@@ -236,7 +244,7 @@ class ProxyServerRequestHandler {
   /// （_proxyHandler 直接挂载在 shelf_io.serve 上，无前缀剥离），
   /// 这里统一归一化为绝对路径再比较。
   String _resolveForwardPath(EndpointEntity endpoint, String originalPath) {
-    if (endpoint.apiFormat != EndpointApiFormat.openai) return originalPath;
+    if (endpoint.apiFormat == EndpointApiFormat.anthropic) return originalPath;
 
     final normalized =
         originalPath.startsWith('/') ? originalPath : '/$originalPath';
@@ -251,9 +259,15 @@ class ProxyServerRequestHandler {
       RegExp(r'/+$'),
       '',
     );
-    return baseUrl.endsWith('/v1')
-        ? '/chat/completions'
-        : '/v1/chat/completions';
+    final hasV1Suffix = baseUrl.endsWith('/v1');
+    switch (endpoint.apiFormat) {
+      case EndpointApiFormat.openai:
+        return hasV1Suffix ? '/chat/completions' : '/v1/chat/completions';
+      case EndpointApiFormat.openaiResponses:
+        return hasV1Suffix ? '/responses' : '/v1/responses';
+      case EndpointApiFormat.anthropic:
+        return originalPath;
+    }
   }
 
   /// 准备请求头
@@ -263,8 +277,8 @@ class ProxyServerRequestHandler {
   ) {
     final headers = Map<String, String>.from(request.headers);
 
-    // OpenAI 兼容端点走独立的头部处理
-    if (endpoint.apiFormat == EndpointApiFormat.openai) {
+    // OpenAI 格式端点走独立的头部处理
+    if (_needsConversion(endpoint)) {
       return _prepareOpenAiHeaders(headers, endpoint);
     }
 
@@ -410,10 +424,19 @@ class ProxyServerRequestHandler {
         }
       }
 
-      // OpenAI 兼容端点：整体转换为 chat completions 格式。
+      // OpenAI 格式端点：整体转换为对应 API 的请求格式。
       // 模型映射已先行完成；1M 上下文注入为 Anthropic 专有逻辑不适用。
-      if (endpoint.apiFormat == EndpointApiFormat.openai) {
-        return utf8.encode(jsonEncode(_openAiRequestConverter.convert(bodyJson)));
+      switch (endpoint.apiFormat) {
+        case EndpointApiFormat.openai:
+          return utf8.encode(
+            jsonEncode(_openAiRequestConverter.convert(bodyJson)),
+          );
+        case EndpointApiFormat.openaiResponses:
+          return utf8.encode(
+            jsonEncode(_openAiResponsesRequestConverter.convert(bodyJson)),
+          );
+        case EndpointApiFormat.anthropic:
+          break;
       }
 
       // 注入 1M 上下文参数（仅 /v1/messages）

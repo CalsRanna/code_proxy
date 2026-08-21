@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_compat_response_converter.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_compat_stream_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_responses_response_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_responses_stream_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -15,8 +17,19 @@ import 'package:shelf/shelf.dart' as shelf;
 class ProxyServerResponseHandler {
   final ResponseProcessor _processor;
   final TokenExtractor _tokenExtractor;
+
+  /// Chat Completions 格式的响应体/错误体转换器
   final OpenAiCompatResponseConverter _openAiResponseConverter =
       const OpenAiCompatResponseConverter();
+
+  /// Responses API 格式的响应体转换器
+  final OpenAiResponsesResponseConverter _openAiResponsesResponseConverter =
+      const OpenAiResponsesResponseConverter();
+
+  /// 端点是否需要代理完成协议转换（OpenAI 两大 API 格式）
+  static bool _needsConversion(EndpointEntity endpoint) =>
+      endpoint.apiFormat != EndpointApiFormat.anthropic;
+
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   _onRequestCompleted;
 
@@ -69,8 +82,8 @@ class ProxyServerResponseHandler {
         contentEncoding,
       );
 
-      // OpenAI 兼容端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
-      if (endpoint.apiFormat == EndpointApiFormat.openai) {
+      // OpenAI 格式端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
+      if (_needsConversion(endpoint)) {
         return _openAiErrorResponse(
           endpoint: endpoint,
           request: request,
@@ -125,8 +138,8 @@ class ProxyServerResponseHandler {
       );
       final usage = _tokenExtractor.extractUsage(bodyStr);
 
-      // OpenAI 兼容端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
-      if (endpoint.apiFormat == EndpointApiFormat.openai) {
+      // OpenAI 格式端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
+      if (_needsConversion(endpoint)) {
         return _openAiErrorResponse(
           endpoint: endpoint,
           request: request,
@@ -242,8 +255,8 @@ class ProxyServerResponseHandler {
       ..remove('transfer-encoding')
       ..remove('content-length');
 
-    // OpenAI 兼容端点：响应体需要整体转换后重发，走独立的处理路径
-    if (endpoint.apiFormat == EndpointApiFormat.openai) {
+    // OpenAI 格式端点：响应体需要整体转换后重发给客户端，走独立的处理路径
+    if (_needsConversion(endpoint)) {
       return isStream
           ? _buildOpenAiStreamResponse(
               response,
@@ -346,6 +359,8 @@ class ProxyServerResponseHandler {
     required String upstreamErrorBody,
   }) {
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
+    // 两种 OpenAI API 的错误体结构同构（{error:{message,type,code}}），
+    // 复用同一转换实现
     final convertedJson = _openAiResponseConverter.convertErrorBody(
       upstreamErrorBody,
     );
@@ -400,10 +415,15 @@ class ProxyServerResponseHandler {
     try {
       final decodedJson = jsonDecode(decoded);
       if (decodedJson is Map<String, dynamic>) {
-        final converted = _openAiResponseConverter.convertResponse(
-          decodedJson,
-          originalModel: _extractOriginalModel(originalRequestBodyBytes),
-        );
+        final converted = endpoint.apiFormat == EndpointApiFormat.openaiResponses
+            ? _openAiResponsesResponseConverter.convertResponse(
+                decodedJson,
+                originalModel: _extractOriginalModel(originalRequestBodyBytes),
+              )
+            : _openAiResponseConverter.convertResponse(
+                decodedJson,
+                originalModel: _extractOriginalModel(originalRequestBodyBytes),
+              );
         clientFacingBody = jsonEncode(converted);
         // 转换结果为标准 Anthropic 格式，直接复用现有提取器统计 usage
         usage = _tokenExtractor.extractUsage(clientFacingBody);
@@ -451,9 +471,11 @@ class ProxyServerResponseHandler {
     List<int>? mappedRequestBodyBytes,
     Map<String, String>? forwardedHeaders,
   }) {
-    final converter = OpenAiSseStreamConverter(
-      originalModel: _extractOriginalModel(originalRequestBodyBytes),
-    );
+    final originalModel = _extractOriginalModel(originalRequestBodyBytes);
+    final OpenAiSseConverter converter =
+        endpoint.apiFormat == EndpointApiFormat.openaiResponses
+            ? OpenAiResponsesSseStreamConverter(originalModel: originalModel)
+            : OpenAiSseStreamConverter(originalModel: originalModel);
     // 转换后的完整事件文本（供审计记录）
     final outputChunks = <String>[];
 

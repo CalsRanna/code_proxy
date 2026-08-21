@@ -3,6 +3,30 @@ import 'dart:convert';
 import 'package:code_proxy/service/proxy_server/converter/openai_compat_response_converter.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
+/// OpenAI 上游流式转换器的公共接口。
+///
+/// Chat Completions 与 Responses API 两种流格式共用同一套输出约定，
+/// 响应处理器据此统一驱动，不感知上游具体协议。
+abstract class OpenAiSseConverter {
+  /// 头部事件（message_start + ping），在构造后立即产出
+  List<int> initialEvents();
+
+  /// 处理一个上游字节块，返回转换后的 Anthropic SSE 字节
+  List<int> handleData(List<int> chunk);
+
+  /// 上游流正常结束的收尾事件
+  List<int> handleDone();
+
+  /// 上游流异常中断时的 error 事件
+  List<int> handleError(Object error);
+
+  /// 最终 token 用量（供日志与统计）
+  Map<String, int?> get finalUsage;
+
+  /// 取走当前累计的输出并清空缓冲
+  List<int> takeOutput();
+}
+
 /// OpenAI Chat Completions 流式响应（SSE）→ Anthropic Messages 流式事件
 /// 的有状态转换器。
 ///
@@ -29,12 +53,12 @@ import 'package:code_proxy/util/logger_util.dart';
 /// final tail = converter.handleDone();         // 收尾事件
 /// final usage = converter.finalUsage;          // 最终 token 用量
 /// ```
-class OpenAiSseStreamConverter {
+class OpenAiSseStreamConverter implements OpenAiSseConverter {
   /// 客户端请求的原始模型名，回填到 message_start 中
   final String? originalModel;
 
   final StringBuffer _output = StringBuffer();
-  final _Utf8LineSplitter _lineSplitter = _Utf8LineSplitter();
+  final SseLineSplitter _lineSplitter = SseLineSplitter();
 
   /// 下一个 Anthropic content block 的 index
   int _nextIndex = 0;
@@ -64,6 +88,7 @@ class OpenAiSseStreamConverter {
   /// 构造时立即产出的头部事件：message_start + ping。
   ///
   /// 与官方 Anthropic API 行为一致：message_start 在首字节就返回。
+  @override
   List<int> initialEvents() {
     _writeEvent('message_start', {
       'type': 'message_start',
@@ -88,6 +113,7 @@ class OpenAiSseStreamConverter {
   }
 
   /// 处理一个上游字节块，返回转换后的 Anthropic SSE 字节。
+  @override
   List<int> handleData(List<int> chunk) {
     for (final line in _lineSplitter.add(chunk)) {
       _processLine(line);
@@ -96,6 +122,7 @@ class OpenAiSseStreamConverter {
   }
 
   /// 上游流正常结束：冲刷解码缓冲、关闭未闭合的 block、输出收尾事件。
+  @override
   List<int> handleDone() {
     for (final line in _lineSplitter.flush()) {
       _processLine(line);
@@ -106,6 +133,7 @@ class OpenAiSseStreamConverter {
   /// 上游流异常中断：输出 error 事件后终止。
   ///
   /// Anthropic 协议允许在流中途发送 error 事件，客户端会中断处理。
+  @override
   List<int> handleError(Object error) {
     if (_finished) return const [];
     _finished = true;
@@ -117,6 +145,7 @@ class OpenAiSseStreamConverter {
   }
 
   /// 最终 token 用量（供日志与统计），无 usage 数据时字段为 null。
+  @override
   Map<String, int?> get finalUsage => {
         'input': _inputTokens,
         'output': _outputTokens,
@@ -125,6 +154,7 @@ class OpenAiSseStreamConverter {
       };
 
   /// 取走当前累计的输出并清空缓冲。
+  @override
   List<int> takeOutput() {
     if (_output.isEmpty) return const [];
     final bytes = utf8.encode(_output.toString());
@@ -363,12 +393,12 @@ class _ToolBlockState {
 /// 处理两类边界：
 /// - 多字节 UTF-8 字符跨 chunk 截断（chunked decoder 维护 carry 字节）
 /// - 一行 data: {...} 跨 chunk 截断（行缓冲）
-class _Utf8LineSplitter {
+class SseLineSplitter {
   final StringBuffer _decodedBuffer = StringBuffer();
   late final ByteConversionSink _decodeSink;
   String _pending = '';
 
-  _Utf8LineSplitter() {
+  SseLineSplitter() {
     _decodeSink = const Utf8Decoder(allowMalformed: true)
         .startChunkedConversion(
       // StringBuffer 不是 Sink<String>，需经 StringConversionSink 桥接

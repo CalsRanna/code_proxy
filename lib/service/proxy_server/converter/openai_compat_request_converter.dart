@@ -291,7 +291,11 @@ class OpenAiCompatRequestConverter {
   }
 
   /// Anthropic budget_tokens → OpenRouter effort 三档。
-  static String _budgetToEffort(int budget) {
+  static String _budgetToEffort(int budget) => budgetToEffort(budget);
+
+  /// Anthropic budget_tokens → reasoning effort 三档
+  /// （Chat Completions 的 OpenRouter 扩展字段与 Responses API 同名同义）。
+  static String budgetToEffort(int budget) {
     if (budget <= 4096) return 'low';
     if (budget <= 16384) return 'medium';
     return 'high';
