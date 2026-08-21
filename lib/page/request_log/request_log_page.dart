@@ -1,7 +1,5 @@
-import 'package:auto_route/auto_route.dart';
 import 'package:code_proxy/page/request_log/request_log_detail_dialog.dart';
 import 'package:code_proxy/page/request_log/request_log_pagination.dart';
-import 'package:code_proxy/router/router.gr.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
@@ -244,12 +242,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
             final log = logs[row - 1];
             showShadDialog(
               context: context,
-              builder: (context) => RequestLogDetailDialog(
-                log: log,
-                onAudit: () {
-                  context.router.push(AuditDetailRoute(log: log));
-                },
-              ),
+              builder: (context) => RequestLogDetailDialog(log: log),
             );
           },
           pinnedRowCount: 1,

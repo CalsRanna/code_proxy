@@ -6,9 +6,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 class RequestLogDetailDialog extends StatelessWidget {
   final RequestLogEntity log;
-  final VoidCallback? onAudit;
 
-  const RequestLogDetailDialog({super.key, required this.log, this.onAudit});
+  const RequestLogDetailDialog({super.key, required this.log});
 
   @override
   Widget build(BuildContext context) {
@@ -21,19 +20,6 @@ class RequestLogDetailDialog extends StatelessWidget {
             ShadBadge.secondary(child: Text(log.statusCode.toString())),
           if (log.statusCode != 200)
             ShadBadge.destructive(child: Text(log.statusCode.toString())),
-          if (onAudit != null)
-            ShadButton.link(
-              onPressed: onAudit,
-              size: ShadButtonSize.sm,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 4,
-                children: [
-                  Icon(LucideIcons.fileSearch, size: 14),
-                  Text('审计'),
-                ],
-              ),
-            ),
         ],
       ),
       child: Padding(

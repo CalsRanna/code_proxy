@@ -1,4 +1,3 @@
-import 'package:code_proxy/view_model/audit_detail_view_model.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
@@ -20,8 +19,5 @@ class DI {
       () => RequestLogViewModel(),
     );
     instance.registerLazySingleton<SettingViewModel>(() => SettingViewModel());
-    instance.registerFactory<AuditDetailViewModel>(
-      () => AuditDetailViewModel(),
-    );
   }
 }
