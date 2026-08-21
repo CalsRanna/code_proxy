@@ -1,7 +1,7 @@
 name: code_proxy
 description: "Anthropic API proxy manager for Claude Code. Supports macOS, Windows, and Linux."
 publish_to: 'none'
-version: 1.6.6+297
+version: 2.0.0+302
 
 environment:
   sdk: ^3.10.1
@@ -42,7 +42,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-    
+
   auto_route_generator: ^9.0.0
   build_runner: ^2.4.0
   flutter_launcher_icons: ^0.14.4
