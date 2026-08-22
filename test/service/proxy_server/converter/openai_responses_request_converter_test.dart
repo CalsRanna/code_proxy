@@ -263,30 +263,50 @@ void main() {
     });
   });
 
-  group('thinking', () {
-    test('enabled + budget → reasoning.effort 三档', () {
-      Map<String, dynamic> think(int budget) => convert({
+  group('output_config.effort 转换', () {
+    test('effort 恒等透传，无需 thinking 参数（Fable 5 形态）', () {
+      final out = convert({
+        'model': 'gpt-5',
+        'output_config': {'effort': 'max'},
+        'messages': [
+          {'role': 'user', 'content': 'hi'},
+        ],
+      });
+      expect(out['reasoning'], {'effort': 'max'});
+    });
+
+    test('effort 不降级：xhigh/max 原样透传', () {
+      Map<String, dynamic> withEffort(String effort) => convert({
             'model': 'gpt-5',
-            'thinking': {'type': 'enabled', 'budget_tokens': budget},
+            'output_config': {'effort': effort},
             'messages': [
               {'role': 'user', 'content': 'hi'},
             ],
           });
-
-      expect(think(2048)['reasoning'], {'effort': 'low'});
-      expect(think(8192)['reasoning'], {'effort': 'medium'});
-      expect(think(32000)['reasoning'], {'effort': 'high'});
+      expect(withEffort('xhigh')['reasoning'], {'effort': 'xhigh'});
+      expect(withEffort('low')['reasoning'], {'effort': 'low'});
     });
 
-    test('disabled 不发送 reasoning', () {
+    test('旧形态 enabled + budget 不发送 reasoning', () {
       final out = convert({
+        'model': 'gpt-5',
+        'thinking': {'type': 'enabled', 'budget_tokens': 10240},
+        'messages': [
+          {'role': 'user', 'content': 'hi'},
+        ],
+      });
+      expect(out.containsKey('reasoning'), isFalse);
+    });
+
+    test('disabled / 未携带 effort 不发送 reasoning', () {
+      final disabled = convert({
         'model': 'gpt-5',
         'thinking': {'type': 'disabled'},
         'messages': [
           {'role': 'user', 'content': 'hi'},
         ],
       });
-      expect(out.containsKey('reasoning'), isFalse);
+      expect(disabled.containsKey('reasoning'), isFalse);
     });
   });
 

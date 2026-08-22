@@ -416,8 +416,32 @@ void main() {
     });
   });
 
-  group('thinking 参数转换', () {
-    test('thinking.enabled 带 budget 转为 reasoning effort + max_tokens', () {
+  group('output_config.effort 转换', () {
+    test('effort 恒等透传，无需 thinking 参数（Fable 5 形态）', () {
+      final result = convert({
+        'model': 'm',
+        'output_config': {'effort': 'max'},
+        'messages': [
+          {'role': 'user', 'content': 'x'},
+        ],
+      });
+      expect(result['reasoning_effort'], 'max');
+    });
+
+    test('effort 不降级：xhigh/max 原样透传', () {
+      Map<String, dynamic> withEffort(String effort) => convert({
+            'model': 'm',
+            'output_config': {'effort': effort},
+            'messages': [
+              {'role': 'user', 'content': 'x'},
+            ],
+          });
+      expect(withEffort('xhigh')['reasoning_effort'], 'xhigh');
+      expect(withEffort('high')['reasoning_effort'], 'high');
+      expect(withEffort('low')['reasoning_effort'], 'low');
+    });
+
+    test('旧形态 thinking.enabled（含 budget_tokens）不发送', () {
       final result = convert({
         'model': 'm',
         'thinking': {'type': 'enabled', 'budget_tokens': 10240},
@@ -425,40 +449,17 @@ void main() {
           {'role': 'user', 'content': 'x'},
         ],
       });
-      expect(result['reasoning'], {'effort': 'medium', 'max_tokens': 10240});
+      expect(result.containsKey('reasoning_effort'), isFalse);
     });
 
-    test('budget 分档映射：小 budget → low，大 budget → high', () {
-      Map<String, dynamic> withBudget(int budget) => convert({
-            'model': 'm',
-            'thinking': {'type': 'enabled', 'budget_tokens': budget},
-            'messages': [
-              {'role': 'user', 'content': 'x'},
-            ],
-          });
-      expect(withBudget(2048)['reasoning']['effort'], 'low');
-      expect(withBudget(32768)['reasoning']['effort'], 'high');
-    });
-
-    test('thinking.enabled 无 budget 时仅设 effort=medium 兜底', () {
-      final result = convert({
-        'model': 'm',
-        'thinking': {'type': 'enabled'},
-        'messages': [
-          {'role': 'user', 'content': 'x'},
-        ],
-      });
-      expect(result['reasoning'], {'effort': 'medium'});
-    });
-
-    test('未启用 thinking 时不含 reasoning 字段', () {
+    test('未携带 effort 时不含 reasoning_effort 字段', () {
       final result = convert({
         'model': 'm',
         'messages': [
           {'role': 'user', 'content': 'x'},
         ],
       });
-      expect(result.containsKey('reasoning'), isFalse);
+      expect(result.containsKey('reasoning_effort'), isFalse);
 
       final disabled = convert({
         'model': 'm',
@@ -467,7 +468,17 @@ void main() {
           {'role': 'user', 'content': 'x'},
         ],
       });
-      expect(disabled.containsKey('reasoning'), isFalse);
+      expect(disabled.containsKey('reasoning_effort'), isFalse);
+
+      // 非法 effort 值（非字符串）不发送
+      final badEffort = convert({
+        'model': 'm',
+        'output_config': {'effort': 3},
+        'messages': [
+          {'role': 'user', 'content': 'x'},
+        ],
+      });
+      expect(badEffort.containsKey('reasoning_effort'), isFalse);
     });
   });
 }

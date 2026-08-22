@@ -278,21 +278,17 @@ class OpenAiResponsesRequestConverter {
     if (converted.isNotEmpty) out['tools'] = converted;
   }
 
-  /// thinking 参数 → 上游推理参数。
+  /// `output_config.effort` → Responses API `reasoning.effort`
+  /// （官方嵌套参数，取值 none/minimal/low/medium/high/xhigh/max）。
   ///
-  /// 映射为 Responses API 的 `reasoning.effort` 三档
-  /// （minimal/low/medium/high 中取 low/medium/high，通用性最好）。
-  /// `enabled: false`（显式关闭思考）时不发送，保持请求最简。
+  /// effort 独立于 thinking 参数（Fable 5 等模型思考常开，仅以 effort
+  /// 控制深度）：只要客户端携带即恒等透传，不降级——模型不支持某档位
+  /// 时由上游返回错误，代理不做猜测；不携带则不发，保持请求最简。
   void _convertThinking(Map<String, dynamic> body, Map<String, dynamic> out) {
-    final thinking = body['thinking'];
-    if (thinking is! Map || thinking['type'] != 'enabled') return;
-
-    final budget = thinking['budget_tokens'];
-    out['reasoning'] = {
-      'effort': budget is int && budget > 0
-          ? OpenAiCompatRequestConverter.budgetToEffort(budget)
-          : 'medium',
-    };
+    final effort = OpenAiCompatRequestConverter.outputConfigEffort(body);
+    if (effort != null) {
+      out['reasoning'] = {'effort': effort};
+    }
   }
 
   void _convertToolChoice(Map<String, dynamic> body, Map<String, dynamic> out) {

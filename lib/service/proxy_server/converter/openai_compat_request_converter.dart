@@ -273,32 +273,25 @@ class OpenAiCompatRequestConverter {
     if (converted.isNotEmpty) out['tools'] = converted;
   }
 
-  /// thinking 参数 → 上游推理参数。
+  /// `output_config.effort` → Chat Completions 顶层 `reasoning_effort`
+  /// （官方参数，取值 none/minimal/low/medium/high/xhigh/max）。
   ///
-  /// 映射为 OpenRouter 统一扩展字段 `reasoning`（DeepSeek、Kimi、GLM 等
-  /// 主流兼容网关均已支持；不识别的端点会忽略该字段）。
-  /// `enabled: false`（显式关闭思考）时不发送，保持请求最简。
+  /// effort 独立于 thinking 参数（Fable 5 等模型思考常开，仅以 effort
+  /// 控制深度）：只要客户端携带即恒等透传，不降级——模型不支持某档位
+  /// 时由上游返回错误，代理不做猜测；不携带则不发，保持请求最简。
   void _convertThinking(Map<String, dynamic> body, Map<String, dynamic> out) {
-    final thinking = body['thinking'];
-    if (thinking is! Map || thinking['type'] != 'enabled') return;
-
-    final budget = thinking['budget_tokens'];
-    if (budget is int && budget > 0) {
-      out['reasoning'] = {'effort': _budgetToEffort(budget), 'max_tokens': budget};
-    } else {
-      out['reasoning'] = {'effort': 'medium'};
+    final effort = outputConfigEffort(body);
+    if (effort != null) {
+      out['reasoning_effort'] = effort;
     }
   }
 
-  /// Anthropic budget_tokens → OpenRouter effort 三档。
-  static String _budgetToEffort(int budget) => budgetToEffort(budget);
-
-  /// Anthropic budget_tokens → reasoning effort 三档
-  /// （Chat Completions 的 OpenRouter 扩展字段与 Responses API 同名同义）。
-  static String budgetToEffort(int budget) {
-    if (budget <= 4096) return 'low';
-    if (budget <= 16384) return 'medium';
-    return 'high';
+  /// 读取 Anthropic `output_config.effort`，仅当为合法非空字符串时返回，
+  /// 供 Chat Completions 与 Responses 转换器共用。
+  static String? outputConfigEffort(Map<String, dynamic> body) {
+    final config = body['output_config'];
+    final effort = config is Map ? config['effort'] : null;
+    return effort is String && effort.isNotEmpty ? effort : null;
   }
 
   void _convertToolChoice(Map<String, dynamic> body, Map<String, dynamic> out) {
