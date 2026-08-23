@@ -183,12 +183,39 @@ class ProxyServerRequestHandler {
     }
   }
 
-  /// 转发HTTP请求
+  /// 转发 HTTP 请求。
+  ///
+  /// 同一个配置值分别限制：
+  /// - 等待响应头的最长时间；
+  /// - 响应体相邻数据块之间的最长空闲时间。
+  ///
+  /// 后者是 idle timeout 而非流的总时长，因此持续有数据的长 SSE 不会
+  /// 因总运行时间较长而被误杀，但响应头后永久停顿会可靠终止。
   Future<http.StreamedResponse> forwardRequest(http.Request request) async {
-    final response = await _httpClient
-        .send(request)
-        .timeout(Duration(milliseconds: config.apiTimeoutMs));
-    return response;
+    final timeout = Duration(milliseconds: config.apiTimeoutMs);
+    final response = await _httpClient.send(request).timeout(timeout);
+    final timedBody = response.stream.timeout(
+      timeout,
+      onTimeout: (sink) {
+        sink.addError(
+          TimeoutException(
+            'Upstream response body was idle for ${timeout.inMilliseconds}ms',
+            timeout,
+          ),
+        );
+        sink.close();
+      },
+    );
+    return http.StreamedResponse(
+      timedBody,
+      response.statusCode,
+      contentLength: response.contentLength,
+      request: response.request,
+      headers: response.headers,
+      isRedirect: response.isRedirect,
+      persistentConnection: response.persistentConnection,
+      reasonPhrase: response.reasonPhrase,
+    );
   }
 
   /// 为端点准备HTTP请求
@@ -246,8 +273,9 @@ class ProxyServerRequestHandler {
   String _resolveForwardPath(EndpointEntity endpoint, String originalPath) {
     if (endpoint.apiFormat == EndpointApiFormat.anthropic) return originalPath;
 
-    final normalized =
-        originalPath.startsWith('/') ? originalPath : '/$originalPath';
+    final normalized = originalPath.startsWith('/')
+        ? originalPath
+        : '/$originalPath';
     if (normalized != '/v1/messages') {
       LoggerUtil.instance.w(
         'OpenAI-format endpoint received unexpected path "$originalPath", '
@@ -342,10 +370,6 @@ class ProxyServerRequestHandler {
   /// - bearer: 强制使用 Authorization: Bearer
   void _replaceAuthToken(Map<String, String> headers, EndpointEntity endpoint) {
     final token = endpoint.anthropicAuthToken ?? '';
-    final tokenPreview = token.length > 8 ? '${token.substring(0, 4)}...${token.substring(token.length - 4)}' : '<empty or short>';
-    LoggerUtil.instance.d(
-      'Auth token for endpoint ${endpoint.name}: $tokenPreview',
-    );
     switch (endpoint.authMode) {
       case EndpointAuthMode.preserve:
         if (headers.containsKey('x-api-key')) {
@@ -376,12 +400,6 @@ class ProxyServerRequestHandler {
     EndpointEntity endpoint,
   ) {
     final token = endpoint.anthropicAuthToken ?? '';
-    final tokenPreview = token.length > 8
-        ? '${token.substring(0, 4)}...${token.substring(token.length - 4)}'
-        : '<empty or short>';
-    LoggerUtil.instance.d(
-      'Auth token for OpenAI-format endpoint ${endpoint.name}: $tokenPreview',
-    );
 
     headers
       ..remove('x-api-key')

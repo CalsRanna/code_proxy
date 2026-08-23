@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
@@ -18,6 +19,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 
 class ProxyServerService {
   final ProxyServerConfig config;
+  final String _authToken;
 
   final void Function(EndpointEntity)? onEndpointUnavailable;
   final void Function(EndpointEntity)? onEndpointRestored;
@@ -25,6 +27,7 @@ class ProxyServerService {
   onRequestCompleted;
 
   late final ProxyServerRouter _router;
+
   /// 出站请求处理器，随 [start] 重建、随 [stop] 关闭置空。
   ///
   /// 不做成 `late final` 单例：stop() 会关闭其内部 HttpClient，
@@ -38,10 +41,14 @@ class ProxyServerService {
 
   ProxyServerService({
     required this.config,
+    required String authToken,
     this.onRequestCompleted,
     this.onEndpointUnavailable,
     this.onEndpointRestored,
-  }) {
+  }) : _authToken = authToken {
+    if (authToken.trim().isEmpty) {
+      throw ArgumentError.value(authToken, 'authToken', 'must not be empty');
+    }
     _circuitBreakerRegistry = ProxyServerCircuitBreakerRegistry(
       failureThreshold: config.circuitBreakerFailureThreshold,
       recoveryTimeoutMs: config.circuitBreakerRecoveryTimeoutMs,
@@ -70,14 +77,23 @@ class ProxyServerService {
     }
     // 每次启动都重建出站 HttpClient（stop 时已随旧实例关闭），
     // 保证服务实例可安全地 stop → start 循环复用（端口变更回滚路径依赖此语义）
-    _requestHandler = ProxyServerRequestHandler(config);
+    final requestHandler = ProxyServerRequestHandler(config);
+    _requestHandler = requestHandler;
 
-    _server = await shelf_io.serve(
-      _proxyHandler,
-      config.address,
-      config.port,
-      poweredByHeader: null,
-    );
+    try {
+      _server = await shelf_io.serve(
+        _proxyHandler,
+        config.address,
+        config.port,
+        poweredByHeader: null,
+      );
+    } catch (_) {
+      if (identical(_requestHandler, requestHandler)) {
+        _requestHandler = null;
+      }
+      requestHandler.close();
+      rethrow;
+    }
     // 禁用自动压缩，代理透传上游已压缩的响应，避免双重压缩导致客户端 ZlibError
     _server!.autoCompress = false;
     LoggerUtil.instance.d(
@@ -86,12 +102,15 @@ class ProxyServerService {
   }
 
   Future<void> stop() async {
-    if (_server == null) return;
+    final server = _server;
+    _server = null;
     final handler = _requestHandler;
     _requestHandler = null;
-    await _server!.close(force: true);
-    _server = null;
-    handler?.close();
+    try {
+      await server?.close(force: true);
+    } finally {
+      handler?.close();
+    }
   }
 
   /// 重置指定端点的断路器
@@ -118,6 +137,16 @@ class ProxyServerService {
 
   /// 代理处理器 - 协调路由、请求处理和响应处理
   Future<shelf.Response> _proxyHandler(shelf.Request request) async {
+    // HEAD 仅返回本地存活状态，不读取正文、也不会访问上游，因此可供
+    // 操作系统或桌面客户端在尚未装载凭据时探活。
+    if (request.method == 'HEAD') {
+      final localResponse = _localResponder.tryRespond(request, const []);
+      if (localResponse != null) return localResponse;
+    }
+
+    // 在读取完整请求体和接触上游密钥前验证本地代理令牌。
+    if (!_isAuthorized(request)) return _unauthorizedResponse();
+
     final rawBody = await request.read().expand((x) => x).toList();
 
     // 本地应答: 对健康检查、count_tokens 等请求直接返回，
@@ -240,5 +269,49 @@ class ProxyServerService {
           : 'All endpoints failed';
       return shelf.Response.internalServerError(body: message);
     }
+  }
+
+  bool _isAuthorized(shelf.Request request) {
+    final apiKey = request.headers['x-api-key']?.trim();
+    if (apiKey != null && _constantTimeEquals(apiKey, _authToken)) {
+      return true;
+    }
+
+    final authorization = request.headers[HttpHeaders.authorizationHeader];
+    if (authorization == null) return false;
+    final match = RegExp(
+      r'^\s*Bearer\s+(.+?)\s*$',
+      caseSensitive: false,
+    ).firstMatch(authorization);
+    final bearer = match?.group(1);
+    return bearer != null && _constantTimeEquals(bearer, _authToken);
+  }
+
+  static bool _constantTimeEquals(String left, String right) {
+    var difference = left.length ^ right.length;
+    final length = left.length > right.length ? left.length : right.length;
+    for (var index = 0; index < length; index++) {
+      final leftCode = index < left.length ? left.codeUnitAt(index) : 0;
+      final rightCode = index < right.length ? right.codeUnitAt(index) : 0;
+      difference |= leftCode ^ rightCode;
+    }
+    return difference == 0;
+  }
+
+  static shelf.Response _unauthorizedResponse() {
+    return shelf.Response(
+      HttpStatus.unauthorized,
+      headers: {
+        HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
+        HttpHeaders.wwwAuthenticateHeader: 'Bearer realm="Code Proxy"',
+      },
+      body: jsonEncode({
+        'type': 'error',
+        'error': {
+          'type': 'authentication_error',
+          'message': 'Invalid or missing proxy authentication token',
+        },
+      }),
+    );
   }
 }

@@ -8,6 +8,7 @@ import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import '../../support/authenticated_http_client.dart';
 
 void main() {
   group('OpenAI 兼容端点格式转换（端到端）', () {
@@ -77,6 +78,7 @@ void main() {
       ProxyServerRequest? loggedRequest;
       ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
         onRequestCompleted: (endpoint, request, response) {
           loggedRequest = request;
@@ -86,7 +88,7 @@ void main() {
       service!.endpoints = [buildOpenAiEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final response = await client!.post(
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
         headers: {
@@ -258,6 +260,7 @@ void main() {
 
       ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
         onRequestCompleted: (endpoint, request, response) {
           loggedResponse = response;
@@ -269,7 +272,7 @@ void main() {
       // 上游应收到转换后的 OpenAI 流式请求
       expect(capturedBody, isNull);
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final streamedRequest = http.Request(
         'POST',
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
@@ -389,6 +392,7 @@ void main() {
       ProxyServerResponse? loggedResponse;
       var circuitOpened = false;
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(
           address: '127.0.0.1',
           port: 0,
@@ -404,7 +408,7 @@ void main() {
       service!.endpoints = [buildOpenAiEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final streamedResponse = await client!.send(
         http.Request(
           'POST',
@@ -488,6 +492,7 @@ void main() {
 
       ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
         onRequestCompleted: (endpoint, request, response) {
           loggedResponse = response;
@@ -496,7 +501,7 @@ void main() {
       service!.endpoints = [buildOpenAiEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final streamedResponse = await client!.send(
         http.Request(
           'POST',
@@ -546,12 +551,13 @@ void main() {
       );
 
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
       );
       service!.endpoints = [buildOpenAiEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final response = await client!.post(
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
         headers: {'content-type': 'application/json'},
@@ -606,6 +612,7 @@ void main() {
       );
 
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(
           address: '127.0.0.1',
           port: 0,
@@ -622,7 +629,7 @@ void main() {
       ];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
 
       // 单次请求内完成故障转移：openai 端点 500 → 断路器打开 →
       // 同一请求切换到 anthropic 端点透传成功

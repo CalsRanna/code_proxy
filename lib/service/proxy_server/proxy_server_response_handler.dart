@@ -13,8 +13,9 @@ import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
-/// 上游流在未发送任何完成信号（finish_reason/[DONE] 或
-/// response.completed/incomplete/failed）前即到达 EOF，视为静默截断。
+/// 上游流在未发送协议完成信号（Anthropic `message_stop`、OpenAI
+/// finish_reason/[DONE] 或 Responses completed/incomplete/failed）前即到达
+/// EOF，视为静默截断。
 ///
 /// 这种情况常见于网关在模型长推理中途断开连接：客户端若收到转换器
 /// 补发的"正常收尾"会误以为模型零输出完成，而非流被截断。
@@ -325,7 +326,7 @@ class ProxyServerResponseHandler {
           tokenUsage: tokenUsage,
           responseBody: responseBody,
         ),
-        (Object error) => recordException(
+        (Object error, String responseBody) => recordException(
           endpoint: endpoint,
           request: request,
           requestBodyBytes: requestBodyBytes,
@@ -333,6 +334,7 @@ class ProxyServerResponseHandler {
           error: error,
           mappedRequestBodyBytes: mappedRequestBodyBytes,
           forwardedHeaders: forwardedHeaders,
+          responseBody: responseBody.isEmpty ? null : responseBody,
         ),
         onStreamError: () => _onStreamError?.call(endpoint),
       );
@@ -435,7 +437,8 @@ class ProxyServerResponseHandler {
     try {
       final decodedJson = jsonDecode(decoded);
       if (decodedJson is Map<String, dynamic>) {
-        final converted = endpoint.apiFormat == EndpointApiFormat.openaiResponses
+        final converted =
+            endpoint.apiFormat == EndpointApiFormat.openaiResponses
             ? _openAiResponsesResponseConverter.convertResponse(
                 decodedJson,
                 originalModel: _extractOriginalModel(originalRequestBodyBytes),
@@ -495,8 +498,8 @@ class ProxyServerResponseHandler {
     final originalModel = _extractOriginalModel(originalRequestBodyBytes);
     final OpenAiSseConverter converter =
         endpoint.apiFormat == EndpointApiFormat.openaiResponses
-            ? OpenAiResponsesSseStreamConverter(originalModel: originalModel)
-            : OpenAiSseStreamConverter(originalModel: originalModel);
+        ? OpenAiResponsesSseStreamConverter(originalModel: originalModel)
+        : OpenAiSseStreamConverter(originalModel: originalModel);
     // 转换后的完整事件文本（供审计记录）
     final outputChunks = <String>[];
     // 上游原始字节（协议转换前，供审计对照）。accept-encoding 已强制
@@ -597,14 +600,14 @@ class ProxyServerResponseHandler {
   /// 响应体已整体重写（解压 + 格式转换），content-encoding/content-length
   /// 均不再适用。
   Map<String, String> _openAiJsonHeaders() => const {
-        'content-type': 'application/json',
-      };
+    'content-type': 'application/json',
+  };
 
   /// OpenAI 兼容端点流式响应的转发头
   Map<String, String> _openAiStreamHeaders() => const {
-        'content-type': 'text/event-stream; charset=utf-8',
-        'cache-control': 'no-cache',
-      };
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache',
+  };
 
   /// 从原始请求体字节中提取客户端发送的原始模型名称
   String? _extractOriginalModel(List<int> requestBodyBytes) {
@@ -781,7 +784,7 @@ class ResponseProcessor {
       String responseBody,
     )
     recordStats,
-    void Function(Object error) recordException, {
+    void Function(Object error, String responseBody) recordException, {
     void Function()? onStreamError,
   }) {
     int? inputTokens;
@@ -789,7 +792,11 @@ class ResponseProcessor {
     int? cacheCreationTokens;
     int? cacheReadTokens;
     final responseChunks = <String>[];
-    final isCompressed = contentEncoding != null && contentEncoding.isNotEmpty;
+    final normalizedEncoding = contentEncoding?.trim().toLowerCase();
+    final isCompressed =
+        normalizedEncoding != null &&
+        normalizedEncoding.isNotEmpty &&
+        normalizedEncoding != 'identity';
     final rawChunks = isCompressed ? <List<int>>[] : null;
 
     // 非压缩流：使用带内部状态的 chunked decoder。
@@ -803,6 +810,21 @@ class ResponseProcessor {
             // StringBuffer 不是 Sink<String>，需经 StringConversionSink 桥接
             StringConversionSink.fromStringSink(utf8Buffer),
           );
+    var failed = false;
+    final canEmitSseError =
+        !isCompressed &&
+        (response.headers['content-type'] ?? '').contains('text/event-stream');
+
+    List<int> buildSseError(Object error) {
+      if (!canEmitSseError) return const [];
+      return utf8.encode(
+        'event: error\n'
+        'data: ${jsonEncode({
+          'type': 'error',
+          'error': {'type': 'api_error', 'message': error.toString()},
+        })}\n\n',
+      );
+    }
 
     final transformedStream = response.stream.transform(
       StreamTransformer.fromHandlers(
@@ -829,6 +851,11 @@ class ResponseProcessor {
           }
         },
         handleDone: (sink) {
+          if (failed) {
+            sink.close();
+            return;
+          }
+
           final responseTime =
               DateTime.now().millisecondsSinceEpoch - startTime;
 
@@ -848,6 +875,21 @@ class ResponseProcessor {
           }
 
           final responseBody = responseChunks.join();
+
+          if (!_hasAnthropicCompletionSignal(responseBody)) {
+            final error = const UpstreamStreamAbortedException();
+            failed = true;
+            LoggerUtil.instance.w('Upstream Anthropic stream error: $error');
+            final errorEvent = buildSseError(error);
+            final clientBody = errorEvent.isEmpty
+                ? responseBody
+                : '$responseBody${utf8.decode(errorEvent)}';
+            recordException(error, clientBody);
+            onStreamError?.call();
+            if (errorEvent.isNotEmpty) sink.add(errorEvent);
+            sink.close();
+            return;
+          }
 
           final usage = extractor.extractUsage(responseBody);
           if (usage != null) {
@@ -872,11 +914,20 @@ class ResponseProcessor {
         },
         handleError: (error, stackTrace, sink) {
           LoggerUtil.instance.w('Upstream stream error: $error');
-          recordException(error);
-          // 流中途失败：通知断路器对该端点补记失败，
-          // 避免“成功开始但中途损坏”的流被记为成功。
-          onStreamError?.call();
-          sink.addError(error, stackTrace);
+          if (!failed) {
+            failed = true;
+            final responseBody = responseChunks.join();
+            final errorEvent = buildSseError(error);
+            final clientBody = errorEvent.isEmpty
+                ? responseBody
+                : '$responseBody${utf8.decode(errorEvent)}';
+            recordException(error, clientBody);
+            // 流中途失败：通知断路器对该端点补记失败，
+            // 避免“成功开始但中途损坏”的流被记为成功。
+            onStreamError?.call();
+            if (errorEvent.isNotEmpty) sink.add(errorEvent);
+          }
+          sink.close();
         },
       ),
     );
@@ -886,6 +937,28 @@ class ResponseProcessor {
       headers: responseHeaders,
       body: transformedStream,
     );
+  }
+
+  static bool _hasAnthropicCompletionSignal(String responseBody) {
+    for (final rawLine in const LineSplitter().convert(responseBody)) {
+      final line = rawLine.trim();
+      if (line.startsWith('event:') &&
+          line.substring('event:'.length).trim() == 'message_stop') {
+        return true;
+      }
+
+      final payload = line.startsWith('data:')
+          ? line.substring('data:'.length).trim()
+          : line;
+      if (!payload.startsWith('{')) continue;
+      try {
+        final decoded = jsonDecode(payload);
+        if (decoded is Map && decoded['type'] == 'message_stop') return true;
+      } catch (_) {
+        // 不完整行会在 EOF 完整性判断中自然判为失败。
+      }
+    }
+    return false;
   }
 }
 

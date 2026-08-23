@@ -8,6 +8,7 @@ import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import '../../support/authenticated_http_client.dart';
 
 void main() {
   group('OpenAI Responses API 端点格式转换（端到端）', () {
@@ -78,6 +79,7 @@ void main() {
       ProxyServerRequest? loggedRequest;
       ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
         onRequestCompleted: (endpoint, request, response) {
           loggedRequest = request;
@@ -87,7 +89,7 @@ void main() {
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final response = await client!.post(
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
         headers: {
@@ -187,12 +189,13 @@ void main() {
       );
 
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
       );
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final response = await client!.post(
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
         headers: {'content-type': 'application/json'},
@@ -290,6 +293,7 @@ void main() {
 
       ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
         onRequestCompleted: (endpoint, request, response) {
           loggedResponse = response;
@@ -298,7 +302,7 @@ void main() {
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final request = http.Request(
         'POST',
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
@@ -380,12 +384,13 @@ void main() {
       );
 
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
       );
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final request = http.Request(
         'POST',
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
@@ -440,6 +445,7 @@ void main() {
 
       ProxyServerResponse? loggedResponse;
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
         onRequestCompleted: (endpoint, request, response) {
           loggedResponse = response;
@@ -448,7 +454,7 @@ void main() {
       service!.endpoints = [buildResponsesEndpoint(upstreamServers[0].port)];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       final response = await client!.post(
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
         headers: {'content-type': 'application/json'},
@@ -500,6 +506,7 @@ void main() {
       );
 
       service = ProxyServerService(
+        authToken: testProxyAuthToken,
         config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
       );
       service!.endpoints = [
@@ -514,7 +521,7 @@ void main() {
       ];
       await service!.start();
 
-      client = http.Client();
+      client = AuthenticatedTestClient();
       await client!.post(
         Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
         headers: {'content-type': 'application/json'},

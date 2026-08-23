@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SharedPreferenceUtil {
@@ -18,6 +21,9 @@ class SharedPreferenceUtil {
   final String _keyLaunchAtStartup = 'launch_at_startup';
   final String _keyNotificationEnabled = 'notification_enabled';
   final String _keyEnableAgentTeams = 'enable_agent_teams';
+  final String _keyProxyAuthToken = 'proxy_auth_token';
+
+  Future<String>? _proxyAuthTokenInitialization;
 
   // 1.0 版本重命名的 key（从否定语义翻转为正向语义）
   final String _keyClientAttribution = 'client_attribution';
@@ -48,17 +54,15 @@ class SharedPreferenceUtil {
     if (hasOld) {
       // 读取旧值
       final oldAttributionHeader = prefs.getBool('attribution_header') ?? true;
-      final oldDisableBetas = prefs.getBool('disable_experimental_betas') ?? true;
+      final oldDisableBetas =
+          prefs.getBool('disable_experimental_betas') ?? true;
       final oldDisableTraffic =
           prefs.getBool('disable_nonessential_traffic') ?? true;
       final oldDisableAttr = prefs.getBool('disable_attribution') ?? false;
 
       // 写入新 key（翻转为正向语义）
       await prefs.setBool(_keyClientAttribution, oldAttributionHeader); // 无翻转
-      await prefs.setBool(
-        _keyExperimentalApiFeatures,
-        !oldDisableBetas,
-      ); // 翻转
+      await prefs.setBool(_keyExperimentalApiFeatures, !oldDisableBetas); // 翻转
       await prefs.setBool(
         _keyBackgroundDataCollection,
         !oldDisableTraffic,
@@ -97,6 +101,45 @@ class SharedPreferenceUtil {
 
   Future<int> getPort() async {
     return (await _preferences).getInt(_keyPort) ?? 9000;
+  }
+
+  /// 返回代理客户端使用的本地认证令牌，不存在时使用安全随机数创建。
+  ///
+  /// 令牌持久化后由 Claude Code、Claude Desktop 与本地代理共同使用，
+  /// 避免每次改写设置都生成新令牌并让正在运行的代理立即失配。
+  Future<String> getOrCreateProxyAuthToken() async {
+    final pending = _proxyAuthTokenInitialization;
+    if (pending != null) return pending;
+
+    final initialization = _loadOrCreateProxyAuthToken();
+    _proxyAuthTokenInitialization = initialization;
+    try {
+      return await initialization;
+    } finally {
+      if (identical(_proxyAuthTokenInitialization, initialization)) {
+        _proxyAuthTokenInitialization = null;
+      }
+    }
+  }
+
+  Future<String> _loadOrCreateProxyAuthToken() async {
+    final prefs = await _preferences;
+    final existing = prefs.getString(_keyProxyAuthToken);
+    if (existing != null &&
+        existing.startsWith('cp-') &&
+        existing.length >= 35) {
+      return existing;
+    }
+
+    final random = Random.secure();
+    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
+    final encoded = base64UrlEncode(bytes).replaceAll('=', '');
+    final token = 'cp-$encoded';
+    final saved = await prefs.setString(_keyProxyAuthToken, token);
+    if (!saved) {
+      throw StateError('Failed to persist proxy authentication token');
+    }
+    return token;
   }
 
   Future<double> getWindowHeight() async {

@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
-import 'package:uuid/uuid.dart';
 
 class ClaudeDesktopConfigPaths {
   const ClaudeDesktopConfigPaths({
@@ -108,6 +107,13 @@ class ClaudeDesktopSettingService {
   String get _threepConfigPath =>
       join(_threepConfigDir, 'claude_desktop_config.json');
 
+  List<String> get managedFilePaths => [
+    _profilePath,
+    _metaPath,
+    _normalConfigPath,
+    _threepConfigPath,
+  ];
+
   /// 检测 Claude Desktop 是否已安装。
   ///
   /// 通过检查 Claude Desktop 的应用配置目录是否存在来判断。
@@ -120,33 +126,50 @@ class ClaudeDesktopSettingService {
   /// 代理启动时：激活 3P 模式并写入 gateway 推理 profile。
   ///
   /// 自动检测 Claude Desktop 是否安装；未安装则静默跳过。
-  Future<void> updateProxySetting() async {
+  Future<void> updateProxySetting({String? authToken, int? port}) async {
     if (!isClaudeDesktopInstalled) return;
 
     final instance = SharedPreferenceUtil.instance;
-    final port = await instance.getPort();
-    final uuid = const Uuid().v4().replaceAll('-', '');
-    final token = 'cp-$uuid';
+    final resolvedPort = port ?? await instance.getPort();
+    final token = authToken ?? await instance.getOrCreateProxyAuthToken();
+
+    // 在产生任何写入之前解析全部共享配置。损坏的用户配置必须让更新
+    // 失败关闭，不能退化为空对象后覆盖原文件。
+    final normalConfig = await _readJsonObject(File(_normalConfigPath));
+    final threepConfig = await _readJsonObject(File(_threepConfigPath));
+    final meta = await _readJsonObject(File(_metaPath));
+
+    normalConfig['deploymentMode'] = '3p';
+    threepConfig['deploymentMode'] = '3p';
+
+    final rawEntries = meta['entries'];
+    if (rawEntries != null && rawEntries is! List) {
+      throw FormatException(
+        'Cannot update $_metaPath: entries must be a JSON array',
+      );
+    }
+    final entries = <dynamic>[
+      ...?rawEntries?.where(
+        (entry) => entry is! Map || entry['id'] != _profileId,
+      ),
+      {'id': _profileId, 'name': _profileName},
+    ];
+    meta['appliedId'] = _profileId;
+    meta['entries'] = entries;
 
     // 1. 确保目录存在
     await Directory(_configLibraryDir).create(recursive: true);
 
     // 2. 写入 profile（flat keys 格式）
-    final profile = _buildProfile(port, token);
+    final profile = _buildProfile(resolvedPort, token);
     await _writeJsonFile(_profilePath, profile);
 
-    // 3. 写入 _meta.json
-    final meta = {
-      'appliedId': _profileId,
-      'entries': [
-        {'id': _profileId, 'name': _profileName},
-      ],
-    };
+    // 3. 写入 _meta.json（保留其他 profile）
     await _writeJsonFile(_metaPath, meta);
 
     // 4. 在两个 config 文件中设置 deploymentMode: "3p"
-    await _setDeploymentMode(_normalConfigPath, '3p');
-    await _setDeploymentMode(_threepConfigPath, '3p');
+    await _writeJsonFile(_normalConfigPath, normalConfig);
+    await _writeJsonFile(_threepConfigPath, threepConfig);
   }
 
   /// 代理停止时：恢复 1P 模式并清理 profile 文件。
@@ -200,16 +223,8 @@ class ClaudeDesktopSettingService {
   /// 在指定的 claude_desktop_config.json 中设置 deploymentMode。
   Future<void> _setDeploymentMode(String configPath, String mode) async {
     final file = File(configPath);
-    Map<String, dynamic> config = {};
-
-    if (await file.exists()) {
-      try {
-        final content = await file.readAsString();
-        if (content.trim().isNotEmpty) {
-          config = jsonDecode(content) as Map<String, dynamic>;
-        }
-      } catch (_) {}
-    } else {
+    final config = await _readJsonObject(file);
+    if (!await file.exists()) {
       await file.parent.create(recursive: true);
     }
 
@@ -221,7 +236,34 @@ class ClaudeDesktopSettingService {
   Future<void> _writeJsonFile(String path, Map<String, dynamic> data) async {
     final json = JsonEncoder.withIndent('  ').convert(data);
     final tempPath = '$path.tmp';
-    await File(tempPath).writeAsString(json);
-    await File(tempPath).rename(path);
+    final tempFile = File(tempPath);
+    try {
+      await tempFile.parent.create(recursive: true);
+      await tempFile.writeAsString(json, flush: true);
+      await tempFile.rename(path);
+    } finally {
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>> _readJsonObject(File file) async {
+    if (!await file.exists()) return <String, dynamic>{};
+
+    final content = await file.readAsString();
+    if (content.trim().isEmpty) return <String, dynamic>{};
+
+    try {
+      final decoded = jsonDecode(content);
+      if (decoded is! Map) {
+        throw const FormatException('root value must be a JSON object');
+      }
+      return Map<String, dynamic>.from(decoded);
+    } catch (error) {
+      throw FormatException(
+        'Cannot update ${file.path}: existing JSON is invalid ($error)',
+      );
+    }
   }
 }

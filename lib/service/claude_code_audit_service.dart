@@ -8,14 +8,20 @@ import 'package:path/path.dart' as p;
 
 /// 审计日志服务 - 仅负责文件写入与过期清理。
 ///
-/// 审计正文（请求/响应体、头部）全量持久化在
+/// 审计正文（请求/响应体、脱敏后的头部）持久化在
 /// `~/.code_proxy/audit/<日期>/<请求ID>/` 下，供本地排查直接查看；
 /// App 内不再提供可视化详情页。
 class ClaudeCodeAuditService {
-  static final ClaudeCodeAuditService instance = ClaudeCodeAuditService._();
-  ClaudeCodeAuditService._();
+  static final ClaudeCodeAuditService instance = ClaudeCodeAuditService();
+
+  ClaudeCodeAuditService({String? auditDirectory})
+    : _auditDirectoryOverride = auditDirectory;
+
+  static const _redactedValue = '[REDACTED]';
+  final String? _auditDirectoryOverride;
 
   String get _auditDirectory =>
+      _auditDirectoryOverride ??
       '${PathUtil.instance.getHomeDirectory()}/.code_proxy/audit';
 
   Future<void> writeAuditLog({
@@ -36,13 +42,16 @@ class ClaudeCodeAuditService {
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
+      // 在任何敏感内容写盘前先收紧目录访问权限。
+      await _restrictPermissions(dir);
 
       final requestHeadersData = {
-        'original': requestHeaders ?? {},
-        'forwarded': forwardedHeaders ?? {},
+        'original': _redactHeaders(requestHeaders),
+        'forwarded': _redactHeaders(forwardedHeaders),
       };
-      await File('${dir.path}/request_headers.json')
-          .writeAsString(jsonEncode(requestHeadersData));
+      await File(
+        '${dir.path}/request_headers.json',
+      ).writeAsString(jsonEncode(requestHeadersData));
 
       await File('${dir.path}/request_body').writeAsString(request);
 
@@ -51,16 +60,18 @@ class ClaudeCodeAuditService {
       if (originalRequest != null &&
           originalRequest.isNotEmpty &&
           originalRequest != request) {
-        await File('${dir.path}/original_request_body')
-            .writeAsString(originalRequest);
+        await File(
+          '${dir.path}/original_request_body',
+        ).writeAsString(originalRequest);
       }
 
       final responseHeadersData = {
-        'original': responseHeaders ?? {},
-        'forwarded': forwardedResponseHeaders ?? {},
+        'original': _redactHeaders(responseHeaders),
+        'forwarded': _redactHeaders(forwardedResponseHeaders),
       };
-      await File('${dir.path}/response_headers.json')
-          .writeAsString(jsonEncode(responseHeadersData));
+      await File(
+        '${dir.path}/response_headers.json',
+      ).writeAsString(jsonEncode(responseHeadersData));
 
       await File('${dir.path}/response_body').writeAsString(response);
 
@@ -74,10 +85,48 @@ class ClaudeCodeAuditService {
     }
   }
 
+  static Map<String, String> _redactHeaders(Map<String, String>? headers) {
+    if (headers == null) return const {};
+
+    return headers.map((name, value) {
+      final normalized = name.toLowerCase().replaceAll('_', '-');
+      final sensitive =
+          normalized == 'authorization' ||
+          normalized == 'proxy-authorization' ||
+          normalized == 'cookie' ||
+          normalized == 'set-cookie' ||
+          normalized == 'x-api-key' ||
+          normalized == 'api-key' ||
+          normalized.endsWith('-api-key') ||
+          normalized.endsWith('-access-token') ||
+          normalized.endsWith('-auth-token') ||
+          normalized.contains('credential');
+      return MapEntry(name, sensitive ? _redactedValue : value);
+    });
+  }
+
+  /// `dart:io` 没有跨平台 chmod API。Unix 上在本次审计写入结束后
+  /// 移除 group/other 的全部权限；Windows 则沿用用户目录 ACL。
+  Future<void> _restrictPermissions(Directory directory) async {
+    if (!Platform.isLinux && !Platform.isMacOS) return;
+    final result = await Process.run('/bin/chmod', [
+      'go-rwx',
+      _auditDirectory,
+      directory.parent.path,
+      directory.path,
+    ]);
+    if (result.exitCode != 0) {
+      throw FileSystemException(
+        'Failed to restrict audit log permissions: ${result.stderr}',
+        directory.path,
+      );
+    }
+  }
+
   Future<void> cleanExpiredLogs() async {
     try {
-      final retainDays =
-          await SharedPreferenceUtil.instance.getAuditRetainDays();
+      final retainDays = await SharedPreferenceUtil.instance
+          .getAuditRetainDays();
       final auditDir = Directory(_auditDirectory);
 
       if (!await auditDir.exists()) return;

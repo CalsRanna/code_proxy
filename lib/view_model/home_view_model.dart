@@ -9,6 +9,7 @@ import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/service/proxy_settings_snapshot.dart';
 import 'package:code_proxy/util/notification_util.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
@@ -254,6 +255,7 @@ class HomeViewModel {
     final apiTimeout = await instance.getApiTimeout();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
     final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
+    final authToken = await instance.getOrCreateProxyAuthToken();
     final config = ProxyServerConfig(
       address: '127.0.0.1',
       port: newPort,
@@ -263,6 +265,7 @@ class HomeViewModel {
     );
     final newServer = ProxyServerService(
       config: config,
+      authToken: authToken,
       onRequestCompleted: handleRequestCompleted,
       onEndpointUnavailable: handleEndpointUnavailable,
       onEndpointRestored: handleEndpointRestored,
@@ -271,10 +274,19 @@ class HomeViewModel {
     try {
       // 先监听成功，失败则 settings.json 保持原样
       await newServer.start();
+      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+      newServer.endpoints = endpointViewModel.enabledEndpoints;
+      // 服务已就绪后再以跨文件事务改写 Claude 配置。
+      await _writeProxySettings(authToken: authToken, port: newPort);
       _proxyServer = newServer;
-      // 服务已就绪后再改写 Claude Code 配置
-      await _writeProxySettings();
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // newServer 可能已经监听成功，也可能仅创建了出站 HttpClient。
+      // 两种情况都必须关闭，才能安全地恢复旧服务。
+      try {
+        await newServer.stop();
+      } catch (stopError) {
+        LoggerUtil.instance.e('Failed to stop new proxy server: $stopError');
+      }
       // 启动失败：尝试恢复旧服务，避免 Claude Code 悬空指向已停止的端口
       if (oldServer != null) {
         try {
@@ -286,12 +298,8 @@ class HomeViewModel {
           );
         }
       }
-      rethrow;
+      Error.throwWithStackTrace(e, stackTrace);
     }
-
-    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-    final enabledEndpoints = endpointViewModel.enabledEndpoints;
-    _proxyServer?.endpoints = enabledEndpoints;
   }
 
   Future<void> toggleEndpointEnabled(String id) async {
@@ -354,9 +362,34 @@ class HomeViewModel {
   }
 
   /// 将 Claude Code / Claude Desktop 配置指向当前代理端口
-  Future<void> _writeProxySettings() async {
-    await ClaudeCodeSettingService().updateProxySetting();
-    await ClaudeDesktopSettingService().updateProxySetting();
+  Future<void> _writeProxySettings({
+    required String authToken,
+    required int port,
+  }) async {
+    final codeSettings = ClaudeCodeSettingService();
+    final desktopSettings = ClaudeDesktopSettingService();
+    final snapshot = await ProxySettingsSnapshot.capture([
+      ...codeSettings.managedFilePaths,
+      ...desktopSettings.managedFilePaths,
+    ]);
+
+    try {
+      await codeSettings.updateProxySetting(authToken: authToken, port: port);
+      await desktopSettings.updateProxySetting(
+        authToken: authToken,
+        port: port,
+      );
+    } catch (error, stackTrace) {
+      try {
+        await snapshot.restore();
+      } catch (rollbackError) {
+        throw ProxySettingsRollbackException(
+          updateError: error,
+          rollbackError: rollbackError,
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> _autoStartServer(BuildContext context) async {
@@ -365,6 +398,7 @@ class HomeViewModel {
     final apiTimeout = await instance.getApiTimeout();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
     final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
+    final authToken = await instance.getOrCreateProxyAuthToken();
 
     final config = ProxyServerConfig(
       address: '127.0.0.1',
@@ -375,6 +409,7 @@ class HomeViewModel {
     );
     final server = ProxyServerService(
       config: config,
+      authToken: authToken,
       onRequestCompleted: handleRequestCompleted,
       onEndpointUnavailable: handleEndpointUnavailable,
       onEndpointRestored: handleEndpointRestored,
@@ -384,10 +419,19 @@ class HomeViewModel {
       // 先监听成功再写 Claude Code 配置：端口被占用时不能把
       // settings.json 指向一个不存在的服务。
       await server.start();
+      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
+      server.endpoints = endpointViewModel.enabledEndpoints;
+      await _writeProxySettings(authToken: authToken, port: port);
       _proxyServer = server;
-      await _writeProxySettings();
     } catch (e) {
       LoggerUtil.instance.e('Failed to start proxy server: $e');
+      try {
+        await server.stop();
+      } catch (stopError) {
+        LoggerUtil.instance.e(
+          'Failed to clean up proxy server after startup error: $stopError',
+        );
+      }
       _proxyServer = null;
       // Claude Code 配置保持原样，明确告知用户启动失败原因
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -397,10 +441,6 @@ class HomeViewModel {
       });
       return;
     }
-
-    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-    final enabledEndpoints = endpointViewModel.enabledEndpoints;
-    _proxyServer?.endpoints = enabledEndpoints;
   }
 
   void _showStartupErrorDialog(BuildContext context, int port, Object error) {
