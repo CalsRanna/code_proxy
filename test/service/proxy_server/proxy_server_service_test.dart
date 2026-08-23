@@ -229,6 +229,52 @@ void main() {
         isEmpty,
       );
     });
+
+    test('stop 后重新 start 应重建出站 HttpClient，转发仍然可用', () async {
+      var hit = false;
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          hit = true;
+          request.response.statusCode = HttpStatus.ok;
+          request.response.write('ok');
+          await request.response.close();
+        }),
+      );
+
+      service = ProxyServerService(
+        config: const ProxyServerConfig(
+          address: '127.0.0.1',
+          port: 0,
+          apiTimeoutMs: 2000,
+          circuitBreakerFailureThreshold: 1,
+        ),
+      );
+      service!.endpoints = [
+        _buildEndpoint('ep-1', upstreamServers[0].port),
+      ];
+      await service!.start();
+
+      client = http.Client();
+      final headers = {
+        'content-type': 'application/json',
+        'x-api-key': 'client-token',
+      };
+      final body = jsonEncode({'model': 'claude-3-7-sonnet'});
+
+      await service!.stop();
+      await service!.start();
+
+      // 端口变更回滚等场景依赖 stop → start 复用同一服务实例。
+      // 若 start 未重建已关闭的出站 HttpClient，此处会抛
+      // "Client is already closed" 并返回 500。
+      final response = await client!.post(
+        Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+        headers: headers,
+        body: body,
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      expect(hit, true);
+    });
   });
 }
 

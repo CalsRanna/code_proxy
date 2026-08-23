@@ -25,7 +25,12 @@ class ProxyServerService {
   onRequestCompleted;
 
   late final ProxyServerRouter _router;
-  late final ProxyServerRequestHandler _requestHandler;
+  /// 出站请求处理器，随 [start] 重建、随 [stop] 关闭置空。
+  ///
+  /// 不做成 `late final` 单例：stop() 会关闭其内部 HttpClient，
+  /// 若重启失败后回滚复用同一实例，后续所有转发都会抛
+  /// "Client is already closed"。见 [_proxyHandler] 中的空值兜底。
+  ProxyServerRequestHandler? _requestHandler;
   late final ProxyServerResponseHandler _responseHandler;
   late final ProxyServerLocalResponder _localResponder;
   late final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
@@ -47,7 +52,6 @@ class ProxyServerService {
       onEndpointUnavailable: onEndpointUnavailable,
       onEndpointRestored: onEndpointRestored,
     );
-    _requestHandler = ProxyServerRequestHandler(config);
     _responseHandler = ProxyServerResponseHandler(
       onRequestCompleted: onRequestCompleted,
       // 流式响应中途中断时补记一次失败，避免断路器把损坏的流记为成功
@@ -64,6 +68,9 @@ class ProxyServerService {
     if (_server != null) {
       throw StateError('Server is already running');
     }
+    // 每次启动都重建出站 HttpClient（stop 时已随旧实例关闭），
+    // 保证服务实例可安全地 stop → start 循环复用（端口变更回滚路径依赖此语义）
+    _requestHandler = ProxyServerRequestHandler(config);
 
     _server = await shelf_io.serve(
       _proxyHandler,
@@ -80,9 +87,11 @@ class ProxyServerService {
 
   Future<void> stop() async {
     if (_server == null) return;
+    final handler = _requestHandler;
+    _requestHandler = null;
     await _server!.close(force: true);
     _server = null;
-    _requestHandler.close();
+    handler?.close();
   }
 
   /// 重置指定端点的断路器
@@ -127,16 +136,24 @@ class ProxyServerService {
       if (endpoint == null) break;
       int? startTime;
       http.Request? preparedRequest;
+      final requestHandler = _requestHandler;
+      if (requestHandler == null) {
+        // 理论上不可达：_server 非 null 时 _requestHandler 必已重建。
+        // 防御 stop() 与在途请求的极端交错，避免空引用崩溃。
+        return shelf.Response.internalServerError(
+          body: 'Proxy server is shutting down',
+        );
+      }
       try {
         // 1. 构建请求
-        preparedRequest = _requestHandler.prepareRequest(
+        preparedRequest = requestHandler.prepareRequest(
           request,
           endpoint,
           rawBody,
         );
         // 2. 发送请求（在此处开始计时，确保 responseTime 是真实的服务器响应时间）
         startTime = DateTime.now().millisecondsSinceEpoch;
-        final response = await _requestHandler.forwardRequest(preparedRequest);
+        final response = await requestHandler.forwardRequest(preparedRequest);
         // 3. 处理响应并判断是否需要继续
         finalResponse = await _responseHandler.handleResponse(
           response,
