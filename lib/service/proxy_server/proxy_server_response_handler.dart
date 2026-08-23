@@ -966,6 +966,8 @@ class ResponseProcessor {
 ///
 /// [extractUsage] 是权威方法，使用 JSON 解析精确提取 usage 对象中的各字段，
 /// 支持非流式（单个 JSON 对象）和流式 SSE（多个 data: 行）两种格式。
+/// 返回值遵循 Anthropic 口径：input 仅表示未缓存输入，缓存创建与读取
+/// 分别保存在独立字段中，不能从 input 再次扣减。
 ///
 /// 逐块正则方法（[extractInputTokens] 等）仅用于流式实时提取，
 /// 会在 [handleDone] 阶段被 [extractUsage] 的 JSON 解析结果覆盖。
@@ -1064,7 +1066,12 @@ class TokenExtractor {
       } catch (_) {}
     }
 
-    if (inputTokens == null && outputTokens == null) return null;
+    if (inputTokens == null &&
+        outputTokens == null &&
+        cacheCreationTokens == null &&
+        cacheReadTokens == null) {
+      return null;
+    }
     return {
       'input': inputTokens,
       'output': outputTokens,

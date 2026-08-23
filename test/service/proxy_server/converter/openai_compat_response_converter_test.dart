@@ -129,14 +129,14 @@ void main() {
 
     test('finish_reason 映射表', () {
       Map<String, dynamic> withFinish(String reason) => convertResponse({
-            'id': 'x',
-            'choices': [
-              {
-                'message': {'role': 'assistant', 'content': 't'},
-                'finish_reason': reason,
-              },
-            ],
-          });
+        'id': 'x',
+        'choices': [
+          {
+            'message': {'role': 'assistant', 'content': 't'},
+            'finish_reason': reason,
+          },
+        ],
+      });
 
       expect(withFinish('stop')['stop_reason'], 'end_turn');
       expect(withFinish('length')['stop_reason'], 'max_tokens');
@@ -160,8 +160,36 @@ void main() {
           'prompt_tokens_details': {'cached_tokens': 80},
         },
       });
+      expect(result['usage']['input_tokens'], 20);
       expect(result['usage']['cache_read_input_tokens'], 80);
       expect(result['usage']['cache_creation_input_tokens'], 0);
+    });
+
+    test('cache_write_tokens 映射后不会重复计入普通输入', () {
+      final result = convertResponse({
+        'id': 'x',
+        'choices': [
+          {
+            'message': {'role': 'assistant', 'content': 't'},
+            'finish_reason': 'stop',
+          },
+        ],
+        'usage': {
+          'prompt_tokens': 100,
+          'completion_tokens': 10,
+          'prompt_tokens_details': {
+            'cached_tokens': 60,
+            'cache_write_tokens': 20,
+          },
+        },
+      });
+
+      expect(result['usage'], {
+        'input_tokens': 20,
+        'output_tokens': 10,
+        'cache_read_input_tokens': 60,
+        'cache_creation_input_tokens': 20,
+      });
     });
 
     test('usage 缺失时归零不抛错', () {
@@ -214,7 +242,10 @@ void main() {
       });
       final content = result['content'] as List;
       expect(content, hasLength(2));
-      expect(content[0], {'type': 'thinking', 'thinking': 'Let me think about it.'});
+      expect(content[0], {
+        'type': 'thinking',
+        'thinking': 'Let me think about it.',
+      });
       expect(content[1]['type'], 'text');
       expect(content[1]['text'], 'Answer is 42.');
     });
@@ -233,7 +264,10 @@ void main() {
           },
         ],
       });
-      expect(result['content'][0], {'type': 'thinking', 'thinking': 'step by step'});
+      expect(result['content'][0], {
+        'type': 'thinking',
+        'thinking': 'step by step',
+      });
     });
 
     test('无 reasoning 时 content 不含 thinking block', () {

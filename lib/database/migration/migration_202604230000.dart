@@ -6,6 +6,8 @@ import 'package:laconic/laconic.dart';
 /// 1. 移除 endpoint_id 列（无外键约束，删除端点后变孤立数据，且无查询引用）
 /// 2. 移除 idx_request_logs_endpoint_id 索引
 /// endpoint_name 已冗余存储端点名称，endpoint_id 不再有实际用途
+/// Token 列遵循 Anthropic 口径：input_tokens 仅存未缓存输入，缓存创建与
+/// 缓存读取分别存入 cache_creation_input_tokens/cache_read_input_tokens。
 class Migration202604230000 {
   static const name = 'migration_202604230000';
 

@@ -122,7 +122,7 @@ class RequestLogRepository {
         .table('request_logs')
         .select([
           'endpoint_name',
-          'SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) as total_tokens',
+          'SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) + COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)) as total_tokens',
         ])
         .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
         .groupBy('endpoint_name')
@@ -151,10 +151,13 @@ class RequestLogRepository {
         ? '+$offsetMinutes minutes'
         : '$offsetMinutes minutes';
 
-    final results = await _database.laconic.select('''
+    final results = await _database.laconic.select(
+      '''
       SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
              COALESCE(model, 'unknown') as model,
              SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) + COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)) as total_tokens,
+             SUM(COALESCE(input_tokens, 0)) as input,
+             SUM(COALESCE(output_tokens, 0)) as output,
              SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read,
              SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation
       FROM request_logs
@@ -162,7 +165,9 @@ class RequestLogRepository {
       GROUP BY date, model
       HAVING total_tokens > 0
       ORDER BY date, model
-    ''', [startTimestamp, endTimestamp]);
+    ''',
+      [startTimestamp, endTimestamp],
+    );
 
     final Map<String, Map<String, Map<String, int>>> modelDateStats = {};
     for (final row in results) {
@@ -170,12 +175,16 @@ class RequestLogRepository {
       final date = rowMap['date'] as String;
       final model = rowMap['model'] as String;
       final totalTokens = rowMap['total_tokens'] as int;
+      final input = rowMap['input'] as int;
+      final output = rowMap['output'] as int;
       final cacheRead = rowMap['cache_read'] as int;
       final cacheCreation = rowMap['cache_creation'] as int;
 
       modelDateStats.putIfAbsent(date, () => {});
       modelDateStats[date]![model] = {
         'total': totalTokens,
+        'input': input,
+        'output': output,
         'cache_read': cacheRead,
         'cache_creation': cacheCreation,
       };
@@ -232,7 +241,8 @@ class RequestLogRepository {
         ? '+$offsetMinutes minutes'
         : '$offsetMinutes minutes';
 
-    final results = await _database.laconic.select('''
+    final results = await _database.laconic.select(
+      '''
       SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
              COALESCE(model, 'unknown') as model,
              SUM(COALESCE(input_tokens, 0)) as input,
@@ -242,7 +252,9 @@ class RequestLogRepository {
       FROM request_logs
       WHERE timestamp BETWEEN ? AND ? AND status_code = 200
       GROUP BY date, model
-    ''', [startTimestamp, endTimestamp]);
+    ''',
+      [startTimestamp, endTimestamp],
+    );
 
     return results.map((r) => r.toMap()).toList();
   }

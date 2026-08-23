@@ -31,7 +31,7 @@ void main() {
       ],
       'usage': {
         'input_tokens': 100,
-        'input_tokens_details': {'cached_tokens': 60},
+        'input_tokens_details': {'cached_tokens': 60, 'cache_write_tokens': 20},
         'output_tokens': 20,
         'output_tokens_details': {'reasoning_tokens': 5},
         'total_tokens': 120,
@@ -48,10 +48,10 @@ void main() {
       {'type': 'text', 'text': 'Hello world'},
     ]);
     expect(out['usage'], {
-      'input_tokens': 100,
+      'input_tokens': 20,
       'output_tokens': 20,
       'cache_read_input_tokens': 60,
-      'cache_creation_input_tokens': 0,
+      'cache_creation_input_tokens': 20,
     });
   });
 
@@ -150,7 +150,11 @@ void main() {
         {
           'type': 'message',
           'content': [
-            {'type': 'refusal', 'refusal': 'cannot do that', 'text': 'cannot do that'},
+            {
+              'type': 'refusal',
+              'refusal': 'cannot do that',
+              'text': 'cannot do that',
+            },
           ],
         },
       ],

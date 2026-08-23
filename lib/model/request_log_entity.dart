@@ -27,7 +27,7 @@ class RequestLogEntity {
   /// 客户端请求的原始模型（映射前）
   final String? originalModel;
 
-  /// 输入 token 数量
+  /// 未缓存输入 token 数量（Anthropic input_tokens 口径）
   final int? inputTokens;
 
   /// 输出 token 数量
@@ -58,6 +58,25 @@ class RequestLogEntity {
     this.cacheReadInputTokens,
     this.errorMessage,
   });
+
+  /// 包含缓存创建与缓存读取的总输入 token 数量。
+  int? get totalInputTokens {
+    if (inputTokens == null &&
+        cacheCreationInputTokens == null &&
+        cacheReadInputTokens == null) {
+      return null;
+    }
+    return (inputTokens ?? 0) +
+        (cacheCreationInputTokens ?? 0) +
+        (cacheReadInputTokens ?? 0);
+  }
+
+  /// 输入与输出合计 token 数量。
+  int? get totalTokens {
+    final totalInput = totalInputTokens;
+    if (totalInput == null && outputTokens == null) return null;
+    return (totalInput ?? 0) + (outputTokens ?? 0);
+  }
 
   /// 从 JSON 反序列化
   factory RequestLogEntity.fromJson(Map<String, dynamic> json) {
@@ -135,8 +154,7 @@ class RequestLogEntity {
       outputTokens: outputTokens ?? this.outputTokens,
       cacheCreationInputTokens:
           cacheCreationInputTokens ?? this.cacheCreationInputTokens,
-      cacheReadInputTokens:
-          cacheReadInputTokens ?? this.cacheReadInputTokens,
+      cacheReadInputTokens: cacheReadInputTokens ?? this.cacheReadInputTokens,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

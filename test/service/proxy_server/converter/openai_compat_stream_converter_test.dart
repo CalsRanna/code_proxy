@@ -27,7 +27,9 @@ void main() {
     List<List<int>> chunks, {
     bool callHandleDone = true,
   }) {
-    final converter = OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+    final converter = OpenAiSseStreamConverter(
+      originalModel: 'claude-sonnet-4-5',
+    );
     final out = <int>[...converter.initialEvents()];
     for (final chunk in chunks) {
       out.addAll(converter.handleData(chunk));
@@ -43,7 +45,9 @@ void main() {
   }
 
   test('头部事件：message_start + ping 立即产出', () {
-    final converter = OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+    final converter = OpenAiSseStreamConverter(
+      originalModel: 'claude-sonnet-4-5',
+    );
     final events = parseEvents(converter.initialEvents());
 
     expect(events[0].$1, 'message_start');
@@ -105,7 +109,10 @@ void main() {
       expect(events[3].$2['delta'], {'type': 'text_delta', 'text': 'Hello'});
       expect(events[4].$2['delta'], {'type': 'text_delta', 'text': ' world'});
       expect(events[5].$2['index'], 0);
-      expect(events[6].$2['delta'], {'stop_reason': 'end_turn', 'stop_sequence': null});
+      expect(events[6].$2['delta'], {
+        'stop_reason': 'end_turn',
+        'stop_sequence': null,
+      });
     });
 
     test('usage 在末尾独立 chunk 时正确捕获', () {
@@ -129,7 +136,10 @@ void main() {
             'usage': {
               'prompt_tokens': 12,
               'completion_tokens': 34,
-              'prompt_tokens_details': {'cached_tokens': 8},
+              'prompt_tokens_details': {
+                'cached_tokens': 5,
+                'cache_write_tokens': 3,
+              },
             },
           },
         ]),
@@ -137,9 +147,10 @@ void main() {
       converter.handleDone();
 
       final usage = converter.finalUsage;
-      expect(usage['input'], 12);
+      expect(usage['input'], 4);
       expect(usage['output'], 34);
-      expect(usage['cache_read'], 8);
+      expect(usage['cache_creation'], 3);
+      expect(usage['cache_read'], 5);
     });
 
     test('finish_reason=length 映射为 max_tokens', () {
@@ -151,16 +162,12 @@ void main() {
                 'delta': {'content': 'abc'},
                 'finish_reason': null,
               },
-              {
-                'delta': {},
-                'finish_reason': 'length',
-              },
+              {'delta': {}, 'finish_reason': 'length'},
             ],
           },
         ]),
       ]);
-      final messageDelta =
-          events.firstWhere((e) => e.$1 == 'message_delta');
+      final messageDelta = events.firstWhere((e) => e.$1 == 'message_delta');
       expect(messageDelta.$2['delta']['stop_reason'], 'max_tokens');
     });
 
@@ -172,8 +179,9 @@ void main() {
 
   group('完成信号检测（isComplete）', () {
     test('仅内容分片时 isComplete 为 false（上游静默截断）', () {
-      final converter =
-          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      final converter = OpenAiSseStreamConverter(
+        originalModel: 'claude-sonnet-4-5',
+      );
       converter.initialEvents();
       converter.handleData(
         sse([
@@ -201,8 +209,9 @@ void main() {
     });
 
     test('收到 [DONE] 时 isComplete 为 true（即使没有 finish_reason）', () {
-      final converter =
-          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      final converter = OpenAiSseStreamConverter(
+        originalModel: 'claude-sonnet-4-5',
+      );
       converter.initialEvents();
       converter.handleData(
         sse([
@@ -222,8 +231,9 @@ void main() {
     });
 
     test('收到 finish_reason 但没有 [DONE] 时 isComplete 为 true', () {
-      final converter =
-          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      final converter = OpenAiSseStreamConverter(
+        originalModel: 'claude-sonnet-4-5',
+      );
       converter.initialEvents();
       converter.handleData(
         sse([
@@ -234,11 +244,7 @@ void main() {
                 'delta': {'content': 'hello'},
                 'finish_reason': null,
               },
-              {
-                'index': 0,
-                'delta': {},
-                'finish_reason': 'stop',
-              },
+              {'index': 0, 'delta': {}, 'finish_reason': 'stop'},
             ],
           },
         ]),
@@ -247,8 +253,9 @@ void main() {
     });
 
     test('空流直接结束（无任何信号）时 isComplete 为 false', () {
-      final converter =
-          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      final converter = OpenAiSseStreamConverter(
+        originalModel: 'claude-sonnet-4-5',
+      );
       converter.initialEvents();
       converter.handleDone();
       expect(converter.isComplete, isFalse);
@@ -257,62 +264,59 @@ void main() {
 
   group('纯工具调用流', () {
     List<Map<String, dynamic>> toolCallChunks() => [
+      {
+        'choices': [
           {
-            'choices': [
-              {
-                'delta': {
-                  'role': 'assistant',
-                  'tool_calls': [
-                    {
-                      'index': 0,
-                      'id': 'call_a',
-                      'type': 'function',
-                      'function': {'name': 'read_file', 'arguments': ''},
-                    },
-                  ],
+            'delta': {
+              'role': 'assistant',
+              'tool_calls': [
+                {
+                  'index': 0,
+                  'id': 'call_a',
+                  'type': 'function',
+                  'function': {'name': 'read_file', 'arguments': ''},
                 },
-                'finish_reason': null,
-              },
-            ],
+              ],
+            },
+            'finish_reason': null,
           },
+        ],
+      },
+      {
+        'choices': [
           {
-            'choices': [
-              {
-                'delta': {
-                  'tool_calls': [
-                    {
-                      'index': 0,
-                      'function': {'arguments': '{"path'},
-                    },
-                  ],
+            'delta': {
+              'tool_calls': [
+                {
+                  'index': 0,
+                  'function': {'arguments': '{"path'},
                 },
-                'finish_reason': null,
-              },
-            ],
+              ],
+            },
+            'finish_reason': null,
           },
+        ],
+      },
+      {
+        'choices': [
           {
-            'choices': [
-              {
-                'delta': {
-                  'tool_calls': [
-                    {
-                      'index': 0,
-                      'function': {'arguments': '":"/a.txt"}'},
-                    },
-                  ],
+            'delta': {
+              'tool_calls': [
+                {
+                  'index': 0,
+                  'function': {'arguments': '":"/a.txt"}'},
                 },
-              },
-            ],
+              ],
+            },
           },
-          {
-            'choices': [
-              {
-                'delta': {},
-                'finish_reason': 'tool_calls',
-              },
-            ],
-          },
-        ];
+        ],
+      },
+      {
+        'choices': [
+          {'delta': {}, 'finish_reason': 'tool_calls'},
+        ],
+      },
+    ];
 
     test('不产生 text block，partial_json 分片直转', () {
       final events = runStream([sse(toolCallChunks())]);
@@ -320,11 +324,16 @@ void main() {
 
       expect(types.contains('content_block_start'), isTrue);
       // 不应有任何空 text block
-      for (final (_, data) in events.where((e) => e.$1 == 'content_block_start')) {
+      for (final (_, data) in events.where(
+        (e) => e.$1 == 'content_block_start',
+      )) {
         expect(data['content_block']['type'], 'tool_use');
       }
       // index 连续且从 0 开始
-      expect(events.firstWhere((e) => e.$1 == 'content_block_start').$2['index'], 0);
+      expect(
+        events.firstWhere((e) => e.$1 == 'content_block_start').$2['index'],
+        0,
+      );
 
       final deltas = events
           .where((e) => e.$1 == 'content_block_delta')
@@ -392,10 +401,7 @@ void main() {
         },
         {
           'choices': [
-            {
-              'delta': {},
-              'finish_reason': 'tool_calls',
-            },
+            {'delta': {}, 'finish_reason': 'tool_calls'},
           ],
         },
       ]);
@@ -476,8 +482,9 @@ void main() {
         'message_stop',
       ]);
 
-      final starts =
-          events.where((e) => e.$1 == 'content_block_start').toList();
+      final starts = events
+          .where((e) => e.$1 == 'content_block_start')
+          .toList();
       expect(starts[0].$2['index'], 0);
       expect(starts[0].$2['content_block']['type'], 'thinking');
       expect(starts[1].$2['index'], 1);
@@ -511,8 +518,7 @@ void main() {
           },
         ]),
       ]);
-      final delta =
-          events.firstWhere((e) => e.$1 == 'content_block_delta').$2;
+      final delta = events.firstWhere((e) => e.$1 == 'content_block_delta').$2;
       expect(delta['delta']['type'], 'thinking_delta');
       expect(delta['delta']['thinking'], 'via openrouter');
     });
@@ -614,7 +620,9 @@ void main() {
       });
       final bytes = utf8.encode('data: {broken json\ndata: $good\n\n');
       final events = runStream([bytes]);
-      final deltas = events.where((e) => e.$1 == 'content_block_delta').toList();
+      final deltas = events
+          .where((e) => e.$1 == 'content_block_delta')
+          .toList();
       expect(deltas, hasLength(1));
       expect(deltas[0].$2['delta']['text'], 'ok');
     });
@@ -647,8 +655,9 @@ void main() {
           },
         ],
       });
-      final bytes =
-          utf8.encode('data: $beforeDone\n\ndata: [DONE]\n\ndata: $afterDone\n\n');
+      final bytes = utf8.encode(
+        'data: $beforeDone\n\ndata: [DONE]\n\ndata: $afterDone\n\n',
+      );
       final events = runStream([bytes]);
       final texts = events
           .where((e) => e.$1 == 'content_block_delta')

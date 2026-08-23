@@ -12,7 +12,8 @@ class ProxyServerResponse {
   /// 响应时间（毫秒）- 总时间
   final int responseTime;
 
-  /// Token 使用量 {'input': inputTokens, 'output': outputTokens}
+  /// Token 使用量：input 表示未缓存输入，cache_creation/cache_read
+  /// 分别表示缓存创建与读取，四类计数互不重叠。
   /// 在 ResponseHandler 中统一解析（流式和非流式）
   /// 值可能为 null 表示解析失败
   final Map<String, int?>? usage;

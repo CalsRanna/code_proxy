@@ -52,26 +52,28 @@ void main() {
 
           request.response.statusCode = HttpStatus.ok;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'id': 'resp_123',
-            'object': 'response',
-            'model': 'gpt-5',
-            'status': 'completed',
-            'output': [
-              {
-                'type': 'message',
-                'role': 'assistant',
-                'content': [
-                  {'type': 'output_text', 'text': 'Hello from GPT'},
-                ],
+          request.response.write(
+            jsonEncode({
+              'id': 'resp_123',
+              'object': 'response',
+              'model': 'gpt-5',
+              'status': 'completed',
+              'output': [
+                {
+                  'type': 'message',
+                  'role': 'assistant',
+                  'content': [
+                    {'type': 'output_text', 'text': 'Hello from GPT'},
+                  ],
+                },
+              ],
+              'usage': {
+                'input_tokens': 42,
+                'input_tokens_details': {'cached_tokens': 20},
+                'output_tokens': 7,
               },
-            ],
-            'usage': {
-              'input_tokens': 42,
-              'input_tokens_details': {'cached_tokens': 20},
-              'output_tokens': 7,
-            },
-          }));
+            }),
+          );
           await request.response.close();
         }),
       );
@@ -153,9 +155,11 @@ void main() {
         {'type': 'text', 'text': 'Hello from GPT'},
       ]);
       expect(body['stop_reason'], 'end_turn');
-      expect(body['usage']['input_tokens'], 42);
+      expect(body['usage']['input_tokens'], 22);
       expect(body['usage']['output_tokens'], 7);
       expect(body['usage']['cache_read_input_tokens'], 20);
+      expect(loggedResponse!.usage!['input'], 22);
+      expect(loggedResponse!.usage!['cache_read'], 20);
     });
 
     test('非流式工具调用：function_call → tool_use，stop_reason=tool_use', () async {
@@ -169,21 +173,23 @@ void main() {
 
           request.response.statusCode = HttpStatus.ok;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'id': 'resp_tool',
-            'model': 'gpt-5',
-            'status': 'completed',
-            'output': [
-              {
-                'type': 'function_call',
-                'id': 'fc_1',
-                'call_id': 'call_abc',
-                'name': 'get_weather',
-                'arguments': '{"city":"Tokyo"}',
-              },
-            ],
-            'usage': {'input_tokens': 10, 'output_tokens': 5},
-          }));
+          request.response.write(
+            jsonEncode({
+              'id': 'resp_tool',
+              'model': 'gpt-5',
+              'status': 'completed',
+              'output': [
+                {
+                  'type': 'function_call',
+                  'id': 'fc_1',
+                  'call_id': 'call_abc',
+                  'name': 'get_weather',
+                  'arguments': '{"city":"Tokyo"}',
+                },
+              ],
+              'usage': {'input_tokens': 10, 'output_tokens': 5},
+            }),
+          );
           await request.response.close();
         }),
       );
@@ -208,7 +214,9 @@ void main() {
               'description': 'Get weather',
               'input_schema': {
                 'type': 'object',
-                'properties': {'city': {'type': 'string'}},
+                'properties': {
+                  'city': {'type': 'string'},
+                },
               },
             },
           ],
@@ -225,7 +233,9 @@ void main() {
         'description': 'Get weather',
         'parameters': {
           'type': 'object',
-          'properties': {'city': {'type': 'string'}},
+          'properties': {
+            'city': {'type': 'string'},
+          },
         },
       });
 
@@ -254,10 +264,13 @@ void main() {
             'text/event-stream',
           );
           void event(Map<String, dynamic> data) => request.response.write(
-                'event: ${data['type']}\ndata: ${jsonEncode(data)}\n\n',
-              );
+            'event: ${data['type']}\ndata: ${jsonEncode(data)}\n\n',
+          );
 
-          event({'type': 'response.created', 'response': {'id': 'resp_s'}});
+          event({
+            'type': 'response.created',
+            'response': {'id': 'resp_s'},
+          });
           event({
             'type': 'response.output_item.added',
             'item': {
@@ -267,14 +280,8 @@ void main() {
               'content': [],
             },
           });
-          event({
-            'type': 'response.output_text.delta',
-            'delta': 'Hello',
-          });
-          event({
-            'type': 'response.output_text.delta',
-            'delta': ' stream',
-          });
+          event({'type': 'response.output_text.delta', 'delta': 'Hello'});
+          event({'type': 'response.output_text.delta', 'delta': ' stream'});
           event({
             'type': 'response.completed',
             'response': {
@@ -303,28 +310,27 @@ void main() {
       await service!.start();
 
       client = AuthenticatedTestClient();
-      final request = http.Request(
-        'POST',
-        Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
-      )
-        ..headers['content-type'] = 'application/json'
-        ..body = jsonEncode({
-          'model': 'test-model-x',
-          'max_tokens': 1024,
-          'stream': true,
-          'messages': [
-            {'role': 'user', 'content': 'hi'},
-          ],
-        });
+      final request =
+          http.Request(
+              'POST',
+              Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+            )
+            ..headers['content-type'] = 'application/json'
+            ..body = jsonEncode({
+              'model': 'test-model-x',
+              'max_tokens': 1024,
+              'stream': true,
+              'messages': [
+                {'role': 'user', 'content': 'hi'},
+              ],
+            });
 
-      final streamed =
-          await client!.send(request).then(http.Response.fromStream);
+      final streamed = await client!
+          .send(request)
+          .then(http.Response.fromStream);
 
       expect(streamed.statusCode, HttpStatus.ok);
-      expect(
-        streamed.headers['content-type'],
-        contains('text/event-stream'),
-      );
+      expect(streamed.headers['content-type'], contains('text/event-stream'));
 
       final events = _parseSseEvents(streamed.body);
       expect(events.map((e) => e.$1), [
@@ -342,7 +348,7 @@ void main() {
       expect(events[0].$2['message']['model'], 'test-model-x');
       expect(events[3].$2['delta'], {'type': 'text_delta', 'text': 'Hello'});
       expect(events[6].$2['usage']['output_tokens'], 4);
-      expect(events[6].$2['usage']['input_tokens'], 33);
+      expect(events[6].$2['usage']['input_tokens'], 22);
       expect(events[6].$2['usage']['cache_read_input_tokens'], 11);
       expect(events[6].$2['delta']['stop_reason'], 'end_turn');
 
@@ -351,8 +357,10 @@ void main() {
       // 审计记录：rawResponseBody 为上游 Responses SSE 原文，
       // responseBody 为转换后的 Anthropic SSE 文本
       expect(loggedResponse!.rawResponseBody, contains('response.created'));
-      expect(loggedResponse!.rawResponseBody,
-          contains('"input_tokens_details"'));
+      expect(
+        loggedResponse!.rawResponseBody,
+        contains('"input_tokens_details"'),
+      );
       expect(loggedResponse!.responseBody, contains('message_start'));
       expect(loggedResponse!.responseBody, contains('message_stop'));
     });
@@ -366,8 +374,8 @@ void main() {
             'text/event-stream',
           );
           void event(Map<String, dynamic> data) => request.response.write(
-                'event: ${data['type']}\ndata: ${jsonEncode(data)}\n\n',
-              );
+            'event: ${data['type']}\ndata: ${jsonEncode(data)}\n\n',
+          );
 
           event({'type': 'response.created', 'response': {}});
           event({
@@ -391,36 +399,42 @@ void main() {
       await service!.start();
 
       client = AuthenticatedTestClient();
-      final request = http.Request(
-        'POST',
-        Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
-      )
-        ..headers['content-type'] = 'application/json'
-        ..body = jsonEncode({
-          'model': 'm',
-          'max_tokens': 1024,
-          'stream': true,
-          'messages': [
-            {'role': 'user', 'content': 'hi'},
-          ],
-        });
+      final request =
+          http.Request(
+              'POST',
+              Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+            )
+            ..headers['content-type'] = 'application/json'
+            ..body = jsonEncode({
+              'model': 'm',
+              'max_tokens': 1024,
+              'stream': true,
+              'messages': [
+                {'role': 'user', 'content': 'hi'},
+              ],
+            });
 
-      final streamed =
-          await client!.send(request).then(http.Response.fromStream);
+      final streamed = await client!
+          .send(request)
+          .then(http.Response.fromStream);
       final events = _parseSseEvents(streamed.body);
 
       final thinkingStarts = events
-          .where((e) =>
-              e.$1 == 'content_block_start' &&
-              e.$2['content_block']['type'] == 'thinking')
+          .where(
+            (e) =>
+                e.$1 == 'content_block_start' &&
+                e.$2['content_block']['type'] == 'thinking',
+          )
           .toList();
       expect(thinkingStarts, hasLength(1));
       expect(thinkingStarts.first.$2['index'], 0);
 
       final textStarts = events
-          .where((e) =>
-              e.$1 == 'content_block_start' &&
-              e.$2['content_block']['type'] == 'text')
+          .where(
+            (e) =>
+                e.$1 == 'content_block_start' &&
+                e.$2['content_block']['type'] == 'text',
+          )
           .toList();
       // text block 开启在 thinking 之后
       expect(textStarts, hasLength(1));
@@ -432,13 +446,15 @@ void main() {
         await _startUpstreamServer((request) async {
           request.response.statusCode = HttpStatus.unauthorized;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'error': {
-              'message': 'Incorrect API key provided',
-              'type': 'invalid_request_error',
-              'code': 'invalid_api_key',
-            },
-          }));
+          request.response.write(
+            jsonEncode({
+              'error': {
+                'message': 'Incorrect API key provided',
+                'type': 'invalid_request_error',
+                'code': 'invalid_api_key',
+              },
+            }),
+          );
           await request.response.close();
         }),
       );
@@ -487,20 +503,22 @@ void main() {
           capturedPath = request.uri.path;
           request.response.statusCode = HttpStatus.ok;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'id': 'resp_1',
-            'model': 'gpt-5',
-            'status': 'completed',
-            'output': [
-              {
-                'type': 'message',
-                'content': [
-                  {'type': 'output_text', 'text': 'ok'},
-                ],
-              },
-            ],
-            'usage': {},
-          }));
+          request.response.write(
+            jsonEncode({
+              'id': 'resp_1',
+              'model': 'gpt-5',
+              'status': 'completed',
+              'output': [
+                {
+                  'type': 'message',
+                  'content': [
+                    {'type': 'output_text', 'text': 'ok'},
+                  ],
+                },
+              ],
+              'usage': {},
+            }),
+          );
           await request.response.close();
         }),
       );
@@ -514,8 +532,7 @@ void main() {
           id: 'ep-v1',
           name: 'V1 Suffix Endpoint',
           apiFormat: EndpointApiFormat.openaiResponses,
-          anthropicBaseUrl:
-              'http://127.0.0.1:${upstreamServers[0].port}/v1',
+          anthropicBaseUrl: 'http://127.0.0.1:${upstreamServers[0].port}/v1',
           anthropicAuthToken: 'token',
         ),
       ];

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:code_proxy/model/normalized_token_usage.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_compat_stream_converter.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
@@ -56,6 +57,7 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   String _stopReason = 'end_turn';
   int? _inputTokens;
   int? _outputTokens;
+  int? _cacheCreationTokens;
   int? _cacheReadTokens;
 
   /// 是否已完成收尾（response.completed/incomplete/failed 或 handleDone）
@@ -121,7 +123,10 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
     _finished = true;
     _writeEvent('error', {
       'type': 'error',
-      'error': {'type': 'api_error', 'message': 'Upstream stream error: $error'},
+      'error': {
+        'type': 'api_error',
+        'message': 'Upstream stream error: $error',
+      },
     });
     return takeOutput();
   }
@@ -129,11 +134,11 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   /// 最终 token 用量（供日志与统计），无 usage 数据时字段为 null。
   @override
   Map<String, int?> get finalUsage => {
-        'input': _inputTokens,
-        'output': _outputTokens,
-        'cache_creation': 0,
-        'cache_read': _cacheReadTokens,
-      };
+    'input': _inputTokens,
+    'output': _outputTokens,
+    'cache_creation': _cacheCreationTokens ?? 0,
+    'cache_read': _cacheReadTokens,
+  };
 
   /// 是否收到过完成信号（response.completed / incomplete / failed）。
   @override
@@ -249,8 +254,8 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
     final state = _tools.putIfAbsent(itemId, _ToolBlockState.new);
     state.id =
         (item['call_id'] is String && (item['call_id'] as String).isNotEmpty)
-            ? item['call_id'] as String
-            : itemId;
+        ? item['call_id'] as String
+        : itemId;
     state.name = item['name'] is String ? item['name'] as String : null;
     if (state.name == null || state.name!.isEmpty) return;
 
@@ -368,11 +373,8 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
     // 关闭所有打开的 block：thinking → text → 按开启顺序关闭工具块
     _closeThinkingBlockIfNeeded();
     _closeTextBlockIfNeeded();
-    final startedTools = _tools.values
-        .where((t) => t.started)
-        .toList()
-      ..sort((a, b) =>
-          (a.claudeIndex ?? 0).compareTo(b.claudeIndex ?? 0));
+    final startedTools = _tools.values.where((t) => t.started).toList()
+      ..sort((a, b) => (a.claudeIndex ?? 0).compareTo(b.claudeIndex ?? 0));
     for (final tool in startedTools) {
       if (tool.claudeIndex != null) {
         _writeEvent('content_block_stop', {
@@ -388,6 +390,8 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
       'usage': {
         'output_tokens': _outputTokens ?? 0,
         if (_inputTokens != null) 'input_tokens': _inputTokens,
+        if (_cacheCreationTokens != null)
+          'cache_creation_input_tokens': _cacheCreationTokens,
         if (_cacheReadTokens != null)
           'cache_read_input_tokens': _cacheReadTokens,
       },
@@ -401,20 +405,26 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   void _updateUsage(dynamic rawUsage) {
     if (rawUsage is! Map) return;
     // usage 可能随 completed/incomplete 多次到达，以最后一个为准
-    _inputTokens = _asInt(rawUsage['input_tokens']) ?? _inputTokens;
-    _outputTokens = _asInt(rawUsage['output_tokens']) ?? _outputTokens;
     final details = rawUsage['input_tokens_details'];
-    if (details is Map) {
-      _cacheReadTokens = _asInt(details['cached_tokens']) ?? _cacheReadTokens;
-    }
+    final normalized = NormalizedTokenUsage.fromOpenAi(
+      totalInputTokens: rawUsage['input_tokens'],
+      outputTokens: rawUsage['output_tokens'],
+      cacheReadInputTokens: details is Map ? details['cached_tokens'] : null,
+      cacheCreationInputTokens: details is Map
+          ? details['cache_write_tokens']
+          : null,
+    );
+    if (normalized == null) return;
+
+    _inputTokens = normalized.inputTokens;
+    _outputTokens = normalized.outputTokens;
+    _cacheCreationTokens = normalized.cacheCreationInputTokens;
+    _cacheReadTokens = normalized.cacheReadInputTokens;
   }
 
   void _writeEvent(String event, Map<String, dynamic> data) {
     _output.write('event: $event\ndata: ${jsonEncode(data)}\n\n');
   }
-
-  static int? _asInt(dynamic value) =>
-      value is int ? value : int.tryParse('$value');
 }
 
 /// 流式转换中的单个工具调用块状态（item_id → Anthropic block 映射）

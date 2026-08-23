@@ -145,6 +145,9 @@ class ModelPricingService {
   }
 
   /// 计算请求费用
+  ///
+  /// [inputTokens] 使用 Anthropic 口径：仅包含未缓存输入。缓存创建和
+  /// 缓存读取分别由对应参数传入，四类 token 互不重叠。
   double calculateCost({
     required String model,
     int inputTokens = 0,
@@ -155,17 +158,17 @@ class ModelPricingService {
     final pricing = getPricing(model);
     if (pricing == null) return 0;
 
-    // 非缓存的输入 token = 总输入 - 缓存读取 - 缓存创建
-    final regularInputTokens =
-        (inputTokens - cacheReadTokens - cacheCreationTokens).clamp(
-          0,
-          inputTokens,
-        );
+    final regularInputTokens = inputTokens < 0 ? 0 : inputTokens;
+    final generatedOutputTokens = outputTokens < 0 ? 0 : outputTokens;
+    final writtenCacheTokens = cacheCreationTokens < 0
+        ? 0
+        : cacheCreationTokens;
+    final readCacheTokens = cacheReadTokens < 0 ? 0 : cacheReadTokens;
 
     return (regularInputTokens * pricing.inputPrice +
-            outputTokens * pricing.outputPrice +
-            cacheCreationTokens * pricing.cacheWritePrice +
-            cacheReadTokens * pricing.cacheReadPrice) /
+            generatedOutputTokens * pricing.outputPrice +
+            writtenCacheTokens * pricing.cacheWritePrice +
+            readCacheTokens * pricing.cacheReadPrice) /
         1000000;
   }
 
@@ -204,8 +207,7 @@ class ModelPricingService {
       final modelId = entry.key.replaceFirst('$provider/', '');
 
       final limit = modelData['limit'] as Map<String, dynamic>?;
-      final contextWindow =
-          (limit?['context'] as num?)?.toInt();
+      final contextWindow = (limit?['context'] as num?)?.toInt();
 
       _pricingMap.putIfAbsent(
         modelId,

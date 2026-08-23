@@ -42,7 +42,8 @@ class ProxyServerLogHandler {
       }
     }
 
-    // 直接使用 response.usage（已在 ResponseHandler 中统一解析）
+    // 直接使用 response.usage。ResponseHandler 已统一为 Anthropic 口径：
+    // input 是未缓存输入，缓存创建与读取是互不重叠的独立类别。
     if (success && response.usage != null) {
       inputTokens = response.usage!['input'];
       outputTokens = response.usage!['output'];

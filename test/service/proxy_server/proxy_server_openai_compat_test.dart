@@ -54,23 +54,25 @@ void main() {
 
           request.response.statusCode = HttpStatus.ok;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'id': 'chatcmpl-123',
-            'object': 'chat.completion',
-            'model': 'gpt-4o',
-            'choices': [
-              {
-                'index': 0,
-                'message': {'role': 'assistant', 'content': 'Hello from GPT'},
-                'finish_reason': 'stop',
+          request.response.write(
+            jsonEncode({
+              'id': 'chatcmpl-123',
+              'object': 'chat.completion',
+              'model': 'gpt-4o',
+              'choices': [
+                {
+                  'index': 0,
+                  'message': {'role': 'assistant', 'content': 'Hello from GPT'},
+                  'finish_reason': 'stop',
+                },
+              ],
+              'usage': {
+                'prompt_tokens': 42,
+                'completion_tokens': 7,
+                'prompt_tokens_details': {'cached_tokens': 20},
               },
-            ],
-            'usage': {
-              'prompt_tokens': 42,
-              'completion_tokens': 7,
-              'prompt_tokens_details': {'cached_tokens': 20},
-            },
-          }));
+            }),
+          );
           await request.response.close();
         }),
       );
@@ -146,9 +148,11 @@ void main() {
         {'type': 'text', 'text': 'Hello from GPT'},
       ]);
       expect(body['stop_reason'], 'end_turn');
-      expect(body['usage']['input_tokens'], 42);
+      expect(body['usage']['input_tokens'], 22);
       expect(body['usage']['output_tokens'], 7);
       expect(body['usage']['cache_read_input_tokens'], 20);
+      expect(loggedResponse!.usage!['input'], 22);
+      expect(loggedResponse!.usage!['cache_read'], 20);
     });
 
     test('流式：OpenAI chunk 流转换为完整 Anthropic SSE 事件序列', () async {
@@ -242,11 +246,7 @@ void main() {
           // 结束原因 + usage
           chunk({
             'choices': [
-              {
-                'index': 0,
-                'delta': {},
-                'finish_reason': 'tool_calls',
-              },
+              {'index': 0, 'delta': {}, 'finish_reason': 'tool_calls'},
             ],
           });
           chunk({
@@ -273,19 +273,20 @@ void main() {
       expect(capturedBody, isNull);
 
       client = AuthenticatedTestClient();
-      final streamedRequest = http.Request(
-        'POST',
-        Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
-      )
-        ..headers['content-type'] = 'application/json'
-        ..body = jsonEncode({
-          'model': 'test-model-x',
-          'max_tokens': 512,
-          'stream': true,
-          'messages': [
-            {'role': 'user', 'content': 'list files'},
-          ],
-        });
+      final streamedRequest =
+          http.Request(
+              'POST',
+              Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+            )
+            ..headers['content-type'] = 'application/json'
+            ..body = jsonEncode({
+              'model': 'test-model-x',
+              'max_tokens': 512,
+              'stream': true,
+              'messages': [
+                {'role': 'user', 'content': 'list files'},
+              ],
+            });
 
       final streamedResponse = await client!.send(streamedRequest);
       expect(streamedResponse.statusCode, HttpStatus.ok);
@@ -362,28 +363,25 @@ void main() {
           // 模拟上游在模型思考中途断流（TCP 半关闭 → 静默 EOF）
           request.response.write(
             'data: ${jsonEncode({
-                  'choices': [
-                    {
-                      'index': 0,
-                      'delta': {
-                        'role': 'assistant',
-                        'reasoning_content': 'pondering',
-                      },
-                      'finish_reason': null,
-                    },
-                  ],
-                })}\n\n',
+              'choices': [
+                {
+                  'index': 0,
+                  'delta': {'role': 'assistant', 'reasoning_content': 'pondering'},
+                  'finish_reason': null,
+                },
+              ],
+            })}\n\n',
           );
           request.response.write(
             'data: ${jsonEncode({
-                  'choices': [
-                    {
-                      'index': 0,
-                      'delta': {'reasoning_content': ' more'},
-                      'finish_reason': null,
-                    },
-                  ],
-                })}\n\n',
+              'choices': [
+                {
+                  'index': 0,
+                  'delta': {'reasoning_content': ' more'},
+                  'finish_reason': null,
+                },
+              ],
+            })}\n\n',
           );
           await request.response.close();
         }),
@@ -411,9 +409,9 @@ void main() {
       client = AuthenticatedTestClient();
       final streamedResponse = await client!.send(
         http.Request(
-          'POST',
-          Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
-        )
+            'POST',
+            Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+          )
           ..headers['content-type'] = 'application/json'
           ..body = jsonEncode({
             'model': 'test-model-x',
@@ -460,31 +458,27 @@ void main() {
           // 此时应视为正常完成，不影响客户端
           request.response.write(
             'data: ${jsonEncode({
-                  'choices': [
-                    {
-                      'index': 0,
-                      'delta': {'content': 'Hello'},
-                      'finish_reason': null,
-                    },
-                  ],
-                })}\n\n',
+              'choices': [
+                {
+                  'index': 0,
+                  'delta': {'content': 'Hello'},
+                  'finish_reason': null,
+                },
+              ],
+            })}\n\n',
           );
           request.response.write(
             'data: ${jsonEncode({
-                  'choices': [
-                    {
-                      'index': 0,
-                      'delta': {},
-                      'finish_reason': 'stop',
-                    },
-                  ],
-                })}\n\n',
+              'choices': [
+                {'index': 0, 'delta': {}, 'finish_reason': 'stop'},
+              ],
+            })}\n\n',
           );
           request.response.write(
             'data: ${jsonEncode({
-                  'choices': [],
-                  'usage': {'prompt_tokens': 10, 'completion_tokens': 5},
-                })}\n\n',
+              'choices': [],
+              'usage': {'prompt_tokens': 10, 'completion_tokens': 5},
+            })}\n\n',
           );
           await request.response.close();
         }),
@@ -504,9 +498,9 @@ void main() {
       client = AuthenticatedTestClient();
       final streamedResponse = await client!.send(
         http.Request(
-          'POST',
-          Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
-        )
+            'POST',
+            Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+          )
           ..headers['content-type'] = 'application/json'
           ..body = jsonEncode({
             'model': 'test-model-x',
@@ -522,8 +516,7 @@ void main() {
         await streamedResponse.stream.bytesToString(),
       );
       expect(events.last.$1, 'message_stop');
-      final messageDelta =
-          events.firstWhere((e) => e.$1 == 'message_delta');
+      final messageDelta = events.firstWhere((e) => e.$1 == 'message_delta');
       expect(messageDelta.$2['delta']['stop_reason'], 'end_turn');
       expect(messageDelta.$2['usage']['output_tokens'], 5);
       expect(messageDelta.$2['usage']['input_tokens'], 10);
@@ -539,13 +532,15 @@ void main() {
           await utf8.decoder.bind(request).join();
           request.response.statusCode = HttpStatus.unauthorized;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'error': {
-              'message': 'Incorrect API key provided.',
-              'type': 'invalid_request_error',
-              'code': 'invalid_api_key',
-            },
-          }));
+          request.response.write(
+            jsonEncode({
+              'error': {
+                'message': 'Incorrect API key provided.',
+                'type': 'invalid_request_error',
+                'code': 'invalid_api_key',
+              },
+            }),
+          );
           await request.response.close();
         }),
       );
@@ -583,9 +578,11 @@ void main() {
           openAiHits++;
           await utf8.decoder.bind(request).join();
           request.response.statusCode = HttpStatus.internalServerError;
-          request.response.write(jsonEncode({
-            'error': {'message': 'upstream exploded', 'type': 'server_error'},
-          }));
+          request.response.write(
+            jsonEncode({
+              'error': {'message': 'upstream exploded', 'type': 'server_error'},
+            }),
+          );
           await request.response.close();
         }),
       );
@@ -596,17 +593,19 @@ void main() {
           await utf8.decoder.bind(request).join();
           request.response.statusCode = HttpStatus.ok;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'id': 'msg_anthropic',
-            'type': 'message',
-            'role': 'assistant',
-            'model': 'claude-x',
-            'content': [
-              {'type': 'text', 'text': 'from anthropic'},
-            ],
-            'stop_reason': 'end_turn',
-            'usage': {'input_tokens': 1, 'output_tokens': 1},
-          }));
+          request.response.write(
+            jsonEncode({
+              'id': 'msg_anthropic',
+              'type': 'message',
+              'role': 'assistant',
+              'model': 'claude-x',
+              'content': [
+                {'type': 'text', 'text': 'from anthropic'},
+              ],
+              'stop_reason': 'end_turn',
+              'usage': {'input_tokens': 1, 'output_tokens': 1},
+            }),
+          );
           await request.response.close();
         }),
       );

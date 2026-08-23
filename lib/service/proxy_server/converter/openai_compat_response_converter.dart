@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:code_proxy/model/normalized_token_usage.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 /// OpenAI Chat Completions API → Anthropic Messages API 响应体转换器
@@ -22,9 +23,7 @@ class OpenAiCompatResponseConverter {
     required String? originalModel,
   }) {
     final choices = openaiResponse['choices'];
-    final choice = choices is List && choices.isNotEmpty
-        ? choices.first
-        : null;
+    final choice = choices is List && choices.isNotEmpty ? choices.first : null;
     if (choice is! Map) {
       // 无 choices 的畸形响应：返回空消息而非抛错，避免代理 500
       LoggerUtil.instance.w(
@@ -60,7 +59,9 @@ class OpenAiCompatResponseConverter {
     }
 
     return {
-      'id': openaiResponse['id'] ?? 'msg_${DateTime.now().microsecondsSinceEpoch}',
+      'id':
+          openaiResponse['id'] ??
+          'msg_${DateTime.now().microsecondsSinceEpoch}',
       'type': 'message',
       'role': 'assistant',
       'model': originalModel ?? openaiResponse['model'],
@@ -79,7 +80,12 @@ class OpenAiCompatResponseConverter {
     String message = rawErrorBody.trim();
     String type = 'api_error';
 
-    if (message.isEmpty) return {'type': 'error', 'error': {'type': type, 'message': ''}};
+    if (message.isEmpty) {
+      return {
+        'type': 'error',
+        'error': {'type': type, 'message': ''},
+      };
+    }
 
     try {
       final json = jsonDecode(message);
@@ -93,7 +99,10 @@ class OpenAiCompatResponseConverter {
             message = message.substring(0, 500);
           }
           type = mapErrorType(error['type'], error['code']);
-          return {'type': 'error', 'error': {'type': type, 'message': message}};
+          return {
+            'type': 'error',
+            'error': {'type': type, 'message': message},
+          };
         }
       }
     } catch (_) {
@@ -101,7 +110,10 @@ class OpenAiCompatResponseConverter {
     }
 
     if (message.length > 2000) message = message.substring(0, 2000);
-    return {'type': 'error', 'error': {'type': type, 'message': message}};
+    return {
+      'type': 'error',
+      'error': {'type': type, 'message': message},
+    };
   }
 
   /// 按 HTTP 状态码推断错误类型（错误体中无类型信息时使用）。
@@ -130,14 +142,10 @@ class OpenAiCompatResponseConverter {
     final t = '$type'.toLowerCase();
     final c = '$code'.toLowerCase();
 
-    if (c.contains('api_key') ||
-        c.contains('auth') ||
-        t.contains('auth')) {
+    if (c.contains('api_key') || c.contains('auth') || t.contains('auth')) {
       return 'authentication_error';
     }
-    if (t.contains('quota') ||
-        t.contains('billing') ||
-        c.contains('billing')) {
+    if (t.contains('quota') || t.contains('billing') || c.contains('billing')) {
       return 'billing_error';
     }
     if (t.contains('rate_limit') || c.contains('rate_limit')) {
@@ -169,28 +177,25 @@ class OpenAiCompatResponseConverter {
 
   /// OpenAI usage → Anthropic usage。
   ///
-  /// prompt_tokens_details.cached_tokens 映射为 cache_read_input_tokens，
-  /// 与 prompt cache 统计口径对齐。
+  /// OpenAI 的 prompt_tokens 是包含缓存的总输入；Anthropic 的
+  /// input_tokens 只表示未缓存输入。这里在协议边界拆成互斥的三类，
+  /// 避免统计和计费再次把缓存 token 算入普通输入。
   static Map<String, dynamic> convertUsage(dynamic rawUsage) {
-    int inputTokens = 0;
-    int outputTokens = 0;
-    int cacheReadTokens = 0;
+    if (rawUsage is! Map) return NormalizedTokenUsage.zero.toAnthropicUsage();
 
-    if (rawUsage is Map) {
-      inputTokens = _asInt(rawUsage['prompt_tokens']);
-      outputTokens = _asInt(rawUsage['completion_tokens']);
-      final details = rawUsage['prompt_tokens_details'];
-      if (details is Map) {
-        cacheReadTokens = _asInt(details['cached_tokens']);
-      }
-    }
-
-    return {
-      'input_tokens': inputTokens,
-      'output_tokens': outputTokens,
-      if (cacheReadTokens > 0) 'cache_read_input_tokens': cacheReadTokens,
-      'cache_creation_input_tokens': 0,
-    };
+    final details = rawUsage['prompt_tokens_details'];
+    return (NormalizedTokenUsage.fromOpenAi(
+              totalInputTokens: rawUsage['prompt_tokens'],
+              outputTokens: rawUsage['completion_tokens'],
+              cacheReadInputTokens: details is Map
+                  ? details['cached_tokens']
+                  : null,
+              cacheCreationInputTokens: details is Map
+                  ? details['cache_write_tokens']
+                  : null,
+            ) ??
+            NormalizedTokenUsage.zero)
+        .toAnthropicUsage();
   }
 
   /// OpenAI tool_call → tool_use block。
@@ -241,6 +246,4 @@ class OpenAiCompatResponseConverter {
       'usage': convertUsage(openaiResponse['usage']),
     };
   }
-
-  static int _asInt(dynamic value) => value is int ? value : int.tryParse('$value') ?? 0;
 }

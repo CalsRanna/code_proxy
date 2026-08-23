@@ -27,8 +27,9 @@ void main() {
     List<List<int>> chunks, {
     bool callHandleDone = true,
   }) {
-    final converter =
-        OpenAiResponsesSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+    final converter = OpenAiResponsesSseStreamConverter(
+      originalModel: 'claude-sonnet-4-5',
+    );
     final out = <int>[...converter.initialEvents()];
     for (final chunk in chunks) {
       out.addAll(converter.handleData(chunk));
@@ -48,8 +49,9 @@ void main() {
   }
 
   test('头部事件：message_start + ping 立即产出', () {
-    final converter =
-        OpenAiResponsesSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+    final converter = OpenAiResponsesSseStreamConverter(
+      originalModel: 'claude-sonnet-4-5',
+    );
     final events = parseEvents(converter.initialEvents());
 
     expect(events[0].$1, 'message_start');
@@ -60,7 +62,10 @@ void main() {
   test('纯文本流：output_text.delta → 完整 Anthropic 事件序列', () {
     final events = runStream([
       sse([
-        {'type': 'response.created', 'response': {'id': 'resp_1'}},
+        {
+          'type': 'response.created',
+          'response': {'id': 'resp_1'},
+        },
         {'type': 'response.in_progress'},
         {
           'type': 'response.output_item.added',
@@ -130,8 +135,10 @@ void main() {
       'message_stop',
     ]);
     expect(events[2].$2['content_block']['type'], 'thinking');
-    expect(events[3].$2['delta'],
-        {'type': 'thinking_delta', 'thinking': 'pondering...'});
+    expect(events[3].$2['delta'], {
+      'type': 'thinking_delta',
+      'thinking': 'pondering...',
+    });
     expect(events[5].$2['index'], 0);
     expect(events[6].$2['index'], 1);
     expect(events[6].$2['content_block']['type'], 'text');
@@ -208,27 +215,33 @@ void main() {
         'name': 'get_weather',
         'input': <String, dynamic>{},
       });
-      expect(events[3].$2['delta'],
-          {'type': 'input_json_delta', 'partial_json': '{"city":'});
-      expect(events[4].$2['delta'],
-          {'type': 'input_json_delta', 'partial_json': '"Tokyo"}'});
+      expect(events[3].$2['delta'], {
+        'type': 'input_json_delta',
+        'partial_json': '{"city":',
+      });
+      expect(events[4].$2['delta'], {
+        'type': 'input_json_delta',
+        'partial_json': '"Tokyo"}',
+      });
       // completed 携带 usage，handleDone 不重复收尾
+      expect(events[6].$2['usage']['input_tokens'], 20);
       expect(events[6].$2['usage']['output_tokens'], 8);
       expect(events[6].$2['usage']['cache_read_input_tokens'], 30);
       expect(events[6].$2['delta']['stop_reason'], 'end_turn');
     });
 
     test('completed 后 handleDone 不重复输出收尾事件', () {
-      final converter =
-          OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
-      converter.handleData(sse([
-        {'type': 'response.output_text.delta', 'delta': 'hi'},
-        {
-          'type': 'response.completed',
-          'response': {'status': 'completed', 'usage': {}},
-        },
-      ]));
+      converter.handleData(
+        sse([
+          {'type': 'response.output_text.delta', 'delta': 'hi'},
+          {
+            'type': 'response.completed',
+            'response': {'status': 'completed', 'usage': {}},
+          },
+        ]),
+      );
       final tail = converter.handleDone();
       expect(tail, isEmpty);
     });
@@ -254,10 +267,7 @@ void main() {
       final starts = events.where((e) => e.$1 == 'content_block_start');
       expect(starts, hasLength(1));
       expect(starts.first.$2['content_block']['name'], 'fn');
-      expect(
-        events.any((e) => e.$1 == 'content_block_stop'),
-        isTrue,
-      );
+      expect(events.any((e) => e.$1 == 'content_block_stop'), isTrue);
     });
   });
 
@@ -290,7 +300,7 @@ void main() {
             'error': {'code': 'server_error', 'message': 'boom'},
           },
         },
-      ], ),
+      ]),
     ]);
 
     expect(events.last.$1, 'error');
@@ -301,9 +311,13 @@ void main() {
   test('handleError（传输层异常）→ error 事件', () {
     final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
     final out = <int>[...converter.initialEvents()];
-    out.addAll(converter.handleData(sse([
-      {'type': 'response.output_text.delta', 'delta': 'partial'},
-    ])));
+    out.addAll(
+      converter.handleData(
+        sse([
+          {'type': 'response.output_text.delta', 'delta': 'partial'},
+        ]),
+      ),
+    );
     out.addAll(converter.handleError(Exception('conn reset')));
     final events = parseEvents(out);
 
@@ -314,33 +328,41 @@ void main() {
   test('usage 在 response.completed 中捕获（含 cached_tokens）', () {
     final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
     converter.initialEvents();
-    converter.handleData(sse([
-      {'type': 'response.output_text.delta', 'delta': 'hi'},
-      {
-        'type': 'response.completed',
-        'response': {
-          'status': 'completed',
-          'usage': {
-            'input_tokens': 12,
-            'input_tokens_details': {'cached_tokens': 7},
-            'output_tokens': 3,
+    converter.handleData(
+      sse([
+        {'type': 'response.output_text.delta', 'delta': 'hi'},
+        {
+          'type': 'response.completed',
+          'response': {
+            'status': 'completed',
+            'usage': {
+              'input_tokens': 12,
+              'input_tokens_details': {
+                'cached_tokens': 5,
+                'cache_write_tokens': 3,
+              },
+              'output_tokens': 3,
+            },
           },
         },
-      },
-    ]));
+      ]),
+    );
 
     expect(converter.finalUsage, {
-      'input': 12,
+      'input': 4,
       'output': 3,
-      'cache_creation': 0,
-      'cache_read': 7,
+      'cache_creation': 3,
+      'cache_read': 5,
     });
   });
 
   test('多字节 UTF-8 跨 chunk 截断正确处理', () {
     final full = sse([
       {'type': 'response.output_text.delta', 'delta': '你好世界'},
-      {'type': 'response.completed', 'response': {'status': 'completed'}},
+      {
+        'type': 'response.completed',
+        'response': {'status': 'completed'},
+      },
     ]);
     // 在中文字符中间切开
     final cut = 3 + 5; // "event..." 头之后、首字符字节中间
@@ -356,15 +378,12 @@ void main() {
   test('data: [DONE] 行被容错忽略', () {
     final bytes = utf8.encode(
       '${utf8.decode(sse([
-          {'type': 'response.output_text.delta', 'delta': 'ok'},
-        ]))}data: [DONE]\n\n',
+        {'type': 'response.output_text.delta', 'delta': 'ok'},
+      ]))}data: [DONE]\n\n',
     );
     final events = runStream([bytes]);
 
-    expect(
-      events.any((e) => e.$1 == 'content_block_delta'),
-      isTrue,
-    );
+    expect(events.any((e) => e.$1 == 'content_block_delta'), isTrue);
     // 正常收尾
     expect(events.last.$1, 'message_stop');
   });
@@ -387,55 +406,67 @@ void main() {
     test('仅 delta 事件时 isComplete 为 false（上游静默截断）', () {
       final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
-      converter.handleData(sse([
-        {'type': 'response.output_text.delta', 'delta': 'partial'},
-      ]));
+      converter.handleData(
+        sse([
+          {'type': 'response.output_text.delta', 'delta': 'partial'},
+        ]),
+      );
       expect(converter.isComplete, isFalse);
     });
 
     test('response.completed 后 isComplete 为 true', () {
       final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
-      converter.handleData(sse([
-        {'type': 'response.output_text.delta', 'delta': 'hi'},
-        {
-          'type': 'response.completed',
-          'response': {'status': 'completed', 'usage': {}},
-        },
-      ]));
+      converter.handleData(
+        sse([
+          {'type': 'response.output_text.delta', 'delta': 'hi'},
+          {
+            'type': 'response.completed',
+            'response': {'status': 'completed', 'usage': {}},
+          },
+        ]),
+      );
       expect(converter.isComplete, isTrue);
     });
 
     test('response.incomplete 后 isComplete 为 true', () {
       final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
-      converter.handleData(sse([
-        {
-          'type': 'response.incomplete',
-          'response': {'status': 'incomplete', 'usage': {}},
-        },
-      ]));
+      converter.handleData(
+        sse([
+          {
+            'type': 'response.incomplete',
+            'response': {'status': 'incomplete', 'usage': {}},
+          },
+        ]),
+      );
       expect(converter.isComplete, isTrue);
     });
 
     test('response.failed 后 isComplete 为 true（上游已明确终止）', () {
       final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
-      converter.handleData(sse([
-        {
-          'type': 'response.failed',
-          'response': {'error': {'message': 'boom'}},
-        },
-      ]));
+      converter.handleData(
+        sse([
+          {
+            'type': 'response.failed',
+            'response': {
+              'error': {'message': 'boom'},
+            },
+          },
+        ]),
+      );
       expect(converter.isComplete, isTrue);
     });
 
     test('流结束后从未收到完成事件时 isComplete 为 false', () {
       final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
-      converter.handleData(sse([
-        {'type': 'response.output_text.delta', 'delta': 'partial'},
-      ]));
+      converter.handleData(
+        sse([
+          {'type': 'response.output_text.delta', 'delta': 'partial'},
+        ]),
+      );
       converter.handleDone();
       expect(converter.isComplete, isFalse);
     });

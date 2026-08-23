@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:code_proxy/model/normalized_token_usage.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 /// OpenAI Responses API（POST /v1/responses）→ Anthropic Messages API
@@ -42,7 +43,9 @@ class OpenAiResponsesResponseConverter {
         : mapStopReason(responsesResponse);
 
     return {
-      'id': responsesResponse['id'] ?? 'msg_${DateTime.now().microsecondsSinceEpoch}',
+      'id':
+          responsesResponse['id'] ??
+          'msg_${DateTime.now().microsecondsSinceEpoch}',
       'type': 'message',
       'role': 'assistant',
       'model': originalModel ?? responsesResponse['model'],
@@ -148,7 +151,10 @@ class OpenAiResponsesResponseConverter {
 
     return {
       'type': 'tool_use',
-      'id': item['call_id'] ?? item['id'] ?? 'toolu_${DateTime.now().microsecondsSinceEpoch}',
+      'id':
+          item['call_id'] ??
+          item['id'] ??
+          'toolu_${DateTime.now().microsecondsSinceEpoch}',
       'name': name,
       'input': input ?? <String, dynamic>{},
     };
@@ -172,30 +178,24 @@ class OpenAiResponsesResponseConverter {
 
   /// Responses API usage → Anthropic usage。
   ///
-  /// input_tokens_details.cached_tokens 映射为 cache_read_input_tokens，
-  /// 与 prompt cache 统计口径对齐。
+  /// OpenAI 的 input_tokens 是包含缓存的总输入；Anthropic 的
+  /// input_tokens 只表示未缓存输入。这里在协议边界拆成互斥的三类，
+  /// 避免统计和计费再次把缓存 token 算入普通输入。
   static Map<String, dynamic> convertUsage(dynamic rawUsage) {
-    int inputTokens = 0;
-    int outputTokens = 0;
-    int cacheReadTokens = 0;
+    if (rawUsage is! Map) return NormalizedTokenUsage.zero.toAnthropicUsage();
 
-    if (rawUsage is Map) {
-      inputTokens = _asInt(rawUsage['input_tokens']);
-      outputTokens = _asInt(rawUsage['output_tokens']);
-      final details = rawUsage['input_tokens_details'];
-      if (details is Map) {
-        cacheReadTokens = _asInt(details['cached_tokens']);
-      }
-    }
-
-    return {
-      'input_tokens': inputTokens,
-      'output_tokens': outputTokens,
-      if (cacheReadTokens > 0) 'cache_read_input_tokens': cacheReadTokens,
-      'cache_creation_input_tokens': 0,
-    };
+    final details = rawUsage['input_tokens_details'];
+    return (NormalizedTokenUsage.fromOpenAi(
+              totalInputTokens: rawUsage['input_tokens'],
+              outputTokens: rawUsage['output_tokens'],
+              cacheReadInputTokens: details is Map
+                  ? details['cached_tokens']
+                  : null,
+              cacheCreationInputTokens: details is Map
+                  ? details['cache_write_tokens']
+                  : null,
+            ) ??
+            NormalizedTokenUsage.zero)
+        .toAnthropicUsage();
   }
-
-  static int _asInt(dynamic value) =>
-      value is int ? value : int.tryParse('$value') ?? 0;
 }

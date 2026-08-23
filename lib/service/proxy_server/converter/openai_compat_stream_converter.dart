@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:code_proxy/model/normalized_token_usage.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_compat_response_converter.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
@@ -84,6 +85,7 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
   String _stopReason = 'end_turn';
   int? _inputTokens;
   int? _outputTokens;
+  int? _cacheCreationTokens;
   int? _cacheReadTokens;
 
   /// 是否已收到 [DONE]
@@ -152,7 +154,10 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
     _finished = true;
     _writeEvent('error', {
       'type': 'error',
-      'error': {'type': 'api_error', 'message': 'Upstream stream error: $error'},
+      'error': {
+        'type': 'api_error',
+        'message': 'Upstream stream error: $error',
+      },
     });
     return takeOutput();
   }
@@ -160,11 +165,11 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
   /// 最终 token 用量（供日志与统计），无 usage 数据时字段为 null。
   @override
   Map<String, int?> get finalUsage => {
-        'input': _inputTokens,
-        'output': _outputTokens,
-        'cache_creation': 0,
-        'cache_read': _cacheReadTokens,
-      };
+    'input': _inputTokens,
+    'output': _outputTokens,
+    'cache_creation': _cacheCreationTokens ?? 0,
+    'cache_read': _cacheReadTokens,
+  };
 
   /// 是否收到过完成信号（[DONE] 或任意 finish_reason chunk）。
   @override
@@ -372,6 +377,8 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
       'usage': {
         'output_tokens': _outputTokens ?? 0,
         if (_inputTokens != null) 'input_tokens': _inputTokens,
+        if (_cacheCreationTokens != null)
+          'cache_creation_input_tokens': _cacheCreationTokens,
         if (_cacheReadTokens != null)
           'cache_read_input_tokens': _cacheReadTokens,
       },
@@ -382,20 +389,26 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
 
   void _updateUsage(Map usage) {
     // 多个 chunk 携带 usage 时以最后一个为准（流式总量在末尾才完整）
-    _inputTokens = _asInt(usage['prompt_tokens']);
-    _outputTokens = _asInt(usage['completion_tokens']);
     final details = usage['prompt_tokens_details'];
-    if (details is Map) {
-      _cacheReadTokens = _asInt(details['cached_tokens']);
-    }
+    final normalized = NormalizedTokenUsage.fromOpenAi(
+      totalInputTokens: usage['prompt_tokens'],
+      outputTokens: usage['completion_tokens'],
+      cacheReadInputTokens: details is Map ? details['cached_tokens'] : null,
+      cacheCreationInputTokens: details is Map
+          ? details['cache_write_tokens']
+          : null,
+    );
+    if (normalized == null) return;
+
+    _inputTokens = normalized.inputTokens;
+    _outputTokens = normalized.outputTokens;
+    _cacheCreationTokens = normalized.cacheCreationInputTokens;
+    _cacheReadTokens = normalized.cacheReadInputTokens;
   }
 
   void _writeEvent(String event, Map<String, dynamic> data) {
     _output.write('event: $event\ndata: ${jsonEncode(data)}\n\n');
   }
-
-  static int? _asInt(dynamic value) =>
-      value is int ? value : int.tryParse('$value');
 }
 
 /// 流式转换中的单个工具调用块状态
@@ -419,9 +432,9 @@ class SseLineSplitter {
   SseLineSplitter() {
     _decodeSink = const Utf8Decoder(allowMalformed: true)
         .startChunkedConversion(
-      // StringBuffer 不是 Sink<String>，需经 StringConversionSink 桥接
-      StringConversionSink.fromStringSink(_decodedBuffer),
-    );
+          // StringBuffer 不是 Sink<String>，需经 StringConversionSink 桥接
+          StringConversionSink.fromStringSink(_decodedBuffer),
+        );
   }
 
   /// 输入一个字节块，返回其中完整的行（不含换行符）。
@@ -460,7 +473,8 @@ class SseLineSplitter {
     }
     // 去除 \r（CRLF 行尾兼容）
     return [
-      for (final l in lines) l.endsWith('\r') ? l.substring(0, l.length - 1) : l,
+      for (final l in lines)
+        l.endsWith('\r') ? l.substring(0, l.length - 1) : l,
     ];
   }
 }

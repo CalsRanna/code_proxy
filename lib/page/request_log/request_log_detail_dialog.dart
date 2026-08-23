@@ -80,7 +80,7 @@ class RequestLogDetailDialog extends StatelessWidget {
     final input = log.inputTokens ?? 0;
     final cacheCreate = log.cacheCreationInputTokens ?? 0;
     final cacheRead = log.cacheReadInputTokens ?? 0;
-    final total = input + cacheCreate + cacheRead;
+    final total = log.totalInputTokens ?? 0;
     final hasCache = cacheCreate > 0 || cacheRead > 0;
 
     return Padding(

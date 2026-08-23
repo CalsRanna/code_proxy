@@ -4,7 +4,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 /// 模型Token使用趋势堆叠柱状图（hover 展示缓存详情）
 class DashboardTokenBarChart extends StatelessWidget {
-  /// { date: { model: { total, cache_read, cache_creation } } }
+  /// { date: { model: { total, input, output, cache_read, cache_creation } } }
   final Map<String, Map<String, Map<String, int>>> modelDateTokenStats;
 
   const DashboardTokenBarChart({super.key, required this.modelDateTokenStats});
@@ -38,20 +38,28 @@ class DashboardTokenBarChart extends StatelessWidget {
               '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
           final dateStats = modelDateTokenStats[dateKey] ?? {};
           final Map<String, double> totals = {};
+          final Map<String, int> inputs = {};
+          final Map<String, int> outputs = {};
           final Map<String, int> cacheReads = {};
           final Map<String, int> cacheCreations = {};
           for (final model in modelList) {
             final stats = dateStats[model];
             totals[model] = (stats?['total'] ?? 0).toDouble();
+            inputs[model] = stats?['input'] ?? 0;
+            outputs[model] = stats?['output'] ?? 0;
             cacheReads[model] = stats?['cache_read'] ?? 0;
             cacheCreations[model] = stats?['cache_creation'] ?? 0;
           }
-          data.add(_BarChartEntry(
-            date: formattedDate,
-            totals: totals,
-            cacheReads: cacheReads,
-            cacheCreations: cacheCreations,
-          ));
+          data.add(
+            _BarChartEntry(
+              date: formattedDate,
+              totals: totals,
+              inputs: inputs,
+              outputs: outputs,
+              cacheReads: cacheReads,
+              cacheCreations: cacheCreations,
+            ),
+          );
         }
 
         // ShadcnUI 风格配色
@@ -69,97 +77,119 @@ class DashboardTokenBarChart extends StatelessWidget {
         ];
 
         return SfCartesianChart(
-          primaryXAxis:
-              const CategoryAxis(labelStyle: TextStyle(fontSize: 10)),
+          primaryXAxis: const CategoryAxis(labelStyle: TextStyle(fontSize: 10)),
           primaryYAxis: NumericAxis(
-              labelStyle: const TextStyle(fontSize: 10),
-              axisLabelFormatter: (AxisLabelRenderDetails details) {
-                return ChartAxisLabel(
-                  _formatNumber(details.value.toInt()),
-                  const TextStyle(fontSize: 10),
-                );
-              }),
+            labelStyle: const TextStyle(fontSize: 10),
+            axisLabelFormatter: (AxisLabelRenderDetails details) {
+              return ChartAxisLabel(
+                _formatNumber(details.value.toInt()),
+                const TextStyle(fontSize: 10),
+              );
+            },
+          ),
           plotAreaBorderWidth: 0,
           legend: const Legend(isVisible: false),
           tooltipBehavior: TooltipBehavior(
             enable: true,
-            builder: (dynamic rawData, dynamic point, dynamic series,
-                int pointIndex, int seriesIndex) {
-              if (pointIndex < 0 || pointIndex >= data.length) {
-                return const SizedBox.shrink();
-              }
-              final entry = data[pointIndex];
-              final model = modelList[seriesIndex];
-              final color = colors[seriesIndex % colors.length];
-              final total = (entry.totals[model] ?? 0).toInt();
-              final cacheRead = entry.cacheReads[model] ?? 0;
-              final cacheCreation = entry.cacheCreations[model] ?? 0;
-              final cached = cacheRead + cacheCreation;
-              final nonCache = (total - cached).clamp(0, total);
+            builder:
+                (
+                  dynamic rawData,
+                  dynamic point,
+                  dynamic series,
+                  int pointIndex,
+                  int seriesIndex,
+                ) {
+                  if (pointIndex < 0 || pointIndex >= data.length) {
+                    return const SizedBox.shrink();
+                  }
+                  final entry = data[pointIndex];
+                  final model = modelList[seriesIndex];
+                  final color = colors[seriesIndex % colors.length];
+                  final total = (entry.totals[model] ?? 0).toInt();
+                  final input = entry.inputs[model] ?? 0;
+                  final output = entry.outputs[model] ?? 0;
+                  final cacheRead = entry.cacheReads[model] ?? 0;
+                  final cacheCreation = entry.cacheCreations[model] ?? 0;
 
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A2E),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A2E),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              model,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(height: 4),
                         Text(
-                          model,
+                          '总计: ${_formatNumber(total)}',
                           style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            fontSize: 10,
+                            color: Color(0xFFAAAAAA),
                           ),
                         ),
+                        if (input > 0)
+                          Text(
+                            '未缓存输入: ${_formatNumber(input)}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFFAAAAAA),
+                            ),
+                          ),
+                        if (cacheRead > 0)
+                          Text(
+                            '缓存读取: ${_formatNumber(cacheRead)}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: ShadcnColors.emerald400,
+                            ),
+                          ),
+                        if (cacheCreation > 0)
+                          Text(
+                            '缓存创建: ${_formatNumber(cacheCreation)}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: ShadcnColors.amber400,
+                            ),
+                          ),
+                        if (output > 0)
+                          Text(
+                            '输出: ${_formatNumber(output)}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFFAAAAAA),
+                            ),
+                          ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '未缓存: ${_formatNumber(nonCache)}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFFAAAAAA),
-                      ),
-                    ),
-                    if (cacheRead > 0)
-                      Text(
-                        '缓存读取: ${_formatNumber(cacheRead)}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: ShadcnColors.emerald400,
-                        ),
-                      ),
-                    if (cacheCreation > 0)
-                      Text(
-                        '缓存创建: ${_formatNumber(cacheCreation)}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: ShadcnColors.amber400,
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
+                  );
+                },
           ),
           series: modelList.map((model) {
             final color = colors[modelList.indexOf(model) % colors.length];
@@ -182,12 +212,16 @@ class DashboardTokenBarChart extends StatelessWidget {
 class _BarChartEntry {
   final String date;
   final Map<String, double> totals;
+  final Map<String, int> inputs;
+  final Map<String, int> outputs;
   final Map<String, int> cacheReads;
   final Map<String, int> cacheCreations;
 
   _BarChartEntry({
     required this.date,
     required this.totals,
+    required this.inputs,
+    required this.outputs,
     required this.cacheReads,
     required this.cacheCreations,
   });

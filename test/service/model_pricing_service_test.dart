@@ -1,4 +1,5 @@
 import 'package:code_proxy/model/model_pricing_entity.dart';
+import 'package:code_proxy/model/normalized_token_usage.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -21,7 +22,7 @@ void main() {
       expect(pricing!.modelId, 'MiniMax-M2.5');
     });
 
-    test('应按 MiniMax 定价正确计算缓存费用', () {
+    test('应按互斥 token 分类正确计算缓存费用', () {
       final service = ModelPricingService.instance;
       service.replacePricingForTesting([
         const ModelPricingEntity(
@@ -33,15 +34,29 @@ void main() {
         ),
       ]);
 
-      final cost = service.calculateCost(
+      final openAiUsage = NormalizedTokenUsage.fromOpenAi(
+        totalInputTokens: 1000000,
+        outputTokens: 500000,
+        cacheCreationInputTokens: 200000,
+        cacheReadInputTokens: 300000,
+      )!;
+      final openAiCost = service.calculateCost(
         model: 'MiniMax-M2.5',
-        inputTokens: 1000000,
+        inputTokens: openAiUsage.inputTokens,
+        outputTokens: openAiUsage.outputTokens,
+        cacheCreationTokens: openAiUsage.cacheCreationInputTokens,
+        cacheReadTokens: openAiUsage.cacheReadInputTokens,
+      );
+      final anthropicCost = service.calculateCost(
+        model: 'MiniMax-M2.5',
+        inputTokens: 500000,
         outputTokens: 500000,
         cacheCreationTokens: 200000,
         cacheReadTokens: 300000,
       );
 
-      expect(cost, closeTo(0.834, 0.000001));
+      expect(openAiCost, closeTo(0.834, 0.000001));
+      expect(anthropicCost, openAiCost);
     });
 
     test('应解析 GLM 和 Kimi provider 的定价数据', () {
