@@ -196,7 +196,11 @@ class _RequestLogPageState extends State<RequestLogPage> {
                 );
                 break;
               case 5:
-                child = Text(statusCode != 200 ? '-' : tokenText);
+                child = Text(
+                  statusCode != 200 ? '-' : tokenText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
                 break;
               default:
                 child = const SizedBox.shrink();
@@ -205,7 +209,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
           },
           columnCount: 6,
           columnSpanExtent: (column) {
-            final totalFixedWidth = 180 + 160 + 100 + 120 + 120;
+            final totalFixedWidth = 180 + 160 + 100 + 120 + 160;
             final availableWidth = constraints.maxWidth;
             final remainingWidth = (availableWidth - totalFixedWidth).clamp(
               120.0,
@@ -218,7 +222,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
               2 => FixedSpanExtent(remainingWidth),
               3 => FixedSpanExtent(100),
               4 => FixedSpanExtent(120),
-              5 => FixedSpanExtent(120),
+              5 => FixedSpanExtent(160),
               _ => null,
             };
           },
