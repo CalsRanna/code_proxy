@@ -170,6 +170,91 @@ void main() {
     });
   });
 
+  group('完成信号检测（isComplete）', () {
+    test('仅内容分片时 isComplete 为 false（上游静默截断）', () {
+      final converter =
+          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      converter.initialEvents();
+      converter.handleData(
+        sse([
+          {
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': 'hello'},
+                'finish_reason': null,
+              },
+            ],
+          },
+          {
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': ' world'},
+                'finish_reason': null,
+              },
+            ],
+          },
+        ]),
+      );
+      expect(converter.isComplete, isFalse);
+    });
+
+    test('收到 [DONE] 时 isComplete 为 true（即使没有 finish_reason）', () {
+      final converter =
+          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      converter.initialEvents();
+      converter.handleData(
+        sse([
+          {
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': 'hello'},
+                'finish_reason': null,
+              },
+            ],
+          },
+        ]),
+      );
+      converter.handleData(utf8.encode('data: [DONE]\n\n'));
+      expect(converter.isComplete, isTrue);
+    });
+
+    test('收到 finish_reason 但没有 [DONE] 时 isComplete 为 true', () {
+      final converter =
+          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      converter.initialEvents();
+      converter.handleData(
+        sse([
+          {
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': 'hello'},
+                'finish_reason': null,
+              },
+              {
+                'index': 0,
+                'delta': {},
+                'finish_reason': 'stop',
+              },
+            ],
+          },
+        ]),
+      );
+      expect(converter.isComplete, isTrue);
+    });
+
+    test('空流直接结束（无任何信号）时 isComplete 为 false', () {
+      final converter =
+          OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+      converter.initialEvents();
+      converter.handleDone();
+      expect(converter.isComplete, isFalse);
+    });
+  });
+
   group('纯工具调用流', () {
     List<Map<String, dynamic>> toolCallChunks() => [
           {

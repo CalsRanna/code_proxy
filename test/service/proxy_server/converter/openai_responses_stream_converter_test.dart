@@ -382,4 +382,62 @@ void main() {
     ]);
     expect(events[2].$2['content_block'], {'type': 'text', 'text': ''});
   });
+
+  group('完成信号检测（isComplete）', () {
+    test('仅 delta 事件时 isComplete 为 false（上游静默截断）', () {
+      final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      converter.handleData(sse([
+        {'type': 'response.output_text.delta', 'delta': 'partial'},
+      ]));
+      expect(converter.isComplete, isFalse);
+    });
+
+    test('response.completed 后 isComplete 为 true', () {
+      final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      converter.handleData(sse([
+        {'type': 'response.output_text.delta', 'delta': 'hi'},
+        {
+          'type': 'response.completed',
+          'response': {'status': 'completed', 'usage': {}},
+        },
+      ]));
+      expect(converter.isComplete, isTrue);
+    });
+
+    test('response.incomplete 后 isComplete 为 true', () {
+      final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      converter.handleData(sse([
+        {
+          'type': 'response.incomplete',
+          'response': {'status': 'incomplete', 'usage': {}},
+        },
+      ]));
+      expect(converter.isComplete, isTrue);
+    });
+
+    test('response.failed 后 isComplete 为 true（上游已明确终止）', () {
+      final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      converter.handleData(sse([
+        {
+          'type': 'response.failed',
+          'response': {'error': {'message': 'boom'}},
+        },
+      ]));
+      expect(converter.isComplete, isTrue);
+    });
+
+    test('流结束后从未收到完成事件时 isComplete 为 false', () {
+      final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      converter.handleData(sse([
+        {'type': 'response.output_text.delta', 'delta': 'partial'},
+      ]));
+      converter.handleDone();
+      expect(converter.isComplete, isFalse);
+    });
+  });
 }

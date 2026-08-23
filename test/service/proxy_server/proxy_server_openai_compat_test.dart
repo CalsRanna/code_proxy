@@ -346,6 +346,188 @@ void main() {
       expect(loggedResponse!.responseBody, contains('partial_json'));
     });
 
+    test('流式：上游思考中途静默断开（无完成信号）→ error 事件 + 502 + 断路器', () async {
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          await utf8.decoder.bind(request).join();
+          request.response.statusCode = HttpStatus.ok;
+          request.response.headers.set(
+            HttpHeaders.contentTypeHeader,
+            'text/event-stream',
+          );
+          // 只发推理增量，不发 finish_reason/usage/[DONE]，直接关闭连接，
+          // 模拟上游在模型思考中途断流（TCP 半关闭 → 静默 EOF）
+          request.response.write(
+            'data: ${jsonEncode({
+                  'choices': [
+                    {
+                      'index': 0,
+                      'delta': {
+                        'role': 'assistant',
+                        'reasoning_content': 'pondering',
+                      },
+                      'finish_reason': null,
+                    },
+                  ],
+                })}\n\n',
+          );
+          request.response.write(
+            'data: ${jsonEncode({
+                  'choices': [
+                    {
+                      'index': 0,
+                      'delta': {'reasoning_content': ' more'},
+                      'finish_reason': null,
+                    },
+                  ],
+                })}\n\n',
+          );
+          await request.response.close();
+        }),
+      );
+
+      ProxyServerResponse? loggedResponse;
+      var circuitOpened = false;
+      service = ProxyServerService(
+        config: const ProxyServerConfig(
+          address: '127.0.0.1',
+          port: 0,
+          circuitBreakerFailureThreshold: 1,
+        ),
+        onRequestCompleted: (endpoint, request, response) {
+          loggedResponse = response;
+        },
+        onEndpointUnavailable: (endpoint) {
+          circuitOpened = true;
+        },
+      );
+      service!.endpoints = [buildOpenAiEndpoint(upstreamServers[0].port)];
+      await service!.start();
+
+      client = http.Client();
+      final streamedResponse = await client!.send(
+        http.Request(
+          'POST',
+          Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+        )
+          ..headers['content-type'] = 'application/json'
+          ..body = jsonEncode({
+            'model': 'test-model-x',
+            'max_tokens': 512,
+            'stream': true,
+            'messages': [
+              {'role': 'user', 'content': 'hi'},
+            ],
+          }),
+      );
+
+      // 客户端收到 error 事件终止（而非补发的 message_stop 伪装成功）
+      final events = _parseSseEvents(
+        await streamedResponse.stream.bytesToString(),
+      );
+      expect(events.last.$1, 'error');
+      expect(
+        events.last.$2['error']['message'],
+        contains('without completion signal'),
+      );
+      expect(events.any((e) => e.$1 == 'message_stop'), isFalse);
+
+      // 审计记录：502 + 已转换内容（含半截 thinking 块）+ 半截原始流
+      expect(loggedResponse!.statusCode, HttpStatus.badGateway);
+      expect(loggedResponse!.responseBody, contains('thinking_delta'));
+      expect(loggedResponse!.responseBody, contains('"error"'));
+      expect(loggedResponse!.rawResponseBody, contains('reasoning_content'));
+      expect(loggedResponse!.rawResponseBody, isNot(contains('[DONE]')));
+
+      // 截断按失败计入断路器（阈值 1 → 直接打开）
+      expect(circuitOpened, isTrue);
+    });
+
+    test('流式：上游发完 finish_reason 但不发 [DONE] 直接断开 → 仍正常完成', () async {
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          await utf8.decoder.bind(request).join();
+          request.response.statusCode = HttpStatus.ok;
+          request.response.headers.set(
+            HttpHeaders.contentTypeHeader,
+            'text/event-stream',
+          );
+          // 部分网关发完 finish_reason 后不发 [DONE] 直接关闭连接，
+          // 此时应视为正常完成，不影响客户端
+          request.response.write(
+            'data: ${jsonEncode({
+                  'choices': [
+                    {
+                      'index': 0,
+                      'delta': {'content': 'Hello'},
+                      'finish_reason': null,
+                    },
+                  ],
+                })}\n\n',
+          );
+          request.response.write(
+            'data: ${jsonEncode({
+                  'choices': [
+                    {
+                      'index': 0,
+                      'delta': {},
+                      'finish_reason': 'stop',
+                    },
+                  ],
+                })}\n\n',
+          );
+          request.response.write(
+            'data: ${jsonEncode({
+                  'choices': [],
+                  'usage': {'prompt_tokens': 10, 'completion_tokens': 5},
+                })}\n\n',
+          );
+          await request.response.close();
+        }),
+      );
+
+      ProxyServerResponse? loggedResponse;
+      service = ProxyServerService(
+        config: const ProxyServerConfig(address: '127.0.0.1', port: 0),
+        onRequestCompleted: (endpoint, request, response) {
+          loggedResponse = response;
+        },
+      );
+      service!.endpoints = [buildOpenAiEndpoint(upstreamServers[0].port)];
+      await service!.start();
+
+      client = http.Client();
+      final streamedResponse = await client!.send(
+        http.Request(
+          'POST',
+          Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+        )
+          ..headers['content-type'] = 'application/json'
+          ..body = jsonEncode({
+            'model': 'test-model-x',
+            'max_tokens': 512,
+            'stream': true,
+            'messages': [
+              {'role': 'user', 'content': 'hi'},
+            ],
+          }),
+      );
+
+      final events = _parseSseEvents(
+        await streamedResponse.stream.bytesToString(),
+      );
+      expect(events.last.$1, 'message_stop');
+      final messageDelta =
+          events.firstWhere((e) => e.$1 == 'message_delta');
+      expect(messageDelta.$2['delta']['stop_reason'], 'end_turn');
+      expect(messageDelta.$2['usage']['output_tokens'], 5);
+      expect(messageDelta.$2['usage']['input_tokens'], 10);
+
+      // 记录为成功且带真实 usage
+      expect(loggedResponse!.statusCode, HttpStatus.ok);
+      expect(loggedResponse!.usage!['output'], 5);
+    });
+
     test('错误响应：OpenAI 错误体转换为 Anthropic error 格式', () async {
       upstreamServers.add(
         await _startUpstreamServer((request) async {

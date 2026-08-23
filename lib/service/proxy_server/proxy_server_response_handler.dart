@@ -13,6 +13,20 @@ import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
+/// 上游流在未发送任何完成信号（finish_reason/[DONE] 或
+/// response.completed/incomplete/failed）前即到达 EOF，视为静默截断。
+///
+/// 这种情况常见于网关在模型长推理中途断开连接：客户端若收到转换器
+/// 补发的"正常收尾"会误以为模型零输出完成，而非流被截断。
+class UpstreamStreamAbortedException implements Exception {
+  const UpstreamStreamAbortedException();
+
+  @override
+  String toString() =>
+      'Upstream stream ended without completion signal '
+      '(connection closed mid-stream)';
+}
+
 /// 响应处理器 - 协调者
 class ProxyServerResponseHandler {
   final ResponseProcessor _processor;
@@ -204,6 +218,7 @@ class ProxyServerResponseHandler {
     List<int>? mappedRequestBodyBytes,
     Map<String, String>? forwardedHeaders,
     String? rawResponseBody,
+    String? responseBody,
   }) {
     // 如果 startTime 为 null，说明在请求准备阶段就失败了，没有真正发起 API 请求
     final responseTime = startTime != null
@@ -227,6 +242,7 @@ class ProxyServerResponseHandler {
       responseTime: responseTime,
       errorBody: error.toString(),
       rawResponseBody: rawResponseBody,
+      responseBody: responseBody,
     );
 
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
@@ -502,6 +518,14 @@ class ProxyServerResponseHandler {
             yield out;
           }
         }
+
+        // 上游静默截断：流已 EOF 但从未收到完成信号（finish_reason/[DONE]
+        // 或 response.completed 等）。此刻不能补发正常收尾事件伪装成
+        // "零输出成功响应"——按流中断处理，走下方异常路径。
+        if (!converter.isComplete) {
+          throw const UpstreamStreamAbortedException();
+        }
+
         final tail = converter.handleDone();
         if (tail.isNotEmpty) {
           outputChunks.add(utf8.decode(tail));
@@ -531,6 +555,13 @@ class ProxyServerResponseHandler {
         LoggerUtil.instance.w('Upstream OpenAI stream error: $error');
         // 流中途失败：对端点补记失败，避免损坏的流被记为成功
         _onStreamError?.call(endpoint);
+
+        // 错误事件输出也留存：截断场景仍写入审计（半截原始流 + error 事件），
+        // 保证本地可还原中断点
+        final errorEvents = converter.handleError(error);
+        if (errorEvents.isNotEmpty) {
+          outputChunks.add(utf8.decode(errorEvents));
+        }
         recordException(
           endpoint: endpoint,
           request: request,
@@ -544,10 +575,13 @@ class ProxyServerResponseHandler {
             rawChunks.expand((c) => c).toList(),
             allowMalformed: true,
           ),
+          // 客户端实际收到的完整输出（头部事件 + 已转换内容块 + error 事件）
+          // 也落审计，便于还原中断点
+          responseBody: outputChunks.isEmpty ? null : outputChunks.join(),
         );
 
         // 以标准 Anthropic error 事件优雅终止
-        yield converter.handleError(error);
+        yield errorEvents;
       }
     }
 

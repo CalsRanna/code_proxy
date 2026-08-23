@@ -61,6 +61,12 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   /// 是否已完成收尾（response.completed/incomplete/failed 或 handleDone）
   bool _finished = false;
 
+  /// 是否收到过上游的终止事件（completed/incomplete/failed）。
+  ///
+  /// 与 [_finished] 分离：handleDone 也会置 [_finished]，但它只是
+  /// 收尾动作，不代表上游真正发送过完成信号。
+  bool _receivedCompletionEvent = false;
+
   OpenAiResponsesSseStreamConverter({this.originalModel});
 
   /// 构造时立即产出的头部事件：message_start + ping。
@@ -128,6 +134,10 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
         'cache_creation': 0,
         'cache_read': _cacheReadTokens,
       };
+
+  /// 是否收到过完成信号（response.completed / incomplete / failed）。
+  @override
+  bool get isComplete => _receivedCompletionEvent;
 
   /// 取走当前累计的输出并清空缓冲。
   @override
@@ -202,16 +212,19 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
       case 'response.completed':
         final response = eventJson['response'];
         if (response is Map) _updateUsage(response['usage']);
+        _receivedCompletionEvent = true;
         _finishSequence();
       case 'response.incomplete':
         final response = eventJson['response'];
         if (response is Map) _updateUsage(response['usage']);
         _stopReason = 'max_tokens';
+        _receivedCompletionEvent = true;
         _finishSequence();
       case 'response.failed':
         final response = eventJson['response'];
         final err = response is Map ? response['error'] : null;
         LoggerUtil.instance.w('Responses stream failed: $err');
+        _receivedCompletionEvent = true;
         _writeEvent('error', {
           'type': 'error',
           'error': {

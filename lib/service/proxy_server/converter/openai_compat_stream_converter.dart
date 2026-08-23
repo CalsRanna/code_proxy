@@ -23,6 +23,15 @@ abstract class OpenAiSseConverter {
   /// 最终 token 用量（供日志与统计）
   Map<String, int?> get finalUsage;
 
+  /// 上游流是否收到过完成信号。
+  ///
+  /// Chat Completions 为 `[DONE]` 或 finish_reason chunk；
+  /// Responses API 为 response.completed/incomplete/failed。
+  /// 调用方在流结束后据此区分正常完成与上游静默截断：为 false 时
+  /// 应按流中断处理（error 事件 + 断路器计数），不能补发正常收尾事件
+  /// 伪装成"零输出成功响应"。
+  bool get isComplete;
+
   /// 取走当前累计的输出并清空缓冲
   List<int> takeOutput();
 }
@@ -79,6 +88,10 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
 
   /// 是否已收到 [DONE]
   bool _done = false;
+
+  /// 是否收到过任意 finish_reason（部分网关发完 finish_reason 后不发 [DONE]，
+  /// 此时仍应视为正常完成）
+  bool _receivedFinishReason = false;
 
   /// 是否已输出 message_stop（防止重复收尾）
   bool _finished = false;
@@ -153,6 +166,10 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
         'cache_read': _cacheReadTokens,
       };
 
+  /// 是否收到过完成信号（[DONE] 或任意 finish_reason chunk）。
+  @override
+  bool get isComplete => _done || _receivedFinishReason;
+
   /// 取走当前累计的输出并清空缓冲。
   @override
   List<int> takeOutput() {
@@ -196,6 +213,7 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
       final fr = c['finish_reason'];
       if (fr != null) {
         _stopReason = OpenAiCompatResponseConverter.mapStopReason(fr);
+        _receivedFinishReason = true;
         // 不 break 后续处理：后续 chunk 可能仍携带 usage
       }
     }
