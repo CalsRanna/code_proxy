@@ -150,9 +150,14 @@ class ProxyServerService {
 
         // 2xx/3xx 均为成功透传：3xx（重定向/缓存语义）不视为端点故障，
         // 不重试、不进断路器。
+        //
+        // 用 continue 让循环条件处的 hasNext(true) 向断路器记录本次成功
+        // （连续失败计数清零 / halfOpen 探测成功恢复 closed）后再结束轮次，
+        // 它固定返回 false，不会产生额外迭代。此处若直接 break，
+        // recordSuccess 将永远不会被主链路调用。
         if (response.statusCode >= 200 && response.statusCode < 400) {
           previousSucceeded = true;
-          break;
+          continue;
         }
         // 4xx 为客户端错误：直接返回，不重试、不熔断、不故障转移
         // （端点本身没有故障，是请求的问题）。

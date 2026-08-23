@@ -177,6 +177,58 @@ void main() {
         isEmpty,
       );
     });
+
+    test('成功响应应向断路器记录成功，间歇性失败不应累积触发误熔断', () async {
+      var hits = 0;
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          hits++;
+          // 奇数次命中返回 500（首次尝试），偶数次命中返回 200（重试）
+          request.response.statusCode =
+              hits.isEven ? HttpStatus.ok : HttpStatus.internalServerError;
+          if (hits.isEven) request.response.write('ok');
+          await request.response.close();
+        }),
+      );
+
+      service = ProxyServerService(
+        config: const ProxyServerConfig(
+          address: '127.0.0.1',
+          port: 0,
+          apiTimeoutMs: 2000,
+          circuitBreakerFailureThreshold: 2,
+        ),
+      );
+      service!.endpoints = [
+        _buildEndpoint('ep-1', upstreamServers[0].port),
+      ];
+      await service!.start();
+
+      client = http.Client();
+      final uri = Uri.parse(
+        'http://127.0.0.1:${service!.boundPort}/v1/messages',
+      );
+      final headers = {
+        'content-type': 'application/json',
+        'x-api-key': 'client-token',
+      };
+      final body = jsonEncode({'model': 'claude-3-7-sonnet'});
+
+      // 请求 1：500 → 重试 → 200。成功必须把失败计数清零。
+      final r1 = await client!.post(uri, headers: headers, body: body);
+      expect(r1.statusCode, HttpStatus.ok);
+      expect(hits, 2);
+
+      // 请求 2：再经历一次失败+重试。若请求 1 的成功未被记录进断路器，
+      // 连续失败会在此累积到阈值 2 并立即熔断，客户端将直接收到 500。
+      final r2 = await client!.post(uri, headers: headers, body: body);
+      expect(r2.statusCode, HttpStatus.ok);
+      expect(hits, 4);
+      expect(
+        service!.getOpenCircuitBreakerEndpointIds({'ep-1'}),
+        isEmpty,
+      );
+    });
   });
 }
 
