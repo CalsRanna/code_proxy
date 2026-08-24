@@ -24,7 +24,6 @@ class SettingViewModel {
   static const int minCircuitBreakerRecoveryTimeoutSeconds = 10;
   static const int maxCircuitBreakerRecoveryTimeoutSeconds = 3600;
 
-  final port = signal(9000);
   final apiTimeout = signal(600000);
   final circuitBreakerFailureThreshold = signal(5);
   final circuitBreakerRecoveryTimeout = signal(60);
@@ -44,7 +43,6 @@ class SettingViewModel {
   // 通知配置
   final notificationEnabled = signal(true);
 
-  final controller = TextEditingController();
   final apiTimeoutController = TextEditingController();
   final circuitBreakerFailureThresholdController = TextEditingController();
   final circuitBreakerRecoveryTimeoutController = TextEditingController();
@@ -59,7 +57,6 @@ class SettingViewModel {
   final defaultOpusModelController = TextEditingController();
 
   void dispose() {
-    controller.dispose();
     apiTimeoutController.dispose();
     circuitBreakerFailureThresholdController.dispose();
     circuitBreakerRecoveryTimeoutController.dispose();
@@ -67,10 +64,6 @@ class SettingViewModel {
     defaultHaikuModelController.dispose();
     defaultSonnetModelController.dispose();
     defaultOpusModelController.dispose();
-  }
-
-  Future<void> editListenPort(BuildContext context) async {
-    showShadDialog(context: context, builder: _buildEditDialog);
   }
 
   Future<void> editApiTimeout(BuildContext context) async {
@@ -96,9 +89,6 @@ class SettingViewModel {
   }
 
   Future<void> initSignals() async {
-    port.value = await SharedPreferenceUtil.instance.getPort();
-    controller.text = port.value.toString();
-
     apiTimeout.value = await SharedPreferenceUtil.instance.getApiTimeout();
     apiTimeoutController.text = apiTimeout.value.toString();
 
@@ -177,56 +167,6 @@ class SettingViewModel {
     return path.startsWith('/') && path.isNotEmpty;
   }
 
-  bool isValidPort(int port) {
-    return port >= 1 && port <= 65535;
-  }
-
-  Future<void> updateListenPort(BuildContext context) async {
-    var newPort = int.tryParse(controller.text);
-    if (newPort == null || !isValidPort(newPort)) {
-      showShadDialog(
-        context: context,
-        builder: (context) {
-          return _buildAlertDialog(context, '监听端口', '端口号必须在 1-65535 之间');
-        },
-      );
-      return;
-    }
-    if (newPort == port.value) {
-      Navigator.of(context).pop();
-      return;
-    }
-    final oldPort = port.value;
-    await SharedPreferenceUtil.instance.setPort(newPort);
-    port.value = newPort;
-    final homeViewModel = GetIt.instance.get<HomeViewModel>();
-    try {
-      await homeViewModel.restartProxyServer(newPort);
-    } catch (e) {
-      // 重启失败：回滚端口设置（旧服务已由 restartProxyServer 恢复）
-      LoggerUtil.instance.e('Failed to restart proxy server on new port: $e');
-      await SharedPreferenceUtil.instance.setPort(oldPort);
-      port.value = oldPort;
-      if (!context.mounted) return;
-      Navigator.of(context).pop();
-      showShadDialog(
-        context: context,
-        builder: (context) {
-          return _buildAlertDialog(context, '监听端口', '代理服务器启动失败：$e\n已恢复原端口。');
-        },
-      );
-      return;
-    }
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-    showShadDialog(
-      context: context,
-      builder: (context) {
-        return _buildAlertDialog(context, '监听端口', '监听端口已更新，代理服务器已自动重启。');
-      },
-    );
-  }
-
   Future<void> updateApiTimeout(BuildContext context) async {
     var newApiTimeout = int.tryParse(apiTimeoutController.text);
     if (newApiTimeout == null ||
@@ -291,7 +231,7 @@ class SettingViewModel {
     Navigator.of(context).pop();
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
     try {
-      await homeViewModel.restartProxyServer(port.value);
+      await homeViewModel.restartProxyServer();
     } catch (e) {
       LoggerUtil.instance.e('Failed to restart proxy server: $e');
       if (!context.mounted) return;
@@ -342,7 +282,7 @@ class SettingViewModel {
     Navigator.of(context).pop();
     final homeViewModel = GetIt.instance.get<HomeViewModel>();
     try {
-      await homeViewModel.restartProxyServer(port.value);
+      await homeViewModel.restartProxyServer();
     } catch (e) {
       LoggerUtil.instance.e('Failed to restart proxy server: $e');
       if (!context.mounted) return;
@@ -470,23 +410,6 @@ class SettingViewModel {
           child: const Text('确定'),
         ),
       ],
-    );
-  }
-
-  Widget _buildEditDialog(BuildContext context) {
-    return ShadDialog(
-      title: const Text('监听端口'),
-      actions: [
-        ShadButton.outline(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        ShadButton(
-          onPressed: () => updateListenPort(context),
-          child: const Text('保存'),
-        ),
-      ],
-      child: ShadInput(controller: controller),
     );
   }
 

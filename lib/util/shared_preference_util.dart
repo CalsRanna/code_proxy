@@ -99,6 +99,7 @@ class SharedPreferenceUtil {
         60000;
   }
 
+  /// 返回代理服务器上次成功绑定的端口，未绑定过时返回默认值 9000。
   Future<int> getPort() async {
     return (await _preferences).getInt(_keyPort) ?? 9000;
   }
@@ -176,6 +177,7 @@ class SharedPreferenceUtil {
     );
   }
 
+  /// 记录代理服务器实际绑定的端口（启动成功后调用）。
   Future<void> setPort(int port) async {
     await (await _preferences).setInt(_keyPort, port);
   }

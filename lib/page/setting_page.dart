@@ -21,14 +21,6 @@ class _SettingPageState extends State<SettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    var portListTile = Watch((context) {
-      return ListTile(
-        title: const Text('监听端口'),
-        subtitle: Text(viewModel.port.value.toString()),
-        trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editListenPort(context),
-      );
-    });
     var circuitBreakerThresholdTile = Watch((context) {
       return ListTile(
         title: const Text('端点熔断阈值'),
@@ -206,7 +198,6 @@ class _SettingPageState extends State<SettingPage> {
           content: ListView(
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
-              portListTile,
               circuitBreakerThresholdTile,
               circuitBreakerRecoveryTile,
               launchAtStartupTile,

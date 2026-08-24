@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/default_model_mapper_entity.dart';
@@ -241,49 +242,39 @@ class HomeViewModel {
     );
   }
 
-  /// 重启代理服务器（用于端口变更等配置修改）
+  /// 重启代理服务器（用于 API 超时、熔断阈值等配置修改）
   ///
   /// 顺序：先在新端口监听成功，再改写 Claude Code 配置。
   /// 启动失败时恢复旧服务并抛出异常，保证 Claude Code 不会指向
   /// 一个不存在的服务；调用方负责向用户展示错误。
-  Future<void> restartProxyServer(int newPort) async {
+  Future<void> restartProxyServer() async {
     final oldServer = _proxyServer;
     await oldServer?.stop();
     _proxyServer = null;
 
     final instance = SharedPreferenceUtil.instance;
-    final apiTimeout = await instance.getApiTimeout();
-    final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
-    final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
     final authToken = await instance.getOrCreateProxyAuthToken();
-    final config = ProxyServerConfig(
-      address: '127.0.0.1',
-      port: newPort,
-      apiTimeoutMs: apiTimeout,
-      circuitBreakerFailureThreshold: cbThreshold,
-      circuitBreakerRecoveryTimeoutMs: cbRecovery,
-    );
-    final newServer = ProxyServerService(
-      config: config,
-      authToken: authToken,
-      onRequestCompleted: handleRequestCompleted,
-      onEndpointUnavailable: handleEndpointUnavailable,
-      onEndpointRestored: handleEndpointRestored,
-    );
 
+    ProxyServerService? newServer;
     try {
-      // 先监听成功，失败则 settings.json 保持原样
-      await newServer.start();
+      newServer = await _startServerWithPortScan();
       final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
       newServer.endpoints = endpointViewModel.enabledEndpoints;
+      final boundPort = newServer.boundPort;
+      if (boundPort == null) {
+        throw StateError('Proxy server is running but bound port is unknown');
+      }
       // 服务已就绪后再以跨文件事务改写 Claude 配置。
-      await _writeProxySettings(authToken: authToken, port: newPort);
+      await _writeProxySettings(authToken: authToken, port: boundPort);
+      // 持久化实际绑定端口：无参 updateProxySetting()（设置页开关）依赖它
+      // 把 Claude Code 指向正确端口。
+      await instance.setPort(boundPort);
       _proxyServer = newServer;
     } catch (e, stackTrace) {
       // newServer 可能已经监听成功，也可能仅创建了出站 HttpClient。
       // 两种情况都必须关闭，才能安全地恢复旧服务。
       try {
-        await newServer.stop();
+        await newServer?.stop();
       } catch (stopError) {
         LoggerUtil.instance.e('Failed to stop new proxy server: $stopError');
       }
@@ -300,6 +291,64 @@ class HomeViewModel {
       }
       Error.throwWithStackTrace(e, stackTrace);
     }
+  }
+
+  /// 启动代理服务器时的端口探测。
+  ///
+  /// 端口不再对用户暴露：从最近一次成功绑定的端口（默认 9000）开始，
+  /// 被占用则顺延尝试下一个，返回第一个成功启动的服务器实例；
+  /// 所有候选端口均不可用时抛出最后一次绑定错误。
+  Future<ProxyServerService> _startServerWithPortScan() async {
+    final instance = SharedPreferenceUtil.instance;
+    final preferredPort = await instance.getPort();
+    final apiTimeout = await instance.getApiTimeout();
+    final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
+    final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
+    final authToken = await instance.getOrCreateProxyAuthToken();
+
+    const maxAttempts = 100;
+    if (preferredPort < 1 || preferredPort > 65535) {
+      throw StateError('Invalid preferred port: $preferredPort');
+    }
+
+    Object? lastError;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      final port = preferredPort + attempt;
+      if (port > 65535) break;
+      final server = ProxyServerService(
+        config: ProxyServerConfig(
+          address: '127.0.0.1',
+          port: port,
+          apiTimeoutMs: apiTimeout,
+          circuitBreakerFailureThreshold: cbThreshold,
+          circuitBreakerRecoveryTimeoutMs: cbRecovery,
+        ),
+        authToken: authToken,
+        onRequestCompleted: handleRequestCompleted,
+        onEndpointUnavailable: handleEndpointUnavailable,
+        onEndpointRestored: handleEndpointRestored,
+      );
+      try {
+        await server.start();
+        if (port != preferredPort) {
+          LoggerUtil.instance.i(
+            'Preferred port $preferredPort is unavailable, '
+            'proxy server started on port $port',
+          );
+        }
+        return server;
+      } on SocketException catch (e) {
+        lastError = e;
+        LoggerUtil.instance.w(
+          'Port $port is unavailable (${e.message}), trying next port',
+        );
+      }
+    }
+    throw lastError ??
+        StateError(
+          'No available port in range $preferredPort-'
+          '${preferredPort + maxAttempts - 1}',
+        );
   }
 
   Future<void> toggleEndpointEnabled(String id) async {
@@ -393,40 +442,27 @@ class HomeViewModel {
   }
 
   Future<void> _autoStartServer(BuildContext context) async {
-    var instance = SharedPreferenceUtil.instance;
-    final port = await instance.getPort();
-    final apiTimeout = await instance.getApiTimeout();
-    final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
-    final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
+    final instance = SharedPreferenceUtil.instance;
     final authToken = await instance.getOrCreateProxyAuthToken();
 
-    final config = ProxyServerConfig(
-      address: '127.0.0.1',
-      port: port,
-      apiTimeoutMs: apiTimeout,
-      circuitBreakerFailureThreshold: cbThreshold,
-      circuitBreakerRecoveryTimeoutMs: cbRecovery,
-    );
-    final server = ProxyServerService(
-      config: config,
-      authToken: authToken,
-      onRequestCompleted: handleRequestCompleted,
-      onEndpointUnavailable: handleEndpointUnavailable,
-      onEndpointRestored: handleEndpointRestored,
-    );
-
+    ProxyServerService? server;
     try {
-      // 先监听成功再写 Claude Code 配置：端口被占用时不能把
-      // settings.json 指向一个不存在的服务。
-      await server.start();
+      server = await _startServerWithPortScan();
       final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
       server.endpoints = endpointViewModel.enabledEndpoints;
-      await _writeProxySettings(authToken: authToken, port: port);
+      final boundPort = server.boundPort;
+      if (boundPort == null) {
+        throw StateError('Proxy server is running but bound port is unknown');
+      }
+      // 先监听成功再写 Claude Code 配置：所有候选端口均被占用时不能把
+      // settings.json 指向一个不存在的服务。
+      await _writeProxySettings(authToken: authToken, port: boundPort);
+      await instance.setPort(boundPort);
       _proxyServer = server;
     } catch (e) {
       LoggerUtil.instance.e('Failed to start proxy server: $e');
       try {
-        await server.stop();
+        await server?.stop();
       } catch (stopError) {
         LoggerUtil.instance.e(
           'Failed to clean up proxy server after startup error: $stopError',
@@ -436,22 +472,20 @@ class HomeViewModel {
       // Claude Code 配置保持原样，明确告知用户启动失败原因
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
-          _showStartupErrorDialog(context, port, e);
+          _showStartupErrorDialog(context, e);
         }
       });
-      return;
     }
   }
 
-  void _showStartupErrorDialog(BuildContext context, int port, Object error) {
+  void _showStartupErrorDialog(BuildContext context, Object error) {
     showShadDialog(
       context: context,
       builder: (context) => ShadDialog.alert(
         title: const Text('代理服务器启动失败'),
         description: Text(
-          '无法在端口 $port 上启动代理服务器：\n$error\n\n'
-          'Claude Code 的配置未被修改。请检查端口是否被其他程序占用，'
-          '然后在设置中更换监听端口。',
+          '无法启动代理服务器：\n$error\n\n'
+          'Claude Code 的配置未被修改。请检查占用端口的程序并释放后重试。',
         ),
         actions: [
           ShadButton(
