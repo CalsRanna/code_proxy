@@ -9,12 +9,11 @@ import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 /// 请求处理器 - 负责请求准备和转发
 class ProxyServerRequestHandler {
-  final http.Client _httpClient;
+  final HttpClient _httpClient;
   final ProxyServerConfig config;
   final OpenAiCompatRequestConverter _openAiRequestConverter =
       const OpenAiCompatRequestConverter();
@@ -28,7 +27,9 @@ class ProxyServerRequestHandler {
   ProxyServerRequestHandler(this.config) : _httpClient = _buildHttpClient();
 
   void close() {
-    _httpClient.close();
+    // force: true 与 IOClient.close() 的语义一致 —— stop() 需要立即断开，
+    // 不等在途连接自然结束。
+    _httpClient.close(force: true);
   }
 
   // ===========================================================================
@@ -62,12 +63,16 @@ class ProxyServerRequestHandler {
   //    这是一次性能改造的最小侵入版本。如果未来仍有静默断链问题，下一步
   //    可以考虑换 `package:cupertino_http` / `package:cronet_http` 拿到
   //    HTTP/2 PING 帧的应用层 keepalive。
+  // 3) 直接持有 dart:io 的 HttpClient，不再包一层 package:http 的 IOClient
+  //    只有 HttpClient 这条路径能拿到 HttpClientRequest.abort()，让超时真正
+  //    切断底层请求。代价是 forwardRequest 必须自己复刻 IOClient 的异常
+  //    转换（HttpException / SocketException → ClientException），否则
+  //    ProxyServerErrorClassifier 的透明重试判定会静默失效。
   // ===========================================================================
-  static http.Client _buildHttpClient() {
-    final httpClient = HttpClient()
+  static HttpClient _buildHttpClient() {
+    return HttpClient()
       ..autoUncompress = false
       ..connectionFactory = _keepaliveConnectionFactory;
-    return IOClient(httpClient);
   }
 
   /// 建立 socket 时启用 TCP keepalive 的 connectionFactory。
@@ -192,35 +197,89 @@ class ProxyServerRequestHandler {
   /// 后者是 idle timeout 而非流的总时长，因此持续有数据的长 SSE 不会
   /// 因总运行时间较长而被误杀，但响应头后永久停顿会可靠终止。
   ///
-  /// 已知限制：`.timeout()` 只让这里的 Future 提前完成，并不会取消底层的
-  /// HttpClient 请求 —— 超时的连接会一直挂到连接池回收。真正取消需要拿到
-  /// `HttpClientRequest.abort()`，而 IOClient 不暴露它，得绕过 package:http
-  /// 直连 dart:io，改动面与回归风险都不小，暂不处理。
+  /// 两处超时都调用 [HttpClientRequest.abort] 真正切断请求。此前用
+  /// `Future.timeout` 包 IOClient 只能让等待的 Future 提前完成，底层请求
+  /// 仍在跑，超时的连接会一直占着连接池直到自然回收 —— 在 SSE 长 TTFB
+  /// （200-300s）场景下这会累积成大量僵死连接。
+  ///
+  /// 末尾的异常转换复刻 IOClient 的行为：dart:io 抛的是 HttpException /
+  /// SocketException，而 [ProxyServerErrorClassifier] 只认
+  /// [http.ClientException]（"Connection closed before full header was
+  /// received"）。少了这层转换，透明重试会静默退化为不再触发。
   Future<http.StreamedResponse> forwardRequest(http.Request request) async {
     final timeout = Duration(milliseconds: config.apiTimeoutMs);
-    final response = await _httpClient.send(request).timeout(timeout);
-    final timedBody = response.stream.timeout(
-      timeout,
-      onTimeout: (sink) {
-        sink.addError(
-          TimeoutException(
-            'Upstream response body was idle for ${timeout.inMilliseconds}ms',
+
+    try {
+      // 连接阶段单独计时：此时还没有 HttpClientRequest，无法 abort，
+      // 但 TCP/TLS 握手远快于响应头等待，实际超时几乎只发生在下一步。
+      final ioRequest = await _httpClient
+          .openUrl(request.method, request.url)
+          .timeout(timeout);
+      ioRequest
+        ..followRedirects = request.followRedirects
+        ..maxRedirects = request.maxRedirects
+        ..contentLength = request.bodyBytes.length
+        ..persistentConnection = request.persistentConnection;
+      request.headers.forEach((name, value) {
+        ioRequest.headers.set(name, value);
+      });
+      ioRequest.add(request.bodyBytes);
+
+      final HttpClientResponse ioResponse;
+      try {
+        ioResponse = await ioRequest.close().timeout(timeout);
+      } on TimeoutException {
+        // 切断请求本身。abort 会让上面那个 Future 以错误完成，但
+        // Future.timeout 内部已注册 onError，不会变成 unhandled async error。
+        ioRequest.abort();
+        rethrow;
+      }
+
+      final headers = <String, String>{};
+      ioResponse.headers.forEach((name, values) {
+        headers[name] = values.join(',');
+      });
+
+      final timedBody = ioResponse
+          .timeout(
             timeout,
-          ),
-        );
-        sink.close();
-      },
-    );
-    return http.StreamedResponse(
-      timedBody,
-      response.statusCode,
-      contentLength: response.contentLength,
-      request: response.request,
-      headers: response.headers,
-      isRedirect: response.isRedirect,
-      persistentConnection: response.persistentConnection,
-      reasonPhrase: response.reasonPhrase,
-    );
+            onTimeout: (sink) {
+              ioRequest.abort();
+              sink.addError(
+                TimeoutException(
+                  'Upstream response body was idle for '
+                  '${timeout.inMilliseconds}ms',
+                  timeout,
+                ),
+              );
+              sink.close();
+            },
+          )
+          .handleError((Object error) {
+            final httpException = error as HttpException;
+            throw http.ClientException(
+              httpException.message,
+              httpException.uri,
+            );
+          }, test: (error) => error is HttpException);
+
+      return http.StreamedResponse(
+        timedBody,
+        ioResponse.statusCode,
+        contentLength: ioResponse.contentLength == -1
+            ? null
+            : ioResponse.contentLength,
+        request: request,
+        headers: headers,
+        isRedirect: ioResponse.isRedirect,
+        persistentConnection: ioResponse.persistentConnection,
+        reasonPhrase: ioResponse.reasonPhrase,
+      );
+    } on SocketException catch (error) {
+      throw http.ClientException(error.message, request.url);
+    } on HttpException catch (error) {
+      throw http.ClientException(error.message, error.uri);
+    }
   }
 
   /// 为端点准备HTTP请求

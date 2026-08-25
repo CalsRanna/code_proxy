@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
@@ -205,6 +207,53 @@ void main() {
 
       expect(decoded['max_tokens'], 256);
       expect(decoded.containsKey('thinking'), isFalse);
+    });
+  });
+
+  group('ProxyServerRequestHandler 超时切断底层请求', () {
+    // 针对「等响应头」路径：此时还没有响应流可供取消，若不 abort，底层请求
+    // 会一直挂着占用连接。响应体 idle timeout 那条路径不适合做这个断言 ——
+    // 流订阅被取消时 HttpClient 本来就会关掉连接，加不加 abort 都观察不到
+    // 差别（实测确认过），那里的 abort 属于明确清理而非修复。
+    test('等响应头超时会 abort 请求，服务端能观察到连接关闭', () async {
+      final serverSocket = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(serverSocket.close);
+
+      // 服务端收下请求后永不响应，连响应头都不发
+      final clientClosed = Completer<void>();
+      serverSocket.listen((socket) {
+        socket.listen(
+          (_) {},
+          onDone: () {
+            if (!clientClosed.isCompleted) clientClosed.complete();
+          },
+          onError: (_) {
+            if (!clientClosed.isCompleted) clientClosed.complete();
+          },
+        );
+      });
+
+      final handler = ProxyServerRequestHandler(
+        const ProxyServerConfig(apiTimeoutMs: 300),
+      );
+      addTearDown(handler.close);
+
+      final request = http.Request(
+        'POST',
+        Uri.parse('http://127.0.0.1:${serverSocket.port}/v1/messages'),
+      )..bodyBytes = utf8.encode('{"model":"claude-opus-5"}');
+
+      await expectLater(
+        handler.forwardRequest(request),
+        throwsA(isA<TimeoutException>()),
+      );
+
+      // 关键断言：不 abort 时请求会继续挂着等响应，服务端观察不到 done，
+      // 这里就会超时失败。
+      await clientClosed.future.timeout(const Duration(seconds: 3));
     });
   });
 }
