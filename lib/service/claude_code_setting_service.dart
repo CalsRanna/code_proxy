@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
+import 'package:code_proxy/util/logger_util.dart';
+import 'package:code_proxy/util/model_display_name_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
@@ -62,6 +64,14 @@ class ClaudeCodeSettingService {
         : Map<String, dynamic>.from(rawEnv as Map);
     env['ANTHROPIC_AUTH_TOKEN'] = token;
     env['ANTHROPIC_BASE_URL'] = 'http://127.0.0.1:$resolvedPort';
+    // 哨兵约定：把这三个变量的值设成 key 自身的名字。
+    //
+    // 代理转发请求时由 ProxyServerModelMapper 识别这个「值等于变量名」的
+    // 哨兵，再按当前端点的配置替换成该端点真实的模型名。这样同一份
+    // settings.json 可以适配所有端点，切换端点时无需重写。
+    //
+    // 代价：代理没有运行时，Claude Code 会把
+    // 'ANTHROPIC_DEFAULT_OPUS_MODEL' 这个字符串本身当成模型名发给上游。
     for (final key in _placeholderKeys) {
       env[key] = key;
     }
@@ -78,9 +88,12 @@ class ClaudeCodeSettingService {
           'ANTHROPIC_DEFAULT_OPUS_MODEL_NAME' => c.anthropicDefaultOpusModel,
           _ => null,
         };
-        if (modelId != null) env[key] = _displayName(modelId);
+        if (modelId != null) env[key] = modelDisplayName(modelId);
       }
-    } catch (_) {}
+    } catch (e) {
+      // 部分降级：崩溃点之前的 *_MODEL_NAME 已写入 env。记日志避免静默失效。
+      LoggerUtil.instance.w('Failed to derive *_MODEL_NAME env entries: $e');
+    }
     env['API_TIMEOUT_MS'] = apiTimeout;
     env['CLAUDE_CODE_ATTRIBUTION_HEADER'] = clientAttribution ? 1 : 0;
     env['CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS'] = experimentalApiFeatures
@@ -128,19 +141,5 @@ class ClaudeCodeSettingService {
         'Cannot update ${file.path}: existing JSON is invalid ($error)',
       );
     }
-  }
-
-  static String _displayName(String modelId) {
-    final match = RegExp(r'^claude-(\w+)-(\d+)-(\d+)').firstMatch(modelId);
-    if (match != null) {
-      final variant = match.group(1)!;
-      final major = match.group(2)!;
-      final minor = match.group(3)!;
-      return 'Claude ${variant[0].toUpperCase()}${variant.substring(1)} $major.$minor';
-    }
-    return modelId
-        .split('-')
-        .map((s) => s[0].toUpperCase() + s.substring(1))
-        .join(' ');
   }
 }

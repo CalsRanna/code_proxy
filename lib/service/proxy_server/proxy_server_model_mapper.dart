@@ -12,7 +12,11 @@ class ProxyServerModelMapper {
     final upper = originalModel.toUpperCase();
 
     // 全局默认配置加载失败时降级为仅端点级映射，
-    // 不应让整个请求体处理（含格式转换）失败
+    // 不应让整个请求体处理（含格式转换）失败。
+    //
+    // 此处刻意不记日志：配置加载失败在启动时已由 HomeViewModel.initSignals
+    // 报错并弹窗，且那种情况下代理服务器根本不会启动，所以生产链路走不到
+    // 这里；而这是每请求路径，一旦记录就会刷屏。
     DefaultModelMapperEntity? defaultConfig;
     try {
       defaultConfig = ClaudeCodeModelConfigService.instance.config;

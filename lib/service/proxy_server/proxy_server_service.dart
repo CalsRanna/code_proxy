@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
@@ -147,7 +148,13 @@ class ProxyServerService {
     // 在读取完整请求体和接触上游密钥前验证本地代理令牌。
     if (!_isAuthorized(request)) return _unauthorizedResponse();
 
-    final rawBody = await request.read().expand((x) => x).toList();
+    // 用 BytesBuilder 收集为 Uint8List，而不是 .expand((x) => x).toList()：
+    // 后者得到的 List<int> 在 Dart VM 里每个元素占一个字长，一个 10 MB 的
+    // 长上下文请求会膨胀成约 80 MB（实测 2 MiB 载荷造成约 56 MiB RSS
+    // 增量）。Uint8List 是 1:1 存储，且是 List<int> 的子类，下游签名无需改动。
+    final bodyBuilder = BytesBuilder(copy: false);
+    await request.read().forEach(bodyBuilder.add);
+    final Uint8List rawBody = bodyBuilder.takeBytes();
 
     // 本地应答: 对健康检查、count_tokens 等请求直接返回，
     // 避免不必要的上游网络往返。
@@ -155,6 +162,9 @@ class ProxyServerService {
     if (localResponse != null) return localResponse;
 
     final routeSession = _router.startRequest();
+    // 同一请求内的请求体处理缓存：同端点重试时复用已处理好的字节，
+    // 避免对大请求体重复 decode + encode。随请求创建、随请求丢弃。
+    final bodyCache = ProxyServerBodyCache();
     bool? previousSucceeded;
     shelf.Response? finalResponse;
     Object? lastException;
@@ -179,6 +189,7 @@ class ProxyServerService {
           request,
           endpoint,
           rawBody,
+          bodyCache: bodyCache,
         );
         // 2. 发送请求（在此处开始计时，确保 responseTime 是真实的服务器响应时间）
         startTime = DateTime.now().millisecondsSinceEpoch;

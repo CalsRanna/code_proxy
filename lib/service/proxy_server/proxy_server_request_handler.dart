@@ -191,6 +191,11 @@ class ProxyServerRequestHandler {
   ///
   /// 后者是 idle timeout 而非流的总时长，因此持续有数据的长 SSE 不会
   /// 因总运行时间较长而被误杀，但响应头后永久停顿会可靠终止。
+  ///
+  /// 已知限制：`.timeout()` 只让这里的 Future 提前完成，并不会取消底层的
+  /// HttpClient 请求 —— 超时的连接会一直挂到连接池回收。真正取消需要拿到
+  /// `HttpClientRequest.abort()`，而 IOClient 不暴露它，得绕过 package:http
+  /// 直连 dart:io，改动面与回归风险都不小，暂不处理。
   Future<http.StreamedResponse> forwardRequest(http.Request request) async {
     final timeout = Duration(milliseconds: config.apiTimeoutMs);
     final response = await _httpClient.send(request).timeout(timeout);
@@ -222,24 +227,28 @@ class ProxyServerRequestHandler {
   http.Request prepareRequest(
     shelf.Request request,
     EndpointEntity endpoint,
-    List<int> rawBody,
-  ) {
+    List<int> rawBody, {
+    ProxyServerBodyCache? bodyCache,
+  }) {
     // 构建目标URL
     final uri = _buildTargetUrl(endpoint, request);
 
-    // 准备请求头
-    final headers = _prepareHeaders(request, endpoint);
+    // 请求体只解析一次：得到的模型名同时用于模型映射结果和 beta 头的
+    // 模型族判断。传入 bodyCache 时，同端点重试直接复用上次的字节，
+    // 不再对大请求体重复 decode + encode。
+    final processed = bodyCache == null
+        ? _processRequestBody(rawBody, endpoint)
+        : bodyCache.putIfAbsent(
+            endpoint.id,
+            () => _processRequestBody(rawBody, endpoint),
+          );
 
-    // 处理请求体中的模型映射和 1M 上下文参数
-    final processedBody = _processRequestBody(
-      rawBody,
-      endpoint,
-      path: request.url.path,
-    );
+    // 准备请求头
+    final headers = _prepareHeaders(request, endpoint, processed.model);
 
     return http.Request(request.method, uri)
       ..headers.addAll(headers)
-      ..bodyBytes = processedBody;
+      ..bodyBytes = processed.bytes;
   }
 
   /// 构建目标URL
@@ -302,6 +311,7 @@ class ProxyServerRequestHandler {
   Map<String, String> _prepareHeaders(
     shelf.Request request,
     EndpointEntity endpoint,
+    String? model,
   ) {
     final headers = Map<String, String>.from(request.headers);
 
@@ -312,8 +322,7 @@ class ProxyServerRequestHandler {
 
     // 保留客户端原始的认证方式，只替换 key 值
     _replaceAuthToken(headers, endpoint);
-    headers.remove('host');
-    headers.remove('content-length');
+    _stripNonForwardableHeaders(headers);
     // 将 accept-encoding 限制为 gzip, deflate
     //
     // 原因：Dart 标准库仅支持 gzip/deflate 解压，不支持 brotli(br)/zstd。
@@ -333,32 +342,84 @@ class ProxyServerRequestHandler {
     // 某些上游端点（如 AnyRouter）已将 1M 上下文设为默认要求，
     // 不携带此头的请求会被拒绝。Claude Desktop 的健康检查探针
     // 不发送此头，会导致探针失败。
-    _injectOneMContextHeader(headers, request.requestedUri.path);
+    _injectOneMContextHeader(headers, request.requestedUri.path, model);
 
     return headers;
   }
 
-  /// 注入 1M 上下文需要的 beta 头和请求体参数。
+  /// 注入 1M 上下文需要的 beta 头。
   ///
-  /// 某些上游端点（如 AnyRouter）要求同时具备：
-  ///   - anthropic-beta: context-1m-2025-08-07,max-tokens-1m
-  ///   - thinking: {"type": "adaptive"}
-  ///   - max_tokens >= 32000
+  /// 某些上游端点（如 AnyRouter）已将 1M 上下文设为默认要求，不携带
+  /// `anthropic-beta: context-1m-2025-08-07,max-tokens-1m` 的请求会被拒绝；
+  /// Claude Desktop 的健康检查探针不发送此头，会导致探针 400。
   ///
-  /// Claude Desktop 的健康检查探针不包含这些参数，会导致 400 错误。
-  void _injectOneMContextHeader(Map<String, String> headers, String path) {
+  /// 历史说明：曾另有一套请求体注入（`thinking: adaptive` 与
+  /// `max_tokens >= 32000`），但其路径判断误用了不带前导斜杠的
+  /// `request.url.path`，条件恒为 false，从未执行过。项目在只有 beta 头
+  /// 生效的状态下长期稳定运行，证明那些请求体参数并非必需，故已删除。
+  ///
+  /// 若将来确实遇到需要它们的网关，应做成**端点级开关**而不是全局注入：
+  /// 无条件把 `max_tokens` 抬到 32000 会让分类类调用（常用 256）和
+  /// 缓存预热（0）变成一次完整推理，产生真实费用。
+  void _injectOneMContextHeader(
+    Map<String, String> headers,
+    String path,
+    String? model,
+  ) {
     if (path != '/v1/messages') return;
 
-    // 注入 context-1m 和 max-tokens-1m beta 标记
+    // 仅在明确不是 Claude 族模型时跳过：anthropic-beta 是 Anthropic 专有头，
+    // anthropic 格式端点后面接非 Claude 模型（如自建网关转 DeepSeek）时
+    // 发送它可能触发上游 400。
+    //
+    // model 为 null（请求体无 model 字段或解析失败）时保持注入 —— 不带
+    // 完整请求体的健康检查探针依赖这个头。
+    if (model != null && !model.startsWith('claude-')) return;
+
+    // 注入 context-1m 和 max-tokens-1m beta 标记。
+    //
+    // 按空白过滤而非直接 split：客户端可能发来空的 anthropic-beta 头，
+    // 而 ''.split(',') 返回 ['']，会拼出前导逗号
+    // （",context-1m-2025-08-07,max-tokens-1m"），严格的网关会拒绝。
     const requiredBetas = ['context-1m-2025-08-07', 'max-tokens-1m'];
-    final existing = headers['anthropic-beta'];
-    final parts = existing != null ? existing.split(',') : <String>[];
+    final parts = (headers['anthropic-beta'] ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
     for (final beta in requiredBetas) {
-      if (!parts.any((p) => p.trim() == beta)) {
+      if (!parts.contains(beta)) {
         parts.add(beta);
       }
     }
     headers['anthropic-beta'] = parts.join(',');
+  }
+
+  /// 逐跳（hop-by-hop）头只对单段连接有意义，代理必须剥离而不是转发。
+  ///
+  /// 实测 shelf 会把客户端的 `connection` / `te` / `upgrade` 原样交到
+  /// handler，若直接转发给上游，可能与代理自己设置的 content-length 语义
+  /// 冲突，或让上游误以为客户端要求协议升级。`transfer-encoding` 在
+  /// dart:io 层就已被消费（不会出现在 shelf headers 中），仍按 RFC 7230
+  /// §6.1 一并列出。
+  ///
+  /// host / content-length 一并移除：目标主机已变，长度由出站请求重新计算。
+  static const _hopByHopHeaders = [
+    'connection',
+    'keep-alive',
+    'te',
+    'trailer',
+    'transfer-encoding',
+    'upgrade',
+    'proxy-connection',
+  ];
+
+  static void _stripNonForwardableHeaders(Map<String, String> headers) {
+    headers.remove('host');
+    headers.remove('content-length');
+    for (final name in _hopByHopHeaders) {
+      headers.remove(name);
+    }
   }
 
   /// 根据端点的认证方式配置替换 key 值
@@ -405,89 +466,94 @@ class ProxyServerRequestHandler {
       ..remove('x-api-key')
       ..remove('anthropic-beta')
       ..remove('anthropic-version')
-      ..remove('host')
-      ..remove('content-length')
       ..remove('accept-encoding');
+    _stripNonForwardableHeaders(headers);
     headers['authorization'] = 'Bearer $token';
     headers['accept-encoding'] = 'identity';
     return headers;
   }
 
-  /// 处理请求体中的模型映射和 1M 上下文参数注入。
-  List<int> _processRequestBody(
+  /// 处理请求体中的模型映射，并回传映射后的模型名。
+  ProcessedRequestBody _processRequestBody(
     List<int> rawBody,
-    EndpointEntity endpoint, {
-    String path = '/v1/messages',
-  }) {
+    EndpointEntity endpoint,
+  ) {
     try {
       final bodyString = utf8.decode(rawBody, allowMalformed: true);
-      if (bodyString.isEmpty) return rawBody;
+      if (bodyString.isEmpty) return ProcessedRequestBody(rawBody, null);
 
       final bodyJson = jsonDecode(bodyString) as Map<String, dynamic>;
 
       // 模型映射
+      var model = bodyJson['model'] as String?;
       if (bodyJson.containsKey('model')) {
-        final originalModel = bodyJson['model'] as String?;
         final mappedModel = ProxyServerModelMapper.mapModel(
-          originalModel,
+          model,
           endpoint: endpoint,
         );
 
         LoggerUtil.instance.d(
-          'Model mapping: endpoint=${endpoint.name}, original=$originalModel, mapped=$mappedModel',
+          'Model mapping: endpoint=${endpoint.name}, original=$model, mapped=$mappedModel',
         );
 
         if (mappedModel != null && mappedModel.isNotEmpty) {
           bodyJson['model'] = mappedModel;
+          model = mappedModel;
         }
       }
 
       // OpenAI 格式端点：整体转换为对应 API 的请求格式。
-      // 模型映射已先行完成；1M 上下文注入为 Anthropic 专有逻辑不适用。
+      // 模型映射已先行完成。
       switch (endpoint.apiFormat) {
         case EndpointApiFormat.openai:
-          return utf8.encode(
-            jsonEncode(_openAiRequestConverter.convert(bodyJson)),
+          return ProcessedRequestBody(
+            utf8.encode(jsonEncode(_openAiRequestConverter.convert(bodyJson))),
+            model,
           );
         case EndpointApiFormat.openaiResponses:
-          return utf8.encode(
-            jsonEncode(_openAiResponsesRequestConverter.convert(bodyJson)),
+          return ProcessedRequestBody(
+            utf8.encode(
+              jsonEncode(_openAiResponsesRequestConverter.convert(bodyJson)),
+            ),
+            model,
           );
         case EndpointApiFormat.anthropic:
           break;
       }
 
-      // 注入 1M 上下文参数（仅 /v1/messages）
-      if (path == '/v1/messages') {
-        _injectOneMContextBody(bodyJson);
-      }
-
-      return utf8.encode(jsonEncode(bodyJson));
+      return ProcessedRequestBody(utf8.encode(jsonEncode(bodyJson)), model);
     } catch (e) {
       LoggerUtil.instance.w('Failed to parse/replace model in body: $e');
-      return rawBody;
+      return ProcessedRequestBody(rawBody, null);
     }
   }
+}
 
-  /// 注入 1M 上下文需要的请求体参数。
-  ///
-  /// 仅当客户端未自行提供这些参数时才注入：
-  ///   - thinking 缺失时注入 adaptive thinking
-  ///   - max_tokens 缺失或 < 32000 时设为 32000
-  ///
-  /// Claude Code 已自行发送这些参数，此注入对其无影响。
-  void _injectOneMContextBody(Map<String, dynamic> body) {
-    // 仅对 Claude 族模型注入（避免影响 DeepSeek 等非 Claude 端点）
-    final model = body['model'] as String?;
-    if (model == null || !model.startsWith('claude-')) return;
+/// 处理后的请求体字节，以及其中携带的（映射后）模型名。
+///
+/// 模型名单独回传，避免调用方为了判断模型族而把请求体再解析一遍。
+class ProcessedRequestBody {
+  final List<int> bytes;
 
-    if (!body.containsKey('thinking')) {
-      body['thinking'] = {'type': 'adaptive'};
-    }
+  /// 映射后的模型名；请求体无 model 字段或解析失败时为 null。
+  final String? model;
 
-    final maxTokens = body['max_tokens'];
-    if (maxTokens == null || (maxTokens is int && maxTokens < 32000)) {
-      body['max_tokens'] = 32000;
-    }
+  const ProcessedRequestBody(this.bytes, this.model);
+}
+
+/// 单个代理请求内的请求体处理缓存。
+///
+/// 模型映射与协议转换的结果只取决于端点配置，因此同一端点的重试可以直接
+/// 复用上一次的结果，避免对大请求体重复 decode + encode。
+///
+/// 按请求创建、随请求丢弃：不跨请求共享，也就不会在并发请求之间串状态。
+class ProxyServerBodyCache {
+  final Map<String, ProcessedRequestBody> _byEndpointId = {};
+
+  ProcessedRequestBody putIfAbsent(
+    String endpointId,
+    ProcessedRequestBody Function() compute,
+  ) {
+    return _byEndpointId.putIfAbsent(endpointId, compute);
   }
 }

@@ -73,20 +73,9 @@ class ProxyServerResponseHandler {
     final statusCode = response.statusCode;
     final requestBodyToLog = mappedRequestBodyBytes ?? requestBodyBytes;
 
-    // 根据状态码判断下一步操作
-    if (statusCode >= 200 && statusCode < 300) {
-      return await _processAndReturnResponse(
-        response,
-        endpoint,
-        request,
-        requestBodyToLog,
-        startTime,
-        mappedRequestBodyBytes: mappedRequestBodyBytes,
-        originalRequestBodyBytes: requestBodyBytes,
-        forwardedHeaders: forwardedHeaders,
-      );
-    } else if (statusCode >= 400 && statusCode < 500) {
-      // 客户端错误 → 读取错误响应体，记录日志，返回响应
+    // 4xx 与 5xx 走同一条错误路径：读取错误体、记录日志、把原始字节回传。
+    // 是否重试 / 熔断 / 故障转移由 ProxyServerService 按状态码决定。
+    if (statusCode >= 400) {
       final responseBodyBytes = await response.stream.toBytes();
       final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
@@ -96,6 +85,8 @@ class ProxyServerResponseHandler {
         responseBodyBytes,
         contentEncoding,
       );
+      // 失败请求同样可能已消耗 token（5xx 常发生在推理之后），如实提取
+      final usage = _tokenExtractor.extractUsage(bodyStr);
 
       // OpenAI 格式端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
       if (_needsConversion(endpoint)) {
@@ -130,60 +121,6 @@ class ProxyServerResponseHandler {
         mappedRequestBodyBytes: mappedRequestBodyBytes,
         forwardedHeaders: forwardedHeaders,
         forwardedResponseHeaders: forwardedResponseHeaders,
-        errorBody: bodyStr,
-        responseBody: bodyStr,
-      );
-
-      // 返回原始压缩数据给客户端
-      return shelf.Response(
-        response.statusCode,
-        headers: forwardedResponseHeaders,
-        body: responseBodyBytes,
-      );
-    } else if (statusCode >= 500) {
-      // 服务器错误 → 记录日志，返回响应（调用方决定是否重试）
-      final responseBodyBytes = await response.stream.toBytes();
-      final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
-
-      // 解压并解码以提取 token
-      final contentEncoding = response.headers['content-encoding'];
-      final bodyStr = ResponseDecompressor.decodeForLogging(
-        responseBodyBytes,
-        contentEncoding,
-      );
-      final usage = _tokenExtractor.extractUsage(bodyStr);
-
-      // OpenAI 格式端点：错误体转换为 Anthropic 格式，保证客户端可解析展示
-      if (_needsConversion(endpoint)) {
-        return _openAiErrorResponse(
-          endpoint: endpoint,
-          request: request,
-          requestBodyBytes: requestBodyBytes,
-          originalRequestBodyBytes: requestBodyBytes,
-          response: response,
-          startTime: startTime,
-          mappedRequestBodyBytes: mappedRequestBodyBytes,
-          forwardedHeaders: forwardedHeaders,
-          upstreamErrorBody: bodyStr,
-        );
-      }
-
-      // 转发响应头
-      final forwardedResponseHeaders =
-          Map<String, String>.from(response.headers)
-            ..remove('transfer-encoding')
-            ..remove('content-length');
-
-      _recordRequestWithBody(
-        endpoint: endpoint,
-        request: request,
-        requestBodyBytes: requestBodyBytes,
-        originalRequestBodyBytes: requestBodyBytes,
-        response: response,
-        responseTime: responseTime,
-        mappedRequestBodyBytes: mappedRequestBodyBytes,
-        forwardedHeaders: forwardedHeaders,
-        forwardedResponseHeaders: forwardedResponseHeaders,
         tokenUsage: usage,
         errorBody: bodyStr,
         responseBody: bodyStr,
@@ -195,18 +132,20 @@ class ProxyServerResponseHandler {
         headers: forwardedResponseHeaders,
         body: responseBodyBytes,
       );
-    } else {
-      return await _processAndReturnResponse(
-        response,
-        endpoint,
-        request,
-        requestBodyToLog,
-        startTime,
-        mappedRequestBodyBytes: mappedRequestBodyBytes,
-        originalRequestBodyBytes: requestBodyBytes,
-        forwardedHeaders: forwardedHeaders,
-      );
     }
+
+    // 2xx / 3xx 正常透传（含流式）。3xx 是重定向或缓存语义，端点没有故障，
+    // 不进重试与断路器 —— 与 ProxyServerService 的判定保持一致。
+    return await _processAndReturnResponse(
+      response,
+      endpoint,
+      request,
+      requestBodyToLog,
+      startTime,
+      mappedRequestBodyBytes: mappedRequestBodyBytes,
+      originalRequestBodyBytes: requestBodyBytes,
+      forwardedHeaders: forwardedHeaders,
+    );
   }
 
   void recordException({
@@ -707,10 +646,15 @@ class ResponseDecompressor {
       return bodyStr;
     }
 
-    final base64Preview = base64Encode(bytes);
-    final preview = base64Preview.length > 120
-        ? '${base64Preview.substring(0, 120)}...'
-        : base64Preview;
+    // 只对前若干字节做 base64：整体编码一个 10 MB 的二进制体会先生成约
+    // 13 MB 字符串再丢弃，而这里只需要 120 个字符的预览。
+    // 90 字节正好编码成 120 个 base64 字符。
+    const previewByteCount = 90;
+    final exceedsPreview = bytes.length > previewByteCount;
+    final base64Preview = base64Encode(
+      exceedsPreview ? bytes.sublist(0, previewByteCount) : bytes,
+    );
+    final preview = exceedsPreview ? '$base64Preview...' : base64Preview;
     final encodingLabel = contentEncoding == null || contentEncoding.isEmpty
         ? 'identity'
         : contentEncoding;
@@ -726,6 +670,108 @@ class ResponseDecompressor {
 
     final replacementCount = '\uFFFD'.allMatches(trimmed).length;
     return replacementCount * 2 < trimmed.length;
+  }
+}
+
+/// Anthropic SSE 流的增量扫描器。
+///
+/// 按行喂入，边流边维护「是否见过完成信号」与累积的 usage。此前这两件事
+/// 都在流结束时对整个响应体重做一遍：先 join 出完整副本，再用 LineSplitter
+/// 全量分行找 message_stop，再让 extractUsage 整体试一次 jsonDecode 并
+/// split('\n') 逐行解析 —— 一个 5 MB 的 SSE 响应会在流结束瞬间同步烧掉
+/// 几百毫秒主线程，而 handleData 里其实已经增量提取过一遍 token 了。
+///
+/// 行缓冲同时消除了跨 chunk 的行截断：只处理到最后一个换行为止，剩余部分
+/// 留到下一个 chunk 或 [flush]。
+class AnthropicSseScanner {
+  final StringBuffer _pending = StringBuffer();
+  bool _sawCompletionSignal = false;
+
+  int? _inputTokens;
+  int? _outputTokens;
+  int? _cacheCreationTokens;
+  int? _cacheReadTokens;
+
+  /// 是否已收到 Anthropic 的流完成信号（`message_stop`）。
+  bool get sawCompletionSignal => _sawCompletionSignal;
+
+  /// 累积到当前为止的 usage，口径与 [TokenExtractor.extractUsage] 一致。
+  Map<String, int?> get usage => {
+    'input': _inputTokens,
+    'output': _outputTokens,
+    'cache_creation': _cacheCreationTokens,
+    'cache_read': _cacheReadTokens,
+  };
+
+  /// 喂入一段已解码文本。不完整的尾行会留在内部缓冲。
+  void add(String text) {
+    if (text.isEmpty) return;
+    _pending.write(text);
+
+    final buffered = _pending.toString();
+    final lastNewline = buffered.lastIndexOf('\n');
+    if (lastNewline < 0) return;
+
+    _pending
+      ..clear()
+      ..write(buffered.substring(lastNewline + 1));
+
+    for (final line in buffered.substring(0, lastNewline).split('\n')) {
+      _processLine(line);
+    }
+  }
+
+  /// 流结束时处理最后一行没有换行结尾的残留。
+  void flush() {
+    final remainder = _pending.toString();
+    _pending.clear();
+    if (remainder.isNotEmpty) _processLine(remainder);
+  }
+
+  void _processLine(String rawLine) {
+    final line = rawLine.trim();
+    if (line.isEmpty) return;
+
+    if (line.startsWith('event:')) {
+      if (line.substring('event:'.length).trim() == 'message_stop') {
+        _sawCompletionSignal = true;
+      }
+      return;
+    }
+
+    final payload = line.startsWith('data:')
+        ? line.substring('data:'.length).trim()
+        : line;
+    if (!payload.startsWith('{')) return;
+
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) return;
+
+      if (decoded['type'] == 'message_stop') _sawCompletionSignal = true;
+
+      // message_start 的 usage 在 message.usage 下，message_delta 在顶层
+      final Object? usageValue;
+      if (decoded['type'] == 'message_start') {
+        final message = decoded['message'];
+        usageValue = message is Map<String, dynamic> ? message['usage'] : null;
+      } else {
+        usageValue = decoded['usage'];
+      }
+      if (usageValue is Map<String, dynamic>) _accumulate(usageValue);
+    } catch (_) {
+      // 非 JSON 或损坏的行：忽略。真正的截断由完成信号缺失体现。
+    }
+  }
+
+  void _accumulate(Map<String, dynamic> usage) {
+    _inputTokens = (usage['input_tokens'] as int?) ?? _inputTokens;
+    final output = usage['output_tokens'] as int?;
+    if (output != null) _outputTokens = output;
+    _cacheCreationTokens =
+        (usage['cache_creation_input_tokens'] as int?) ?? _cacheCreationTokens;
+    _cacheReadTokens =
+        (usage['cache_read_input_tokens'] as int?) ?? _cacheReadTokens;
   }
 }
 
@@ -787,10 +833,6 @@ class ResponseProcessor {
     void Function(Object error, String responseBody) recordException, {
     void Function()? onStreamError,
   }) {
-    int? inputTokens;
-    int? outputTokens;
-    int? cacheCreationTokens;
-    int? cacheReadTokens;
     final responseChunks = <String>[];
     final normalizedEncoding = contentEncoding?.trim().toLowerCase();
     final isCompressed =
@@ -810,6 +852,9 @@ class ResponseProcessor {
             // StringBuffer 不是 Sink<String>，需经 StringConversionSink 桥接
             StringConversionSink.fromStringSink(utf8Buffer),
           );
+    // 非压缩流用增量扫描器边流边维护完成信号与 usage。压缩流拿不到可读
+    // 文本，只能等字节全到齐后整体解压再全量解析，因此没有增量状态。
+    final scanner = isCompressed ? null : AnthropicSseScanner();
     var failed = false;
     final canEmitSseError =
         !isCompressed &&
@@ -841,13 +886,7 @@ class ResponseProcessor {
             utf8Buffer.clear();
             if (text.isEmpty) return;
             responseChunks.add(text);
-            inputTokens = extractor.extractInputTokens(text) ?? inputTokens;
-            outputTokens = extractor.extractOutputTokens(text) ?? outputTokens;
-            cacheCreationTokens =
-                extractor.extractCacheCreationTokens(text) ??
-                cacheCreationTokens;
-            cacheReadTokens =
-                extractor.extractCacheReadTokens(text) ?? cacheReadTokens;
+            scanner!.add(text);
           }
         },
         handleDone: (sink) {
@@ -871,12 +910,22 @@ class ResponseProcessor {
             // 刷新 decoder 尾部缓冲（跨 chunk 的不完整序列在此收尾）
             utf8Sink!.close();
             final tail = utf8Buffer.toString();
-            if (tail.isNotEmpty) responseChunks.add(tail);
+            if (tail.isNotEmpty) {
+              responseChunks.add(tail);
+              scanner!.add(tail);
+            }
+            // 处理最后一行没有换行结尾的残留
+            scanner!.flush();
           }
 
           final responseBody = responseChunks.join();
 
-          if (!_hasAnthropicCompletionSignal(responseBody)) {
+          // 非压缩流的完成信号已在流过程中增量判定，无需再全量分行扫描
+          final hasCompletionSignal = isCompressed
+              ? _hasAnthropicCompletionSignal(responseBody)
+              : scanner!.sawCompletionSignal;
+
+          if (!hasCompletionSignal) {
             final error = const UpstreamStreamAbortedException();
             failed = true;
             LoggerUtil.instance.w('Upstream Anthropic stream error: $error');
@@ -891,25 +940,13 @@ class ResponseProcessor {
             return;
           }
 
-          final usage = extractor.extractUsage(responseBody);
-          if (usage != null) {
-            inputTokens = usage['input'] ?? inputTokens;
-            outputTokens = usage['output'] ?? outputTokens;
-            cacheCreationTokens =
-                usage['cache_creation'] ?? cacheCreationTokens;
-            cacheReadTokens = usage['cache_read'] ?? cacheReadTokens;
-          }
+          // 非压缩流的 usage 已在流过程中按 data: 行增量累积（同样是 JSON
+          // 解析，与旧的全量 extractUsage 同口径）；压缩流仍需整体解析一次。
+          final tokenUsage = isCompressed
+              ? extractor.extractUsage(responseBody)
+              : scanner!.usage;
 
-          recordStats(
-            {
-              'input': inputTokens,
-              'output': outputTokens,
-              'cache_creation': cacheCreationTokens,
-              'cache_read': cacheReadTokens,
-            },
-            responseTime,
-            responseBody,
-          );
+          recordStats(tokenUsage, responseTime, responseBody);
           sink.close();
         },
         handleError: (error, stackTrace, sink) {
@@ -964,45 +1001,15 @@ class ResponseProcessor {
 
 /// Token 提取器 - 从 API 响应中提取 token 使用量
 ///
-/// [extractUsage] 是权威方法，使用 JSON 解析精确提取 usage 对象中的各字段，
-/// 支持非流式（单个 JSON 对象）和流式 SSE（多个 data: 行）两种格式。
-/// 返回值遵循 Anthropic 口径：input 仅表示未缓存输入，缓存创建与读取
-/// 分别保存在独立字段中，不能从 input 再次扣减。
+/// [extractUsage] 使用 JSON 解析精确提取 usage 对象中的各字段，支持非流式
+/// （单个 JSON 对象）和流式 SSE（多个 data: 行）两种格式。返回值遵循
+/// Anthropic 口径：input 仅表示未缓存输入，缓存创建与读取分别保存在独立
+/// 字段中，不能从 input 再次扣减。
 ///
-/// 逐块正则方法（[extractInputTokens] 等）仅用于流式实时提取，
-/// 会在 [handleDone] 阶段被 [extractUsage] 的 JSON 解析结果覆盖。
+/// 非压缩的流式响应改由 [AnthropicSseScanner] 边流边增量累积，口径一致；
+/// 这里只服务非流式响应与「压缩流在结束后整体解压」的场景。
 class TokenExtractor {
-  static final _inputPattern = RegExp(r'"input_tokens"\s*:\s*(\d+)');
-  static final _outputPattern = RegExp(r'"output_tokens"\s*:\s*(\d+)');
-  static final _cacheCreationPattern = RegExp(
-    r'"cache_creation_input_tokens"\s*:\s*(\d+)',
-  );
-  static final _cacheReadPattern = RegExp(
-    r'"cache_read_input_tokens"\s*:\s*(\d+)',
-  );
-
   const TokenExtractor();
-
-  int? extractInputTokens(String text) {
-    final match = _inputPattern.firstMatch(text);
-    return match != null ? int.tryParse(match.group(1)!) : null;
-  }
-
-  int? extractOutputTokens(String text) {
-    final matches = _outputPattern.allMatches(text);
-    if (matches.isEmpty) return null;
-    return int.tryParse(matches.last.group(1)!);
-  }
-
-  int? extractCacheCreationTokens(String text) {
-    final match = _cacheCreationPattern.firstMatch(text);
-    return match != null ? int.tryParse(match.group(1)!) : null;
-  }
-
-  int? extractCacheReadTokens(String text) {
-    final match = _cacheReadPattern.firstMatch(text);
-    return match != null ? int.tryParse(match.group(1)!) : null;
-  }
 
   /// 从完整响应文本中提取 usage（权威方法，使用 JSON 解析）。
   ///

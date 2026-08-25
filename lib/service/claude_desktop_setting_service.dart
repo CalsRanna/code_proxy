@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
@@ -182,7 +183,11 @@ class ClaudeDesktopSettingService {
     try {
       final profileFile = File(_profilePath);
       if (await profileFile.exists()) await profileFile.delete();
-    } catch (_) {}
+    } catch (e) {
+      // best-effort 清理：失败只会留下一个孤立的 profile 文件，不影响
+      // 已完成的 deployment mode 还原。记日志便于排查残留。
+      LoggerUtil.instance.w('Failed to delete Claude Desktop profile: $e');
+    }
 
     // 清理 _meta.json（如果只有我们的 entry）
     try {

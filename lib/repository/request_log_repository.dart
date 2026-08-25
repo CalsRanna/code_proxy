@@ -10,10 +10,12 @@ class RequestLogRepository {
   RequestLogRepository(this._database);
 
   /// Clear all request logs
+  ///
+  /// 不执行 VACUUM：它在大库上会同步阻塞数秒，而代理与 UI 共用同一个
+  /// isolate。DELETE 释放的页面会被 SQLite 重用，日常使用无需回收物理空间；
+  /// 若确需收缩文件，应做成设置页里的显式操作，而不是挂在清空流程上。
   Future<void> clearAll() async {
     await _database.laconic.table('request_logs').delete();
-    // 回收数据库空间
-    await _database.laconic.statement('VACUUM;');
   }
 
   /// Get all request logs with pagination

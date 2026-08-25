@@ -40,6 +40,43 @@ class HomeViewModel {
     Database.instance,
   );
 
+  /// 请求日志标签页在 home_page 导航中的序号（'概览', '端点', '请求', '设置'）。
+  static const _requestLogTabIndex = 2;
+
+  /// 请求日志刷新的节流窗口。
+  static const _logRefreshInterval = Duration(milliseconds: 500);
+
+  Timer? _logRefreshTimer;
+  bool _logRefreshPending = false;
+
+  /// 请求日志页刷新，leading-edge 节流：窗口内第一次立即执行，窗口期内的
+  /// 后续触发合并成窗口结束时的一次补刷。
+  ///
+  /// 高频请求下逐条刷新会让 COUNT(*) + SELECT 持续占用主 isolate。
+  void _scheduleLogRefresh() {
+    if (_logRefreshTimer?.isActive ?? false) {
+      _logRefreshPending = true;
+      return;
+    }
+    _refreshLogsNow();
+    _logRefreshTimer = Timer(_logRefreshInterval, () {
+      final pending = _logRefreshPending;
+      _logRefreshPending = false;
+      if (pending) _scheduleLogRefresh();
+    });
+  }
+
+  void _refreshLogsNow() {
+    // 用户不在请求页时不查库：切回该页时 updateSelectedIndex 会调用
+    // initSignals() 重新加载，不会漏数据。
+    if (selectedIndex.value != _requestLogTabIndex) return;
+    try {
+      GetIt.instance.get<RequestLogViewModel>().loadLogs();
+    } catch (e) {
+      // 忽略获取 ViewModel 的错误（启动早期可能尚未注册）
+    }
+  }
+
   /// 处理端点恢复事件（断路器自动恢复）
   void handleEndpointRestored(EndpointEntity endpoint) {
     LoggerUtil.instance.i(
@@ -138,13 +175,12 @@ class HomeViewModel {
       return;
     }
 
-    // 3. 刷新请求日志页面（loadLogs 内部已有异常保护）
-    try {
-      final logViewModel = GetIt.instance.get<RequestLogViewModel>();
-      logViewModel.loadLogs();
-    } catch (e) {
-      // 忽略获取 ViewModel 的错误（可能在某些情况下 ViewModel 还未初始化）
-    }
+    // 3. 刷新请求日志页面 —— 仅在用户正停留在该页时，且做节流。
+    //
+    // 此前每条请求都无条件 loadLogs()（一次 COUNT(*) 加一次
+    // SELECT ... LIMIT 50），不管用户在哪个标签页，与 UI 渲染抢同一个
+    // isolate。
+    _scheduleLogRefresh();
 
     // 4. 异步写入审计日志文件
     if (response.responseBody != null) {
@@ -387,6 +423,8 @@ class HomeViewModel {
   void dispose() {
     _subscription?.cancel();
     _subscription = null;
+    _logRefreshTimer?.cancel();
+    _logRefreshTimer = null;
   }
 
   void updateSelectedIndex(int index) {

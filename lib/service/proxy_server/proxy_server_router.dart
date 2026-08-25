@@ -44,7 +44,12 @@ class ProxyServerRouter {
     // attempt=2: 第一次重试，使用 base
     // attempt=3: 第二次重试，使用 base * 2
     // attempt=4: 第三次重试，使用 base * 4
-    final delay = base * (1 << (attempt - 2));
+    //
+    // 钳制移位位数而非只钳制结果：熔断阈值配得极大时，1 << 63 会溢出成
+    // 负数、1 << 64 归零，随后的 clamp 只会把它压成 0 —— 等于静默退化成
+    // 没有退避的即时重试。20 位（约 17 分钟）已远超 max。
+    final shift = (attempt - 2).clamp(0, 20);
+    final delay = base * (1 << shift);
     return delay.clamp(0, max);
   }
 
@@ -163,15 +168,7 @@ class ProxyServerRouteSession {
   /// - null: 首次进入，为当前请求选择第一个可用端点
   /// - true: 上一次成功，结束当前请求轮次
   /// - false: 上一次失败，统一按断路器机制决定重试或故障转移
-  ///
-  /// [applyCircuitBreakerOnFailure] 为 false 时，失败不会触发重试、
-  /// 故障转移或断路器计数，调用方会直接返回当前结果
-  /// （该能力当前由黑名单路径测试覆盖）。
-  Future<bool> hasNext(
-    bool? previousSucceeded, {
-    bool applyCircuitBreakerOnFailure = true,
-    String? skipFailureHandlingReason,
-  }) async {
+  Future<bool> hasNext(bool? previousSucceeded) async {
     if (previousSucceeded == null) {
       return _endpoints.isNotEmpty;
     }
@@ -183,17 +180,6 @@ class ProxyServerRouteSession {
 
     if (previousSucceeded) {
       _router._recordSuccess(endpoint);
-      return false;
-    }
-
-    if (!applyCircuitBreakerOnFailure) {
-      final reasonSuffix = skipFailureHandlingReason == null
-          ? ''
-          : ' because $skipFailureHandlingReason';
-      LoggerUtil.instance.i(
-        'Returning failure from endpoint ${endpoint.name} without retry '
-        'or circuit breaker$reasonSuffix',
-      );
       return false;
     }
 

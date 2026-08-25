@@ -54,6 +54,58 @@ void main() {
       expect(log.errorMessage, 'HTTP 500 with empty response body');
     });
 
+    test('3xx 的正常响应体不应被写入 error_message', () {
+      final handler = ProxyServerLogHandler.create();
+      final log = handler.buildRequestLog(
+        endpoint: createEndpoint(),
+        request: const ProxyServerRequest(
+          method: 'POST',
+          path: '/v1/messages',
+          headers: {},
+          body: '{"model":"claude-opus-5"}',
+        ),
+        response: const ProxyServerResponse(
+          statusCode: 304,
+          headers: {},
+          responseTime: 100,
+          responseBody: '{"content":[{"text":"正常的模型响应体"}]}',
+        ),
+      );
+
+      expect(log.errorMessage, isNull);
+    });
+
+    test('失败请求提取到的 usage 应如实入库', () {
+      final handler = ProxyServerLogHandler.create();
+      final log = handler.buildRequestLog(
+        endpoint: createEndpoint(),
+        request: const ProxyServerRequest(
+          method: 'POST',
+          path: '/v1/messages',
+          headers: {},
+          body: '{"model":"claude-opus-5"}',
+        ),
+        response: const ProxyServerResponse(
+          statusCode: 500,
+          headers: {},
+          responseTime: 100,
+          usage: {
+            'input': 1234,
+            'output': 56,
+            'cache_creation': 7,
+            'cache_read': 8,
+          },
+          errorBody: 'internal error',
+        ),
+      );
+
+      expect(log.inputTokens, 1234);
+      expect(log.outputTokens, 56);
+      expect(log.cacheCreationInputTokens, 7);
+      expect(log.cacheReadInputTokens, 8);
+      expect(log.errorMessage, 'internal error');
+    });
+
     test('不可读响应体应生成可见摘要', () {
       final text = ResponseDecompressor.decodeForLogging(utf8.encode(''), null);
       expect(text, isEmpty);

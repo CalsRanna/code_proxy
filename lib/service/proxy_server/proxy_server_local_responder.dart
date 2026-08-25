@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/util/logger_util.dart';
+import 'package:code_proxy/util/model_display_name_util.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 import 'proxy_server_router.dart';
@@ -76,7 +78,7 @@ class ProxyServerLocalResponder {
 
         final entry = <String, dynamic>{
           'id': modelId,
-          'display_name': _displayName(modelId),
+          'display_name': modelDisplayName(modelId),
           'type': 'model',
         };
 
@@ -88,7 +90,11 @@ class ProxyServerLocalResponder {
 
         models.add(entry);
       }
-    } catch (_) {}
+    } catch (e) {
+      // 部分降级：已成功构建的条目仍会返回。此处记日志避免静默失效 ——
+      // 早前 _displayName 对畸形模型名抛 RangeError 时会无声丢掉条目。
+      LoggerUtil.instance.w('Failed to build /v1/models entries: $e');
+    }
 
     if (models.isEmpty) return _emptyModelsResponse();
 
@@ -111,22 +117,6 @@ class ProxyServerLocalResponder {
       jsonEncode({'data': <Map<String, dynamic>>[], 'has_more': false}),
       headers: {'content-type': 'application/json'},
     );
-  }
-
-  /// 从模型 ID 生成可读的显示名称。
-  static String _displayName(String modelId) {
-    final match =
-        RegExp(r'^claude-(\w+)-(\d+)-(\d+)').firstMatch(modelId);
-    if (match != null) {
-      final variant = match.group(1)!;
-      final major = match.group(2)!;
-      final minor = match.group(3)!;
-      return 'Claude ${variant[0].toUpperCase()}${variant.substring(1)} $major.$minor';
-    }
-    return modelId
-        .split('-')
-        .map((s) => s[0].toUpperCase() + s.substring(1))
-        .join(' ');
   }
 
   static String _normalizePath(String path) {
