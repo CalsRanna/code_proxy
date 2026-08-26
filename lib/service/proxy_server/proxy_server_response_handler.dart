@@ -238,7 +238,6 @@ class ProxyServerResponseHandler {
         response,
         forwardedResponseHeaders,
         startTime,
-        _tokenExtractor,
         contentEncoding,
         (
           Map<String, int?>? tokenUsage,
@@ -665,7 +664,7 @@ class ResponseDecompressor {
   }
 }
 
-/// Anthropic SSE 流的增量扫描器。
+/// Anthropic SSE 流的扫描器 —— 完成信号与 usage 的**唯一**解析实现。
 ///
 /// 按行喂入，边流边维护「是否见过完成信号」与累积的 usage。此前这两件事
 /// 都在流结束时对整个响应体重做一遍：先 join 出完整副本，再用 LineSplitter
@@ -675,6 +674,9 @@ class ResponseDecompressor {
 ///
 /// 行缓冲同时消除了跨 chunk 的行截断：只处理到最后一个换行为止，剩余部分
 /// 留到下一个 chunk 或 [flush]。
+///
+/// 非流式与压缩流拿不到逐 chunk 的可读文本，但同样走这里：一次 [add] 整段
+/// 文本再 [flush] 即可。协议解析只此一份，新增 usage 字段不会漏改路径。
 class AnthropicSseScanner {
   final StringBuffer _pending = StringBuffer();
   bool _sawCompletionSignal = false;
@@ -687,13 +689,30 @@ class AnthropicSseScanner {
   /// 是否已收到 Anthropic 的流完成信号（`message_stop`）。
   bool get sawCompletionSignal => _sawCompletionSignal;
 
-  /// 累积到当前为止的 usage，口径与 [TokenExtractor.extractUsage] 一致。
+  /// 是否解析到过任何 usage 字段。
+  ///
+  /// 供非流式路径区分「usage 全为 0」与「文本里根本没有 usage」——
+  /// 后者应向上报 null，而不是一组 null 值的 map。
+  bool get hasUsage =>
+      _inputTokens != null ||
+      _outputTokens != null ||
+      _cacheCreationTokens != null ||
+      _cacheReadTokens != null;
+
+  /// 累积到当前为止的 usage。
   Map<String, int?> get usage => {
     'input': _inputTokens,
     'output': _outputTokens,
     'cache_creation': _cacheCreationTokens,
     'cache_read': _cacheReadTokens,
   };
+
+  /// 一次性消费整段 SSE 文本并收尾，返回其中的 usage；没有则返回 null。
+  static Map<String, int?>? scanUsage(String text) {
+    final scanner = AnthropicSseScanner()..add(text);
+    scanner.flush();
+    return scanner.hasUsage ? scanner.usage : null;
+  }
 
   /// 喂入一段已解码文本。不完整的尾行会留在内部缓冲。
   void add(String text) {
@@ -814,7 +833,6 @@ class ResponseProcessor {
     http.StreamedResponse response,
     Map<String, String> responseHeaders,
     int startTime,
-    TokenExtractor extractor,
     String? contentEncoding,
     void Function(
       Map<String, int?>? tokenUsage,
@@ -844,9 +862,9 @@ class ResponseProcessor {
             // StringBuffer 不是 Sink<String>，需经 StringConversionSink 桥接
             StringConversionSink.fromStringSink(utf8Buffer),
           );
-    // 非压缩流用增量扫描器边流边维护完成信号与 usage。压缩流拿不到可读
-    // 文本，只能等字节全到齐后整体解压再全量解析，因此没有增量状态。
-    final scanner = isCompressed ? null : AnthropicSseScanner();
+    // 压缩流与非压缩流共用同一个扫描器：非压缩流边流边喂，压缩流在流结束
+    // 解压后一次性喂入。完成信号与 usage 因此天然同口径，不会分叉。
+    final scanner = AnthropicSseScanner();
     var failed = false;
     final canEmitSseError =
         !isCompressed &&
@@ -878,7 +896,7 @@ class ResponseProcessor {
             utf8Buffer.clear();
             if (text.isEmpty) return;
             responseChunks.add(text);
-            scanner!.add(text);
+            scanner.add(text);
           }
         },
         handleDone: (sink) {
@@ -898,26 +916,22 @@ class ResponseProcessor {
             );
             final text = utf8.decode(decompressed, allowMalformed: true);
             responseChunks.add(text);
+            scanner.add(text);
           } else {
             // 刷新 decoder 尾部缓冲（跨 chunk 的不完整序列在此收尾）
             utf8Sink!.close();
             final tail = utf8Buffer.toString();
             if (tail.isNotEmpty) {
               responseChunks.add(tail);
-              scanner!.add(tail);
+              scanner.add(tail);
             }
-            // 处理最后一行没有换行结尾的残留
-            scanner!.flush();
           }
+          // 处理最后一行没有换行结尾的残留
+          scanner.flush();
 
           final responseBody = responseChunks.join();
 
-          // 非压缩流的完成信号已在流过程中增量判定，无需再全量分行扫描
-          final hasCompletionSignal = isCompressed
-              ? _hasAnthropicCompletionSignal(responseBody)
-              : scanner!.sawCompletionSignal;
-
-          if (!hasCompletionSignal) {
+          if (!scanner.sawCompletionSignal) {
             final error = const UpstreamStreamAbortedException();
             failed = true;
             LoggerUtil.instance.w('Upstream Anthropic stream error: $error');
@@ -932,13 +946,7 @@ class ResponseProcessor {
             return;
           }
 
-          // 非压缩流的 usage 已在流过程中按 data: 行增量累积（同样是 JSON
-          // 解析，与旧的全量 extractUsage 同口径）；压缩流仍需整体解析一次。
-          final tokenUsage = isCompressed
-              ? extractor.extractUsage(responseBody)
-              : scanner!.usage;
-
-          recordStats(tokenUsage, responseTime, responseBody);
+          recordStats(scanner.usage, responseTime, responseBody);
           sink.close();
         },
         handleError: (error, stackTrace, sink) {
@@ -967,51 +975,28 @@ class ResponseProcessor {
       body: transformedStream,
     );
   }
-
-  static bool _hasAnthropicCompletionSignal(String responseBody) {
-    for (final rawLine in const LineSplitter().convert(responseBody)) {
-      final line = rawLine.trim();
-      if (line.startsWith('event:') &&
-          line.substring('event:'.length).trim() == 'message_stop') {
-        return true;
-      }
-
-      final payload = line.startsWith('data:')
-          ? line.substring('data:'.length).trim()
-          : line;
-      if (!payload.startsWith('{')) continue;
-      try {
-        final decoded = jsonDecode(payload);
-        if (decoded is Map && decoded['type'] == 'message_stop') return true;
-      } catch (_) {
-        // 不完整行会在 EOF 完整性判断中自然判为失败。
-      }
-    }
-    return false;
-  }
 }
 
 /// Token 提取器 - 从 API 响应中提取 token 使用量
 ///
 /// [extractUsage] 使用 JSON 解析精确提取 usage 对象中的各字段，支持非流式
-/// （单个 JSON 对象）和流式 SSE（多个 data: 行）两种格式。返回值遵循
-/// Anthropic 口径：input 仅表示未缓存输入，缓存创建与读取分别保存在独立
-/// 字段中，不能从 input 再次扣减。
+/// （单个 JSON 对象）和 SSE 文本两种格式。返回值遵循 Anthropic 口径：
+/// input 仅表示未缓存输入，缓存创建与读取分别保存在独立字段中，不能从
+/// input 再次扣减。
 ///
-/// 非压缩的流式响应改由 [AnthropicSseScanner] 边流边增量累积，口径一致；
-/// 这里只服务非流式响应与「压缩流在结束后整体解压」的场景。
+/// SSE 文本一律交给 [AnthropicSseScanner]，与流式路径共用同一份协议解析。
 class TokenExtractor {
   const TokenExtractor();
 
-  /// 从完整响应文本中提取 usage（权威方法，使用 JSON 解析）。
+  /// 从完整响应文本中提取 usage。
   ///
   /// 先尝试解析为单个 JSON 对象（非流式响应），
-  /// 失败后尝试解析 SSE 文本中的 data: 行（流式响应）。
+  /// 失败后按 SSE 文本扫描（网关未声明 text/event-stream 却回了事件流）。
   Map<String, int?>? extractUsage(String text) {
     final singleJsonUsage = _tryExtractFromJson(text);
     if (singleJsonUsage != null) return singleJsonUsage;
 
-    return _extractUsageFromSSE(text);
+    return AnthropicSseScanner.scanUsage(text);
   }
 
   Map<String, int?>? _tryExtractFromJson(String text) {
@@ -1023,60 +1008,6 @@ class TokenExtractor {
       }
     } catch (_) {}
     return null;
-  }
-
-  /// 从 SSE 文本的 data: 行中解析 JSON 并累积 usage。
-  ///
-  /// 对 message_start 事件，usage 位于 message.usage 路径下；
-  /// 对 message_delta 事件，usage 位于顶层。
-  Map<String, int?>? _extractUsageFromSSE(String text) {
-    int? inputTokens;
-    int? outputTokens;
-    int? cacheCreationTokens;
-    int? cacheReadTokens;
-
-    for (final line in text.split('\n')) {
-      final trimmed = line.trim();
-      if (!trimmed.startsWith('data: ')) continue;
-      final jsonStr = trimmed.substring(6);
-
-      try {
-        final json = jsonDecode(jsonStr);
-        if (json is! Map<String, dynamic>) continue;
-
-        Map<String, dynamic>? usage;
-        if (json['type'] == 'message_start') {
-          final message = json['message'] as Map<String, dynamic>?;
-          usage = message?['usage'] as Map<String, dynamic>?;
-        } else {
-          usage = json['usage'] as Map<String, dynamic>?;
-        }
-
-        if (usage != null) {
-          inputTokens = (usage['input_tokens'] as int?) ?? inputTokens;
-          final output = usage['output_tokens'] as int?;
-          if (output != null) outputTokens = output;
-          cacheCreationTokens =
-              (usage['cache_creation_input_tokens'] as int?) ??
-              cacheCreationTokens;
-          cacheReadTokens =
-              (usage['cache_read_input_tokens'] as int?) ?? cacheReadTokens;
-        }
-      } catch (_) {}
-    }
-
-    if (inputTokens == null &&
-        outputTokens == null &&
-        cacheCreationTokens == null &&
-        cacheReadTokens == null) {
-      return null;
-    }
-    return {
-      'input': inputTokens,
-      'output': outputTokens,
-      'cache_creation': cacheCreationTokens,
-      'cache_read': cacheReadTokens,
-    };
   }
 
   Map<String, int?> _extractFromUsageMap(Map<String, dynamic> usage) {

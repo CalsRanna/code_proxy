@@ -473,6 +473,140 @@ void main() {
         contains('ep-1'),
       );
     });
+    test('gzip 压缩的 Anthropic SSE 应正确提取 usage 并识别完成信号', () async {
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          await utf8.decoder.bind(request).join();
+          request.response.statusCode = HttpStatus.ok;
+          request.response.headers.set(
+            HttpHeaders.contentTypeHeader,
+            'text/event-stream',
+          );
+          request.response.headers.set('content-encoding', 'gzip');
+          request.response.add(
+            gzip.encode(
+              utf8.encode(
+                'event: message_start\n'
+                'data: {"type":"message_start","message":{"usage":'
+                '{"input_tokens":11,"cache_read_input_tokens":22,'
+                '"cache_creation_input_tokens":33}}}\n\n'
+                'event: message_delta\n'
+                'data: {"type":"message_delta","usage":'
+                '{"output_tokens":44}}\n\n'
+                'event: message_stop\n'
+                'data: {"type":"message_stop"}\n\n',
+              ),
+            ),
+          );
+          await request.response.close();
+        }),
+      );
+
+      final logged = Completer<ProxyServerResponse>();
+      service = ProxyServerService(
+        authToken: testProxyAuthToken,
+        config: const ProxyServerConfig(
+          address: '127.0.0.1',
+          port: 0,
+          apiTimeoutMs: 2000,
+          circuitBreakerFailureThreshold: 1,
+        ),
+        onRequestCompleted: (endpoint, request, response) {
+          if (!logged.isCompleted) logged.complete(response);
+        },
+      );
+      service!.endpoints = [_buildEndpoint('ep-1', upstreamServers[0].port)];
+      await service!.start();
+
+      client = AuthenticatedTestClient();
+      final streamed = await client!.send(
+        http.Request(
+            'POST',
+            Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+          )
+          ..headers['content-type'] = 'application/json'
+          ..body = jsonEncode({'model': 'claude-3-7-sonnet', 'stream': true}),
+      );
+      expect(streamed.statusCode, HttpStatus.ok);
+      // 压缩字节原样透传给客户端，代理只在本地解压用于统计
+      await streamed.stream.drain<void>();
+
+      final loggedResponse = await logged.future.timeout(
+        const Duration(seconds: 1),
+      );
+      expect(loggedResponse.statusCode, HttpStatus.ok);
+      expect(loggedResponse.usage, {
+        'input': 11,
+        'output': 44,
+        'cache_creation': 33,
+        'cache_read': 22,
+      });
+      expect(service!.getOpenCircuitBreakerEndpointIds({'ep-1'}), isEmpty);
+    });
+
+    test('gzip 压缩的 Anthropic SSE 缺少 message_stop 时同样记录失败并熔断', () async {
+      upstreamServers.add(
+        await _startUpstreamServer((request) async {
+          await utf8.decoder.bind(request).join();
+          request.response.statusCode = HttpStatus.ok;
+          request.response.headers.set(
+            HttpHeaders.contentTypeHeader,
+            'text/event-stream',
+          );
+          request.response.headers.set('content-encoding', 'gzip');
+          request.response.add(
+            gzip.encode(
+              utf8.encode(
+                'event: message_start\n'
+                'data: {"type":"message_start","message":{"usage":{}}}\n\n'
+                'event: content_block_delta\n'
+                'data: {"type":"content_block_delta","index":0,'
+                '"delta":{"type":"text_delta","text":"partial"}}\n\n',
+              ),
+            ),
+          );
+          await request.response.close();
+        }),
+      );
+
+      final logged = Completer<ProxyServerResponse>();
+      service = ProxyServerService(
+        authToken: testProxyAuthToken,
+        config: const ProxyServerConfig(
+          address: '127.0.0.1',
+          port: 0,
+          apiTimeoutMs: 2000,
+          circuitBreakerFailureThreshold: 1,
+        ),
+        onRequestCompleted: (endpoint, request, response) {
+          if (!logged.isCompleted) logged.complete(response);
+        },
+      );
+      service!.endpoints = [_buildEndpoint('ep-1', upstreamServers[0].port)];
+      await service!.start();
+
+      client = AuthenticatedTestClient();
+      final streamed = await client!.send(
+        http.Request(
+            'POST',
+            Uri.parse('http://127.0.0.1:${service!.boundPort}/v1/messages'),
+          )
+          ..headers['content-type'] = 'application/json'
+          ..body = jsonEncode({'model': 'claude-3-7-sonnet', 'stream': true}),
+      );
+      expect(streamed.statusCode, HttpStatus.ok);
+      await streamed.stream.drain<void>();
+
+      final loggedResponse = await logged.future.timeout(
+        const Duration(seconds: 1),
+      );
+      expect(loggedResponse.statusCode, HttpStatus.badGateway);
+      expect(loggedResponse.errorBody, contains('completion signal'));
+      expect(
+        service!.getOpenCircuitBreakerEndpointIds({'ep-1'}),
+        contains('ep-1'),
+      );
+    });
   });
 }
 

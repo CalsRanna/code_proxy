@@ -1,4 +1,5 @@
 import 'package:code_proxy/database/database.dart';
+import 'package:code_proxy/model/model_date_token_stat.dart';
 import 'package:code_proxy/model/request_log_entity.dart';
 
 /// Request Log Repository
@@ -47,18 +48,23 @@ class RequestLogRepository {
     return results.map((r) => _fromRow(r.toMap())).toList();
   }
 
+  /// SQLite `date()` 的时区修饰符，把 UTC 毫秒时间戳折算到本机当地日期。
+  ///
+  /// 用 `'+N minutes'` 而非 `'localtime'`：前者是标准语法、跨平台一致，
+  /// 且支持半小时（UTC+5:30）与 45 分钟（UTC+5:45）这类非整时偏移。
+  static String _localDateModifier() {
+    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    return offsetMinutes >= 0
+        ? '+$offsetMinutes minutes'
+        : '$offsetMinutes minutes';
+  }
+
   /// Get daily request stats for charts
   Future<Map<String, int>> getDailyRequestStats({
     required int startTimestamp,
     required int endTimestamp,
   }) async {
-    // 计算时区偏移（分钟）
-    // 使用 '+N minutes' 修饰符，这是 SQLite 标准语法，跨平台兼容
-    // 支持所有时区，包括半小时偏移（如 UTC+5:30）和 45 分钟偏移（如 UTC+5:45）
-    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0
-        ? '+$offsetMinutes minutes'
-        : '$offsetMinutes minutes';
+    final offsetModifier = _localDateModifier();
 
     final results = await _database.laconic
         .table('request_logs')
@@ -110,56 +116,47 @@ class RequestLogRepository {
     return endpointTokenStats;
   }
 
-  /// Get model date token stats for charts (with cache breakdown)
-  Future<Map<String, Map<String, Map<String, int>>>> getModelDateTokenStats({
+  /// 按「本地日期 + 模型」聚合的 token 用量（仅 2xx 成功请求）。
+  ///
+  /// Token 柱状图与费用计算共用此结果 —— 两者此前各跑一条 `GROUP BY
+  /// (date, model)` 的 SUM 查询，字段与过滤条件几乎相同，只是返回形状不同，
+  /// dashboard 一次加载会把同一份聚合算两遍。
+  ///
+  /// `total > 0` 的过滤留给调用方（见 [ModelDateTokenStat.total]）：
+  /// 费用计算不需要过滤，图表需要，放在 SQL 里就得为两种需求各开一条查询。
+  Future<List<ModelDateTokenStat>> getModelDateTokenStats({
     required int startTimestamp,
     required int endTimestamp,
   }) async {
-    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0
-        ? '+$offsetMinutes minutes'
-        : '$offsetMinutes minutes';
+    final offsetModifier = _localDateModifier();
 
     final results = await _database.laconic.select(
       '''
       SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
              COALESCE(model, 'unknown') as model,
-             SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) + COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)) as total_tokens,
              SUM(COALESCE(input_tokens, 0)) as input,
              SUM(COALESCE(output_tokens, 0)) as output,
-             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read,
-             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation
+             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation,
+             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read
       FROM request_logs
       WHERE timestamp BETWEEN ? AND ? AND status_code = 200
       GROUP BY date, model
-      HAVING total_tokens > 0
       ORDER BY date, model
     ''',
       [startTimestamp, endTimestamp],
     );
 
-    final Map<String, Map<String, Map<String, int>>> modelDateStats = {};
-    for (final row in results) {
+    return results.map((row) {
       final rowMap = row.toMap();
-      final date = rowMap['date'] as String;
-      final model = rowMap['model'] as String;
-      final totalTokens = rowMap['total_tokens'] as int;
-      final input = rowMap['input'] as int;
-      final output = rowMap['output'] as int;
-      final cacheRead = rowMap['cache_read'] as int;
-      final cacheCreation = rowMap['cache_creation'] as int;
-
-      modelDateStats.putIfAbsent(date, () => {});
-      modelDateStats[date]![model] = {
-        'total': totalTokens,
-        'input': input,
-        'output': output,
-        'cache_read': cacheRead,
-        'cache_creation': cacheCreation,
-      };
-    }
-
-    return modelDateStats;
+      return ModelDateTokenStat(
+        date: rowMap['date'] as String,
+        model: rowMap['model'] as String,
+        input: rowMap['input'] as int,
+        output: rowMap['output'] as int,
+        cacheCreation: rowMap['cache_creation'] as int,
+        cacheRead: rowMap['cache_read'] as int,
+      );
+    }).toList();
   }
 
   /// Get total count of request logs
@@ -198,34 +195,6 @@ class RequestLogRepository {
         'error_message': log.errorMessage,
       },
     ]);
-  }
-
-  /// Get daily model token breakdown for cost calculation
-  Future<List<Map<String, dynamic>>> getDailyModelTokenBreakdown({
-    required int startTimestamp,
-    required int endTimestamp,
-  }) async {
-    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0
-        ? '+$offsetMinutes minutes'
-        : '$offsetMinutes minutes';
-
-    final results = await _database.laconic.select(
-      '''
-      SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
-             COALESCE(model, 'unknown') as model,
-             SUM(COALESCE(input_tokens, 0)) as input,
-             SUM(COALESCE(output_tokens, 0)) as output,
-             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation,
-             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read
-      FROM request_logs
-      WHERE timestamp BETWEEN ? AND ? AND status_code = 200
-      GROUP BY date, model
-    ''',
-      [startTimestamp, endTimestamp],
-    );
-
-    return results.map((r) => r.toMap()).toList();
   }
 
   /// Convert database row to RequestLog

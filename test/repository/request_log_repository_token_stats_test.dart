@@ -65,22 +65,12 @@ void main() {
       startTimestamp: timestamp - 1,
       endTimestamp: timestamp + 1,
     );
-    final date = modelStats.values.single['same-model']!;
-    expect(date, {
-      'total': 200,
-      'input': 40,
-      'output': 20,
-      'cache_read': 100,
-      'cache_creation': 40,
-    });
-
-    final costBreakdown = await repository.getDailyModelTokenBreakdown(
-      startTimestamp: timestamp - 1,
-      endTimestamp: timestamp + 1,
-    );
-    expect(costBreakdown.single, containsPair('input', 40));
-    expect(costBreakdown.single, containsPair('output', 20));
-    expect(costBreakdown.single, containsPair('cache_creation', 40));
-    expect(costBreakdown.single, containsPair('cache_read', 100));
+    final stat = modelStats.single;
+    expect(stat.model, 'same-model');
+    expect(stat.input, 40);
+    expect(stat.output, 20);
+    expect(stat.cacheCreation, 40);
+    expect(stat.cacheRead, 100);
+    expect(stat.total, 200);
   });
 }

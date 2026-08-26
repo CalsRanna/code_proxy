@@ -1,4 +1,5 @@
 import 'package:code_proxy/database/database.dart';
+import 'package:code_proxy/model/model_date_token_stat.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -41,65 +42,81 @@ class DashboardViewModel {
 
       dailyRequests.value = results[0] as Map<String, int>;
       endpointTokenUsage.value = results[1] as Map<String, int>;
-      modelDateTokenUsage.value =
-          results[2] as Map<String, Map<String, Map<String, int>>>;
 
-      // 加载费用数据（图表用15天，总费用查全部）
-      await _loadCostData(repository, startDate, endDate);
+      // 费用计算前必须先就绪定价数据：首次进 dashboard 时 HomeViewModel
+      // 可能还没加载完，缺了这一步每日费用会静默全部算成 0。
+      final pricingService = ModelPricingService.instance;
+      if (pricingService.modelCount.value == 0) {
+        await pricingService.load();
+      }
+
+      // 同一份聚合结果同时喂给柱状图和每日费用，不再各查一次库
+      final windowStats = results[2] as List<ModelDateTokenStat>;
+      modelDateTokenUsage.value = _toChartShape(windowStats);
+      dailyCost.value = _toDailyCost(windowStats);
+
+      await _loadTotalCost(repository);
     } catch (e) {
       LoggerUtil.instance.e('Failed to load dashboard chart data: $e');
     }
   }
 
-  Future<void> _loadCostData(
-    RequestLogRepository repository,
-    DateTime startDate,
-    DateTime endDate,
-  ) async {
+  /// 柱状图需要按 date → model 索引查表，这里把扁平聚合结果转成嵌套形状。
+  ///
+  /// 过滤掉零用量的组合：图表只画有数据的模型，全零条目会凭空多出一个图例。
+  Map<String, Map<String, Map<String, int>>> _toChartShape(
+    List<ModelDateTokenStat> stats,
+  ) {
+    final Map<String, Map<String, Map<String, int>>> shaped = {};
+    for (final stat in stats) {
+      if (stat.total <= 0) continue;
+      shaped.putIfAbsent(stat.date, () => {});
+      shaped[stat.date]![stat.model] = {
+        'total': stat.total,
+        'input': stat.input,
+        'output': stat.output,
+        'cache_read': stat.cacheRead,
+        'cache_creation': stat.cacheCreation,
+      };
+    }
+    return shaped;
+  }
+
+  Map<String, double> _toDailyCost(List<ModelDateTokenStat> stats) {
     final pricingService = ModelPricingService.instance;
-
-    // 确保定价数据已加载（首次进 dashboard 时可能 HomeViewModel 还没加载完）
-    if (pricingService.modelCount.value == 0) {
-      await pricingService.load();
-    }
-
-    // 15天内的每日费用（给图表 tooltip 用）
-    final breakdown = await repository.getDailyModelTokenBreakdown(
-      startTimestamp: startDate.millisecondsSinceEpoch,
-      endTimestamp: endDate.millisecondsSinceEpoch,
-    );
-
     final Map<String, double> costs = {};
-    for (final row in breakdown) {
-      final date = row['date'] as String;
-      final cost = _calculateRowCost(pricingService, row);
-      costs[date] = (costs[date] ?? 0) + cost;
+    for (final stat in stats) {
+      costs[stat.date] = (costs[stat.date] ?? 0) + _cost(pricingService, stat);
     }
-    dailyCost.value = costs;
+    return costs;
+  }
 
-    // 全部时间的总费用
-    final allBreakdown = await repository.getDailyModelTokenBreakdown(
+  /// 全时间总费用。
+  ///
+  /// 单独查一次而非从 15 天结果推算：区间不同，且反过来从全时间结果里切
+  /// 15 天会把边界那天从「按时间戳部分统计」变成「整天统计」，与折线图的
+  /// 请求数口径对不上。
+  Future<void> _loadTotalCost(RequestLogRepository repository) async {
+    final allStats = await repository.getModelDateTokenStats(
       startTimestamp: 0,
       endTimestamp: DateTime.now().millisecondsSinceEpoch,
     );
 
-    double total = 0;
-    for (final row in allBreakdown) {
-      total += _calculateRowCost(pricingService, row);
+    final pricingService = ModelPricingService.instance;
+    var total = 0.0;
+    for (final stat in allStats) {
+      total += _cost(pricingService, stat);
     }
     totalCost.value = total;
   }
 
-  double _calculateRowCost(
-    ModelPricingService pricingService,
-    Map<String, dynamic> row,
-  ) {
+  double _cost(ModelPricingService pricingService, ModelDateTokenStat stat) {
     return pricingService.calculateCost(
-      model: row['model'] as String,
-      inputTokens: row['input'] as int,
-      outputTokens: row['output'] as int,
-      cacheCreationTokens: row['cache_creation'] as int,
-      cacheReadTokens: row['cache_read'] as int,
+      model: stat.model,
+      inputTokens: stat.input,
+      outputTokens: stat.output,
+      cacheCreationTokens: stat.cacheCreation,
+      cacheReadTokens: stat.cacheRead,
     );
   }
 
