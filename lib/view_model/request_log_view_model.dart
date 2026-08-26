@@ -54,20 +54,10 @@ class RequestLogViewModel {
     }
   }
 
-  void nextPage() {
-    paginate(currentPage.value + 1);
-  }
-
   void paginate(int page) {
     if (page < 1) return;
     currentPage.value = page;
     loadLogs();
-  }
-
-  void previousPage() {
-    if (currentPage.value > 1) {
-      paginate(currentPage.value - 1);
-    }
   }
 
   void setPageSize(int size) {

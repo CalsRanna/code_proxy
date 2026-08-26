@@ -30,7 +30,6 @@ dependencies:
   shadcn_ui: ^0.40.5
   shared_preferences: ^2.2.0
   shelf: ^1.4.0
-  shelf_router: ^1.1.0
   signals: ^6.3.0
   syncfusion_flutter_charts: ^31.2.18
   sqlite3: ^2.9.4

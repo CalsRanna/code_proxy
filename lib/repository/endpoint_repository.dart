@@ -20,20 +20,6 @@ class EndpointRepository {
     return results.map((r) => _fromRow(r.toMap())).toList();
   }
 
-  /// Get endpoint by ID
-  Future<EndpointEntity?> getById(String id) async {
-    // 用 limit 1 查询而非 first()：找不到时返回空列表而非抛异常，
-    // 同时不吞掉真正的数据库错误。
-    final results = await _database.laconic
-        .table('endpoints')
-        .where('id', id)
-        .limit(1)
-        .get();
-
-    if (results.isEmpty) return null;
-    return _fromRow(results.first.toMap());
-  }
-
   /// Insert a new endpoint
   Future<void> insert(EndpointEntity endpoint) async {
     await _database.laconic.table('endpoints').insert([
@@ -79,17 +65,6 @@ class EndpointRepository {
   /// Clear all endpoints
   Future<void> clearAll() async {
     await _database.laconic.table('endpoints').delete();
-  }
-
-  /// Get enabled endpoints only
-  Future<List<EndpointEntity>> getEnabled() async {
-    final results = await _database.laconic
-        .table('endpoints')
-        .where('enabled', 1)
-        .orderBy('weight', direction: 'asc')
-        .get();
-
-    return results.map((r) => _fromRow(r.toMap())).toList();
   }
 
   /// Convert database row to EndpointEntity

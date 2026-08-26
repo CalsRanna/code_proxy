@@ -163,10 +163,6 @@ class SettingViewModel {
     notificationEnabled.value = await SharedPreferenceUtil.instance.getNotificationEnabled();
   }
 
-  bool isValidHealthCheckPath(String path) {
-    return path.startsWith('/') && path.isNotEmpty;
-  }
-
   Future<void> updateApiTimeout(BuildContext context) async {
     var newApiTimeout = int.tryParse(apiTimeoutController.text);
     if (newApiTimeout == null ||

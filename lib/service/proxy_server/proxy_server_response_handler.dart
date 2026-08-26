@@ -188,14 +188,6 @@ class ProxyServerResponseHandler {
     _onRequestCompleted?.call(endpoint, proxyRequest, proxyResponse);
   }
 
-  shelf.Response buildExceptionResponse(Object error) {
-    return shelf.Response(
-      HttpStatus.internalServerError,
-      headers: {HttpHeaders.contentTypeHeader: 'text/plain; charset=utf-8'},
-      body: error.toString(),
-    );
-  }
-
   Future<shelf.Response> _processAndReturnResponse(
     http.StreamedResponse response,
     EndpointEntity endpoint,

@@ -82,39 +82,6 @@ class RequestLogRepository {
     return dailyStats;
   }
 
-  /// Get daily success request stats for heatmap (仅统计 2xx 成功请求)
-  Future<Map<String, int>> getDailySuccessRequestStats({
-    required int startTimestamp,
-    required int endTimestamp,
-  }) async {
-    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    final offsetModifier = offsetMinutes >= 0
-        ? '+$offsetMinutes minutes'
-        : '$offsetMinutes minutes';
-
-    final results = await _database.laconic
-        .table('request_logs')
-        .select([
-          'date(timestamp / 1000, \'unixepoch\', \'$offsetModifier\') as date',
-          'COUNT(id) as request_count',
-        ])
-        .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
-        .where('status_code', 200)
-        .groupBy('date')
-        .orderBy('date')
-        .get();
-
-    final Map<String, int> dailyStats = {};
-    for (final row in results) {
-      final rowMap = row.toMap();
-      final date = rowMap['date'] as String;
-      final count = rowMap['request_count'] as int;
-      dailyStats[date] = count;
-    }
-
-    return dailyStats;
-  }
-
   /// Get endpoint token stats for charts
   Future<Map<String, int>> getEndpointTokenStats({
     required int startTimestamp,

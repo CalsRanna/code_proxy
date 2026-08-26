@@ -30,10 +30,6 @@ class ProxyServerRouter {
   /// 是否有至少一个端点可用（断路器未打开）。
   bool get hasAvailableEndpoints => _buildAvailableEndpoints().isNotEmpty;
 
-  /// 获取当前可用端点列表（供调试使用）
-  List<EndpointEntity> get endpoints =>
-      List.unmodifiable(_buildAvailableEndpoints());
-
   /// 计算重试延迟时间（支持指数退避）
   /// attempt: 当前尝试次数（从1开始）
   int _calculateRetryDelay(int attempt) {
@@ -124,8 +120,6 @@ class ProxyServerRouteSession {
   }) : _router = router,
        _endpoints = endpoints;
 
-  int get currentAttempt => _currentAttempt;
-
   EndpointEntity? get currentEndpoint {
     if (_currentEndpointIndex >= 0 &&
         _currentEndpointIndex < _endpoints.length) {
@@ -133,8 +127,6 @@ class ProxyServerRouteSession {
     }
     return null;
   }
-
-  List<EndpointEntity> get endpoints => List.unmodifiable(_endpoints);
 
   /// 当前端点是否可对该错误做透明重试。
   ///

@@ -31,12 +31,6 @@ class ProxyServerCircuitBreakerRegistry {
     _breakers.remove(endpointId);
   }
 
-  void resetAll() {
-    for (final breaker in _breakers.values) {
-      breaker.reset();
-    }
-  }
-
   /// 获取当前仍处于 open 状态的端点 ID
   Set<String> getOpenEndpointIds(Iterable<String> endpointIds) {
     final openEndpointIds = <String>{};

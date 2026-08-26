@@ -20,14 +20,11 @@ class ProxyServerCircuitBreaker {
   int _consecutiveFailures = 0;
   int? _openedAt;
 
-  /// 当前生效的恢复超时（可被 forceOpen 临时覆盖）
-  late int _effectiveRecoveryTimeoutMs;
-
   ProxyServerCircuitBreaker({
     required this.endpointId,
     this.failureThreshold = 5,
     this.recoveryTimeoutMs = 60000,
-  }) : _effectiveRecoveryTimeoutMs = recoveryTimeoutMs;
+  });
 
   /// 当前状态（纯读取，不触发状态转换）
   ProxyServerCircuitBreakerState get state => _state;
@@ -37,7 +34,7 @@ class ProxyServerCircuitBreaker {
   ProxyServerCircuitBreakerState evaluateState() {
     if (_state == ProxyServerCircuitBreakerState.open && _openedAt != null) {
       final now = DateTime.now().millisecondsSinceEpoch;
-      if (now - _openedAt! >= _effectiveRecoveryTimeoutMs) {
+      if (now - _openedAt! >= recoveryTimeoutMs) {
         _state = ProxyServerCircuitBreakerState.halfOpen;
       }
     }
@@ -60,7 +57,6 @@ class ProxyServerCircuitBreaker {
       _state = ProxyServerCircuitBreakerState.closed;
       _consecutiveFailures = 0;
       _openedAt = null;
-      _effectiveRecoveryTimeoutMs = recoveryTimeoutMs;
     } else if (_state == ProxyServerCircuitBreakerState.closed) {
       _consecutiveFailures = 0;
     }
@@ -73,7 +69,6 @@ class ProxyServerCircuitBreaker {
     if (_state == ProxyServerCircuitBreakerState.halfOpen) {
       _state = ProxyServerCircuitBreakerState.open;
       _openedAt = now;
-      _effectiveRecoveryTimeoutMs = recoveryTimeoutMs;
       return;
     }
 
@@ -83,18 +78,7 @@ class ProxyServerCircuitBreaker {
     if (_consecutiveFailures >= failureThreshold) {
       _state = ProxyServerCircuitBreakerState.open;
       _openedAt = now;
-      _effectiveRecoveryTimeoutMs = recoveryTimeoutMs;
     }
-  }
-
-  /// 强制打开断路器（用于需要立即断路的场景）
-  ///
-  /// [customRecoveryTimeoutMs] 自定义恢复超时，
-  /// 为 null 时使用默认的 [recoveryTimeoutMs]。
-  void forceOpen({int? customRecoveryTimeoutMs}) {
-    _state = ProxyServerCircuitBreakerState.open;
-    _openedAt = DateTime.now().millisecondsSinceEpoch;
-    _effectiveRecoveryTimeoutMs = customRecoveryTimeoutMs ?? recoveryTimeoutMs;
   }
 
   /// 手动重置到 closed
@@ -102,6 +86,5 @@ class ProxyServerCircuitBreaker {
     _state = ProxyServerCircuitBreakerState.closed;
     _consecutiveFailures = 0;
     _openedAt = null;
-    _effectiveRecoveryTimeoutMs = recoveryTimeoutMs;
   }
 }

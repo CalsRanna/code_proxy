@@ -119,11 +119,6 @@ class ProxyServerService {
     _circuitBreakerRegistry.reset(endpointId);
   }
 
-  /// 重置所有断路器
-  void resetAllCircuitBreakers() {
-    _circuitBreakerRegistry.resetAll();
-  }
-
   /// 移除端点的断路器实例（用于端点被删除时清理内存）
   void removeCircuitBreaker(String endpointId) {
     _circuitBreakerRegistry.removeBreaker(endpointId);

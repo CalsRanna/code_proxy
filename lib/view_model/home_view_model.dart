@@ -136,18 +136,6 @@ class HomeViewModel {
     }
   }
 
-  /// 重置所有端点的断路器状态
-  void resetAllCircuitBreakers() {
-    _proxyServer?.resetAllCircuitBreakers();
-
-    try {
-      final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-      endpointViewModel.forbiddenEndpointIds.clear();
-    } catch (e) {
-      LoggerUtil.instance.e('Failed to update endpoint state: $e');
-    }
-  }
-
   /// 获取当前仍处于断路中的端点 ID
   Set<String> getOpenCircuitBreakerEndpointIds(Iterable<String> endpointIds) {
     return _proxyServer?.getOpenCircuitBreakerEndpointIds(endpointIds) ?? {};
@@ -385,18 +373,6 @@ class HomeViewModel {
           'No available port in range $preferredPort-'
           '${preferredPort + maxAttempts - 1}',
         );
-  }
-
-  Future<void> toggleEndpointEnabled(String id) async {
-    final endpointViewModel = GetIt.instance.get<EndpointViewModel>();
-    final endpoints = endpointViewModel.endpoints.value;
-    final matching = endpoints.where((e) => e.id == id);
-    if (matching.isEmpty) return;
-    final endpoint = matching.first;
-    final updated = endpoint.copyWith(enabled: !endpoint.enabled);
-    await endpointViewModel.updateEndpoint(updated);
-    final enabledEndpoints = endpointViewModel.enabledEndpoints;
-    _proxyServer?.endpoints = enabledEndpoints;
   }
 
   /// 更新代理服务器的端点列表

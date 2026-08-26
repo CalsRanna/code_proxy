@@ -106,53 +106,11 @@ void main() {
       });
     });
 
-    group('forceOpen', () {
-      test('应立即打开断路器', () {
-        final breaker = createBreaker();
-
-        breaker.forceOpen();
-        expect(breaker.state, ProxyServerCircuitBreakerState.open);
-        expect(breaker.isAvailable, isFalse);
-      });
-
-      test('支持自定义恢复超时', () async {
-        final breaker = createBreaker(recoveryTimeoutMs: 60000);
-
-        breaker.forceOpen(customRecoveryTimeoutMs: 30);
-        expect(breaker.isAvailable, isFalse);
-
-        await Future.delayed(const Duration(milliseconds: 60));
-
-        expect(breaker.isAvailable, isTrue);
-        expect(
-          breaker.evaluateState(),
-          ProxyServerCircuitBreakerState.halfOpen,
-        );
-      });
-
-      test('halfOpen 探测失败后应恢复为默认超时', () async {
-        final breaker = createBreaker(recoveryTimeoutMs: 60000);
-
-        breaker.forceOpen(customRecoveryTimeoutMs: 10);
-        await Future.delayed(const Duration(milliseconds: 30));
-
-        expect(
-          breaker.evaluateState(),
-          ProxyServerCircuitBreakerState.halfOpen,
-        );
-        breaker.recordFailure();
-
-        expect(breaker.state, ProxyServerCircuitBreakerState.open);
-        await Future.delayed(const Duration(milliseconds: 30));
-        expect(breaker.isAvailable, isFalse);
-      });
-    });
-
     group('手动重置', () {
       test('应立即恢复到 closed', () {
         final breaker = createBreaker(failureThreshold: 1);
 
-        breaker.forceOpen();
+        breaker.recordFailure();
         expect(breaker.state, ProxyServerCircuitBreakerState.open);
         expect(breaker.isAvailable, isFalse);
 

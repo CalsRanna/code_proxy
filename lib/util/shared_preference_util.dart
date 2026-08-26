@@ -10,7 +10,6 @@ class SharedPreferenceUtil {
 
   final String _keyWindowHeight = 'window_height';
   final String _keyWindowWidth = 'window_width';
-  final String _keyBrightness = 'brightness';
   final String _keyPort = 'port';
   final String _keyApiTimeout = 'api_timeout';
   final String _keyCircuitBreakerFailureThreshold =
@@ -86,10 +85,6 @@ class SharedPreferenceUtil {
     return (await _preferences).getInt(_keyAuditRetainDays) ?? 14;
   }
 
-  Future<String> getBrightness() async {
-    return (await _preferences).getString(_keyBrightness) ?? 'light';
-  }
-
   Future<int> getCircuitBreakerFailureThreshold() async {
     return (await _preferences).getInt(_keyCircuitBreakerFailureThreshold) ?? 5;
   }
@@ -157,10 +152,6 @@ class SharedPreferenceUtil {
 
   Future<void> setAuditRetainDays(int days) async {
     await (await _preferences).setInt(_keyAuditRetainDays, days);
-  }
-
-  Future<void> setBrightness(String brightness) async {
-    await (await _preferences).setString(_keyBrightness, brightness);
   }
 
   Future<void> setCircuitBreakerFailureThreshold(int threshold) async {

@@ -18,16 +18,16 @@ void main() {
       final breaker1 = registry.getBreaker('ep-1');
       final breaker2 = registry.getBreaker('ep-2');
 
-      breaker1.forceOpen();
+      breaker1.recordFailure();
       expect(breaker1.isAvailable, isFalse);
       expect(breaker2.isAvailable, isTrue);
     });
 
     test('reset 应重置指定端点的断路器', () {
-      final registry = ProxyServerCircuitBreakerRegistry();
+      final registry = ProxyServerCircuitBreakerRegistry(failureThreshold: 1);
 
       final breaker = registry.getBreaker('ep-1');
-      breaker.forceOpen();
+      breaker.recordFailure();
       expect(breaker.state, ProxyServerCircuitBreakerState.open);
 
       registry.reset('ep-1');
@@ -40,24 +40,11 @@ void main() {
       registry.reset('non-existent');
     });
 
-    test('resetAll 应重置所有断路器', () {
-      final registry = ProxyServerCircuitBreakerRegistry();
-
-      final breaker1 = registry.getBreaker('ep-1');
-      final breaker2 = registry.getBreaker('ep-2');
-      breaker1.forceOpen();
-      breaker2.forceOpen();
-
-      registry.resetAll();
-      expect(breaker1.isAvailable, isTrue);
-      expect(breaker2.isAvailable, isTrue);
-    });
-
     test('removeBreaker 应释放实例', () {
-      final registry = ProxyServerCircuitBreakerRegistry();
+      final registry = ProxyServerCircuitBreakerRegistry(failureThreshold: 1);
 
       final breaker1 = registry.getBreaker('ep-1');
-      breaker1.forceOpen();
+      breaker1.recordFailure();
 
       registry.removeBreaker('ep-1');
 
