@@ -42,8 +42,6 @@ class ClaudeCodeAuditService {
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
-      // 在任何敏感内容写盘前先收紧目录访问权限。
-      await _restrictPermissions(dir);
 
       final requestHeadersData = {
         'original': _redactHeaders(requestHeaders),
@@ -103,41 +101,6 @@ class ClaudeCodeAuditService {
           normalized.contains('credential');
       return MapEntry(name, sensitive ? _redactedValue : value);
     });
-  }
-
-  /// 已收紧过权限的固定目录（审计根目录、日期目录），用于跳过重复 chmod。
-  final Set<String> _restrictedDirectories = {};
-
-  /// `dart:io` 没有跨平台 chmod API。Unix 上移除 group/other 的全部权限；
-  /// Windows 则沿用用户目录 ACL。
-  ///
-  /// 逐层收紧（审计根目录 / 日期目录 / 请求目录）是有意的 defense in
-  /// depth —— proxy_settings_security_test.dart 对请求目录的 mode 有断言。
-  /// 请求目录每次都是新建的，这次 fork 省不掉；能省的是对固定不变的审计
-  /// 根目录与当天日期目录的重复 chmod，它们只在首次出现时进入参数列表。
-  ///
-  /// fail-closed 语义保留：chmod 失败即抛异常，调用方不写入任何敏感内容。
-  Future<void> _restrictPermissions(Directory requestDirectory) async {
-    if (!Platform.isLinux && !Platform.isMacOS) return;
-
-    final pendingParents = [
-      _auditDirectory,
-      requestDirectory.parent.path,
-    ].where((path) => !_restrictedDirectories.contains(path)).toList();
-
-    final result = await Process.run('/bin/chmod', [
-      'go-rwx',
-      ...pendingParents,
-      requestDirectory.path,
-    ]);
-    if (result.exitCode != 0) {
-      throw FileSystemException(
-        'Failed to restrict audit log permissions: ${result.stderr}',
-        requestDirectory.path,
-      );
-    }
-    // 仅在成功后记录，避免一次瞬时失败让父目录被永久跳过。
-    _restrictedDirectories.addAll(pendingParents);
   }
 
   Future<void> cleanExpiredLogs() async {

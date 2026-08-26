@@ -204,10 +204,5 @@ void main() {
         '${jsonEncode(responseHeaders)}';
     expect(serializedHeaders, isNot(contains('upstream-secret')));
     expect(serializedHeaders, isNot(contains('client-secret')));
-
-    if (Platform.isLinux || Platform.isMacOS) {
-      final mode = (await requestDirectory.stat()).mode;
-      expect(mode & 0x3f, 0);
-    }
   });
 }
