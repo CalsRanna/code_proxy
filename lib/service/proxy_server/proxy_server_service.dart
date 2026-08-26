@@ -5,7 +5,6 @@ import 'dart:typed_data';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_error_classifier.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
@@ -256,15 +255,6 @@ class ProxyServerService {
           startTime = null;
           previousSucceeded = null; // 跳过 hasNext 的断路器逻辑,直接重进循环体
           continue;
-        }
-
-        // 预警:疑似 header 未达但未被分类器精确命中(可能 SDK 改了错误文案,
-        // 导致透明重试静默失效)。窄范围匹配,避免对正常传输异常产生噪音。
-        if (ProxyServerErrorClassifier.isPossibleHeaderNotReceivedVariant(e)) {
-          LoggerUtil.instance.w(
-            'Possible unrecognized header-not-received variant '
-            '(classifier may be stale): $e',
-          );
         }
 
         // 异常走统一失败处理
