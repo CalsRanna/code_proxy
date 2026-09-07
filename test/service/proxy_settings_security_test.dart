@@ -208,6 +208,7 @@ void main() {
     final profileJson = jsonDecode(await desktopProfile.readAsString());
     expect(profileJson['inferenceGatewayApiKey'], token);
     expect(profileJson['inferenceGatewayBaseUrl'], 'http://localhost:$port');
+    expect(profileJson['deploymentDisplayName'], 'Code Proxy');
     final normalJson = jsonDecode(await normalConfig.readAsString());
     expect(normalJson['mcpServers']['custom'], isTrue);
     expect(normalJson['deploymentMode'], '3p');

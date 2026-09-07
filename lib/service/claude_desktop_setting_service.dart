@@ -235,6 +235,9 @@ class ClaudeDesktopSettingService {
       'inferenceGatewayAuthScheme': 'bearer',
       'inferenceCredentialKind': 'static',
       'disableDeploymentModeChooser': true,
+      // 桌面端 UI（侧边栏底部、账户菜单头部、连接错误横幅）中
+      // 显示的部署名称，替代默认的 provider 标签。
+      'deploymentDisplayName': _profileName,
       // 与 Claude Code CLI 侧 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
       // 语义对齐：关闭后台数据收集时同时禁止桌面端的遥测与服务出站。
       if (!backgroundDataCollection) ...{
