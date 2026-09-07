@@ -49,22 +49,25 @@ class SettingViewModel {
   final circuitBreakerRecoveryTimeoutController = TextEditingController();
   final auditRetainDaysController = TextEditingController();
 
-  // 默认模型映射
-  final defaultHaikuModel = signal('');
-  final defaultSonnetModel = signal('');
-  final defaultOpusModel = signal('');
-  final defaultHaikuModelController = TextEditingController();
-  final defaultSonnetModelController = TextEditingController();
-  final defaultOpusModelController = TextEditingController();
+  // 默认模型映射(元数据驱动:key = 族名,见
+  // DefaultModelMapperEntity.familyFields;新增家族自动生效)
+  final defaultModelValues = <String, Signal<String>>{
+    for (final field in DefaultModelMapperEntity.familyFields)
+      field.family: signal(''),
+  };
+  final defaultModelControllers = <String, TextEditingController>{
+    for (final field in DefaultModelMapperEntity.familyFields)
+      field.family: TextEditingController(),
+  };
 
   void dispose() {
     apiTimeoutController.dispose();
     circuitBreakerFailureThresholdController.dispose();
     circuitBreakerRecoveryTimeoutController.dispose();
     auditRetainDaysController.dispose();
-    defaultHaikuModelController.dispose();
-    defaultSonnetModelController.dispose();
-    defaultOpusModelController.dispose();
+    for (final controller in defaultModelControllers.values) {
+      controller.dispose();
+    }
   }
 
   Future<void> editApiTimeout(BuildContext context) async {
@@ -144,21 +147,15 @@ class SettingViewModel {
 
     // 加载默认模型映射（配置缺失/损坏时降级为空值，不阻塞设置页）
     final configService = ClaudeCodeModelConfigService.instance;
-    String defaultHaiku = '';
-    String defaultSonnet = '';
-    String defaultOpus = '';
     try {
       await configService.load();
       final modelConfig = configService.config;
-      defaultHaiku = modelConfig.anthropicDefaultHaikuModel;
-      defaultSonnet = modelConfig.anthropicDefaultSonnetModel;
-      defaultOpus = modelConfig.anthropicDefaultOpusModel;
+      for (final field in DefaultModelMapperEntity.familyFields) {
+        defaultModelValues[field.family]!.value = modelConfig.valueFor(field);
+      }
     } catch (e) {
       LoggerUtil.instance.e('Failed to load default model mapping: $e');
     }
-    defaultHaikuModel.value = defaultHaiku;
-    defaultSonnetModel.value = defaultSonnet;
-    defaultOpusModel.value = defaultOpus;
 
     // 加载通知配置
     notificationEnabled.value = await SharedPreferenceUtil.instance.getNotificationEnabled();
@@ -578,24 +575,24 @@ class SettingViewModel {
 
   Future<void> editDefaultModelMapping(BuildContext context) async {
     // 同步控制器到当前信号值
-    defaultHaikuModelController.text = defaultHaikuModel.value;
-    defaultSonnetModelController.text = defaultSonnetModel.value;
-    defaultOpusModelController.text = defaultOpusModel.value;
+    for (final field in DefaultModelMapperEntity.familyFields) {
+      defaultModelControllers[field.family]!.text =
+          defaultModelValues[field.family]!.value;
+    }
     showShadDialog(context: context, builder: _buildDefaultModelMappingDialog);
   }
 
   Future<void> updateDefaultModelMapping(BuildContext context) async {
-    final newConfig = DefaultModelMapperEntity(
-      anthropicDefaultHaikuModel: defaultHaikuModelController.text.trim(),
-      anthropicDefaultSonnetModel: defaultSonnetModelController.text.trim(),
-      anthropicDefaultOpusModel: defaultOpusModelController.text.trim(),
-    );
+    final newConfig = DefaultModelMapperEntity.fromFamilyValues({
+      for (final field in DefaultModelMapperEntity.familyFields)
+        field.family: defaultModelControllers[field.family]!.text.trim(),
+    });
 
     try {
       await ClaudeCodeModelConfigService.instance.save(newConfig);
-      defaultHaikuModel.value = newConfig.anthropicDefaultHaikuModel;
-      defaultSonnetModel.value = newConfig.anthropicDefaultSonnetModel;
-      defaultOpusModel.value = newConfig.anthropicDefaultOpusModel;
+      for (final field in DefaultModelMapperEntity.familyFields) {
+        defaultModelValues[field.family]!.value = newConfig.valueFor(field);
+      }
       if (!context.mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
@@ -619,6 +616,20 @@ class SettingViewModel {
   }
 
   Widget _buildDefaultModelMappingDialog(BuildContext context) {
+    final fields = DefaultModelMapperEntity.familyFields;
+
+    // 每行两个输入框(与历史样式一致);奇数个字段时末行右侧留空占位,
+    // 保证输入框等宽。
+    final rows = <List<ModelFamilyField>>[];
+    for (var i = 0; i < fields.length; i += 2) {
+      rows.add(
+        fields.sublist(
+          i,
+          i + 2 > fields.length ? fields.length : i + 2,
+        ),
+      );
+    }
+
     return ShadDialog(
       title: const Text('默认模型映射'),
       description: const Text('当端点未配置具体模型时使用以下默认值'),
@@ -635,35 +646,23 @@ class SettingViewModel {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: ShadInput(
-                  controller: defaultHaikuModelController,
-                  placeholder: const Text('Haiku 模型'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ShadInput(
-                  controller: defaultSonnetModelController,
-                  placeholder: const Text('Sonnet 模型'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ShadInput(
-                  controller: defaultOpusModelController,
-                  placeholder: const Text('Opus 模型'),
-                ),
-              ),
-              const Expanded(child: SizedBox()),
-            ],
-          ),
+          for (final row in rows) ...[
+            Row(
+              children: [
+                for (var j = 0; j < row.length; j++) ...[
+                  Expanded(
+                    child: ShadInput(
+                      controller: defaultModelControllers[row[j].family],
+                      placeholder: Text('${row[j].label} 模型'),
+                    ),
+                  ),
+                  if (j < row.length - 1) const SizedBox(width: 8),
+                ],
+                if (row.length < 2) const Expanded(child: SizedBox()),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
         ],
       ),
     );

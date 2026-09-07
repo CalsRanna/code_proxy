@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
@@ -124,12 +125,15 @@ void main() {
       });
 
       test('GET /v1/models 返回本地模型列表（与 Profile 配置一致）', () async {
-        // 写入一份默认模型配置，确保 /v1/models 有可用的数据源
-        final service = ClaudeCodeModelConfigService.instance;
-        // 配置加载失败时（如未初始化），本地应答器返回空模型列表而非崩溃
-        try {
-          await service.load();
-        } catch (_) {}
+        // 注入确定性配置,避免断言依赖用户机器上的真实 yaml 内容
+        ClaudeCodeModelConfigService.instance.replaceConfigForTesting(
+          const DefaultModelMapperEntity(
+            anthropicDefaultHaikuModel: 'claude-haiku-4-5-20251001',
+            anthropicDefaultSonnetModel: 'claude-sonnet-4-5-20250929',
+            anthropicDefaultOpusModel: 'claude-opus-4-5-20251101',
+            anthropicDefaultFableModel: 'claude-fable-5-1',
+          ),
+        );
         final request = shelf.Request(
           'GET',
           Uri.parse('http://localhost:9000/v1/models'),
@@ -143,11 +147,18 @@ void main() {
             .cast<Map<String, dynamic>>();
         // 至少返回默认配置里的 Haiku / Sonnet / Opus 三个模型
         expect(models, isNotEmpty);
-        // id 使用统一哨兵名（claude- 开头,通过客户端自动发现过滤）
+        // id = default_model 真实模型 ID（claude- 开头,通过客户端发现过滤）
         final ids = models.map((m) => m['id']).toSet();
-        expect(ids, contains('claude-opus-proxy'));
-        expect(ids, contains('claude-sonnet-proxy'));
-        expect(ids, contains('claude-haiku-proxy'));
+        expect(
+          ids,
+          containsAll([
+            'claude-opus-4-5-20251101',
+            'claude-sonnet-4-5-20250929',
+            'claude-haiku-4-5-20251001',
+          ]),
+        );
+        // 空 slot 不产生条目;默认配置的 fable 非空则应出现
+        expect(ids, isNot(contains('')));
         for (final model in models) {
           // 官方放行通道：anthropic_family_tier 标记 Claude 族
           expect(model['anthropic_family_tier'], isNotNull);

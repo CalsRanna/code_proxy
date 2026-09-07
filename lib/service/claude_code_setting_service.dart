@@ -19,13 +19,22 @@ class ClaudeCodeSettingService {
 
   List<String> get managedFilePaths => [_settingsPath];
 
-  /// 已停用的哨兵 env 键(2026-09 前写入"值=变量名自身"):
-  /// - 值=变量名自身(旧哨兵)→ 删除,入口已统一为模型发现
+  /// 已停用的哨兵 env 键(2026-09 前写入):
+  /// - 值=变量名自身(最早形态)→ 删除,入口已统一为模型发现
+  /// - 值=claude-*-proxy(2026-09 哨兵方案形态)→ 删除,哨兵已整体退役
   /// - 值=其他(用户自定义真实模型名)→ 保留,不碰用户配置
   static const _deprecatedSentinelKeys = {
     'ANTHROPIC_DEFAULT_HAIKU_MODEL',
     'ANTHROPIC_DEFAULT_OPUS_MODEL',
     'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  };
+
+  /// 2026-09 哨兵方案曾写入的三个哨兵值。哨兵文件已删除,此处为残留清理
+  /// 所需的最小字面量集合(仅用于判断删除,不再是任何兼容解译)。
+  static const _retiredSentinelValues = {
+    'claude-haiku-proxy',
+    'claude-sonnet-proxy',
+    'claude-opus-proxy',
   };
 
   static const _retiredKeys = {'ANTHROPIC_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL'};
@@ -38,9 +47,9 @@ class ClaudeCodeSettingService {
     'ANTHROPIC_DEFAULT_SONNET_MODEL_NAME',
   };
 
-  /// 网关模型发现开关:CLI 从代理 GET /v1/models 获取模型列表,
-  /// 请求携带发现列表 id(哨兵,见 ProxySentinel),由
-  /// ProxyServerModelMapper 映射到端点实际模型 —— 不再依赖 env 哨兵。
+  /// 网关模型发现开关:CLI 从代理 GET /v1/models 获取模型列表
+  /// (id = default_model 真实模型 ID),请求携带发现列表 id,由
+  /// ProxyServerModelMapper 映射到端点实际模型 —— 不依赖任何 env 哨兵。
   static const _gatewayModelDiscoveryEnvKey =
       'CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY';
 
@@ -77,16 +86,18 @@ class ClaudeCodeSettingService {
     env['ANTHROPIC_AUTH_TOKEN'] = token;
     env['ANTHROPIC_BASE_URL'] = 'http://127.0.0.1:$resolvedPort';
     // 模型入口统一为模型发现：CLI 读该开关并从代理 GET /v1/models 获取
-    // 模型列表，请求携带发现列表 id(哨兵,见 ProxySentinel)。同一份
-    // settings.json 适配所有端点,切换端点时无需重写 —— 与 2026-09 前
-    // 的「值=变量名」哨兵约定作用相同,但入口形态与 Desktop 完全一致。
+    // 模型列表，请求携带发现列表 id(default_model 真实模型 ID)。同一份
+    // settings.json 适配所有端点,切换端点时无需重写。
     //
     // 代价：代理没有运行时,CLI 模型选择器可能为空或回退内置默认。
     env[_gatewayModelDiscoveryEnvKey] = '1';
 
-    // 清理旧哨兵(值=变量名自身)与旧派生显示名;用户自定义真实模型名保留。
+    // 清理旧哨兵(值=变量名自身 或 2026-09 哨兵值)与旧派生显示名;
+    // 用户自定义真实模型名保留。
     for (final key in _deprecatedSentinelKeys) {
-      if (env[key] == key) env.remove(key);
+      if (env[key] == key || _retiredSentinelValues.contains(env[key])) {
+        env.remove(key);
+      }
     }
     for (final key in _deprecatedDerivedKeys) {
       env.remove(key);
