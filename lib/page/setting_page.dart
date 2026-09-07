@@ -130,7 +130,7 @@ class _SettingPageState extends State<SettingPage> {
       return ListTile(
         title: const Text('后台数据收集'),
         subtitle: const Text(
-          '允许自动更新检查、反馈收集、错误上报及遥测数据。同时作用于 Claude Code CLI 与 Claude Desktop',
+          '允许自动更新检查、反馈收集、错误上报及遥测数据。',
         ),
         trailing: ShadSwitch(
           value: viewModel.backgroundDataCollection.value,
@@ -213,7 +213,7 @@ class _SettingPageState extends State<SettingPage> {
           child: const Text('代理服务器'),
         ),
         ShadTab(
-          value: 'claude_code',
+          value: 'claude',
           expandContent: true,
           content: ListView(
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
@@ -228,7 +228,7 @@ class _SettingPageState extends State<SettingPage> {
               versionTile,
             ],
           ),
-          child: const Text('Claude Code'),
+          child: const Text('Claude'),
         ),
         ShadTab(
           value: 'pricing',
