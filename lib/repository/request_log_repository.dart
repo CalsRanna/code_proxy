@@ -1,4 +1,5 @@
 import 'package:code_proxy/database/database.dart';
+import 'package:code_proxy/model/dashboard_overview_stats.dart';
 import 'package:code_proxy/model/model_date_token_stat.dart';
 import 'package:code_proxy/model/request_log_entity.dart';
 
@@ -157,6 +158,46 @@ class RequestLogRepository {
         cacheRead: rowMap['cache_read'] as int,
       );
     }).toList();
+  }
+
+  /// 概览统计：消息数、token 总量、活跃天数、缓存命中率。
+  ///
+  /// 四个指标一次全表扫描聚合成，避免跑四条相近的查询：
+  /// - messages：成功的 `/v1/messages` 请求数（`/v1/messages/count_tokens`、
+  ///   `/v1/models` 等本地应答路径不计入）
+  /// - totalTokens：SUM 四类 token，仅 2xx 成功请求（失败请求的 usage
+  ///   不可靠，与 token 图表口径一致）
+  /// - activeDays：有任意请求（含失败）的本地去重日期数，与热力图口径一致
+  /// - cacheHitRate：cache_read / (cache_read + input)，仅 2xx 成功请求；
+  ///   cache_creation 是首次写入缓存，不算命中也不算未命中，不入公式。
+  ///   分子乘 1.0 强制浮点除法（SQLite 整数除法会截断为 0）。
+  Future<DashboardOverviewStats> getOverviewStats() async {
+    final offsetModifier = _localDateModifier();
+
+    final results = await _database.laconic.select('''
+      SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', '$offsetModifier')) AS active_days,
+             COUNT(CASE WHEN path = 'v1/messages' AND status_code = 200 THEN 1 END) AS messages,
+             COALESCE(SUM(CASE WHEN status_code = 200 THEN
+               COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) +
+               COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)
+             END), 0) AS total_tokens,
+             COALESCE(
+               SUM(CASE WHEN status_code = 200 THEN COALESCE(cache_read_input_tokens, 0) END) * 1.0 /
+               NULLIF(SUM(CASE WHEN status_code = 200 THEN
+                 COALESCE(cache_read_input_tokens, 0) + COALESCE(input_tokens, 0)
+               END), 0),
+               0
+             ) AS cache_hit_rate
+      FROM request_logs
+    ''', []);
+
+    final row = results.first.toMap();
+    return DashboardOverviewStats(
+      messages: row['messages'] as int,
+      totalTokens: row['total_tokens'] as int,
+      activeDays: row['active_days'] as int,
+      cacheHitRate: (row['cache_hit_rate'] as num).toDouble(),
+    );
   }
 
   /// Get total count of request logs

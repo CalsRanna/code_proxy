@@ -36,6 +36,9 @@ class ShadcnColors {
   static const zinc100 = Color(0xFFF4F4F5);
   static const zinc400 = Color(0xFFA1A1AA);
   static const zinc500 = Color(0xFF71717A);
+
+  /// 深色主题下的卡片/分组背景（浅色主题对应 zinc100）
+  static const zinc900 = Color(0xFF18181B);
   static const zinc950 = Color(0xFF09090B);
 
   // ==================== Chart Series Palette ====================

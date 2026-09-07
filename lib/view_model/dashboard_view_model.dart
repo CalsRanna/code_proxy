@@ -1,4 +1,5 @@
 import 'package:code_proxy/database/database.dart';
+import 'package:code_proxy/model/dashboard_overview_stats.dart';
 import 'package:code_proxy/model/model_date_token_stat.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
@@ -13,10 +14,23 @@ class DashboardViewModel {
       signal<Map<String, Map<String, Map<String, int>>>>({});
   final dailyCost = signal<Map<String, double>>({});
   final totalCost = signal<double>(0.0);
+  final overviewStats = signal<DashboardOverviewStats>(
+    const DashboardOverviewStats(messages: 0, totalTokens: 0, activeDays: 0),
+  );
 
   Future<void> initSignals() async {
     _loadHeatmapData();
     _loadChartData();
+    _loadOverviewStats();
+  }
+
+  Future<void> _loadOverviewStats() async {
+    try {
+      final repository = RequestLogRepository(Database.instance);
+      overviewStats.value = await repository.getOverviewStats();
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to load dashboard overview stats: $e');
+    }
   }
 
   Future<void> _loadChartData() async {

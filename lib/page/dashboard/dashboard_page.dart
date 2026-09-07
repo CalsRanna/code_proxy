@@ -1,3 +1,4 @@
+import 'package:code_proxy/page/dashboard/dashboard_overview_cards.dart';
 import 'package:code_proxy/page/dashboard/dashboard_request_line_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_bar_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_heatmap.dart';
@@ -21,40 +22,42 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    var rowChildren = [
-      Expanded(child: _buildLineChart()),
-      Expanded(child: _buildBarChart()),
-    ];
-    var row = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      spacing: ShadcnSpacing.spacing16,
-      children: rowChildren,
-    );
+    // 不套 SingleChildScrollView：统计卡片与热力图固定，图表行吃掉剩余
+    // 空间并随窗口缩放，最小窗口（1080x720）下整页无滚动条。
     var column = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: ShadcnSpacing.spacing24,
-      children: [_buildTokenHeatmap(), row],
+      children: [
+        _buildOverviewCards(),
+        _buildTokenHeatmap(),
+        Expanded(child: _buildChartsRow()),
+      ],
     );
-    var singleChildScrollView = SingleChildScrollView(
+    var padding = Padding(
       padding: const EdgeInsets.all(ShadcnSpacing.spacing24),
       child: column,
     );
-    var children = [_buildPageHeader(), Expanded(child: singleChildScrollView)];
+    var children = [_buildPageHeader(), Expanded(child: padding)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
     );
   }
 
+  Widget _buildChartsRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      spacing: ShadcnSpacing.spacing16,
+      children: [
+        Expanded(child: _buildLineChart()),
+        Expanded(child: _buildBarChart()),
+      ],
+    );
+  }
+
   Widget _buildPageHeader() {
-    return Watch((_) {
-      final total = viewModel.totalCost.value;
-      final subtitle = total > 0
-          ? '代理状态与成本总览（合计花费 \$${total.toStringAsFixed(2)}）'
-          : '代理状态与成本总览';
-      return PageHeader(title: 'CODE PROXY', subtitle: subtitle);
-    });
+    return const PageHeader(title: 'CODE PROXY', subtitle: '代理状态与成本总览');
   }
 
   Widget _buildBarChart() {
@@ -80,10 +83,7 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
         child: column,
       );
-      return SizedBox(
-        height: 320,
-        child: ShadCard(padding: EdgeInsets.zero, child: padding),
-      );
+      return ShadCard(padding: EdgeInsets.zero, child: padding);
     });
   }
 
@@ -91,6 +91,15 @@ class _DashboardPageState extends State<DashboardPage> {
     return Watch((_) {
       final dailyRequests = viewModel.dailyHeatmapRequests.value;
       return DashboardTokenHeatmap(dailyRequests);
+    });
+  }
+
+  Widget _buildOverviewCards() {
+    return Watch((_) {
+      return DashboardOverviewCards(
+        stats: viewModel.overviewStats.value,
+        totalCost: viewModel.totalCost.value,
+      );
     });
   }
 
@@ -119,10 +128,7 @@ class _DashboardPageState extends State<DashboardPage> {
         padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
         child: column,
       );
-      return SizedBox(
-        height: 320,
-        child: ShadCard(padding: EdgeInsets.zero, child: padding),
-      );
+      return ShadCard(padding: EdgeInsets.zero, child: padding);
     });
   }
 }
