@@ -6,16 +6,16 @@
 /// 默认某族"精确映射到端点实际模型。模型演进(升级/新增家族)只需更新
 /// 本配置,无需更新客户端。
 class DefaultModelMapperEntity {
-  final String anthropicDefaultHaikuModel;
-  final String anthropicDefaultSonnetModel;
-  final String anthropicDefaultOpusModel;
-  final String anthropicDefaultFableModel;
+  final String haikuModel;
+  final String sonnetModel;
+  final String opusModel;
+  final String fableModel;
 
   const DefaultModelMapperEntity({
-    required this.anthropicDefaultHaikuModel,
-    required this.anthropicDefaultSonnetModel,
-    required this.anthropicDefaultOpusModel,
-    this.anthropicDefaultFableModel = '',
+    required this.haikuModel,
+    required this.sonnetModel,
+    required this.opusModel,
+    this.fableModel = '',
   });
 
   /// 字段元数据表 —— 单一事实源。
@@ -27,26 +27,26 @@ class DefaultModelMapperEntity {
   /// 顺序即展示顺序(客户端选择器、设置页输入框、yaml 输出):
   /// 按用户偏好 fable → opus → sonnet → haiku。
   static const List<ModelFamilyField> familyFields = [
-    ModelFamilyField('anthropic_default_fable_model', 'fable', 'Fable'),
-    ModelFamilyField('anthropic_default_opus_model', 'opus', 'Opus'),
-    ModelFamilyField('anthropic_default_sonnet_model', 'sonnet', 'Sonnet'),
-    ModelFamilyField('anthropic_default_haiku_model', 'haiku', 'Haiku'),
+    ModelFamilyField('fable_model', 'fable', 'Fable'),
+    ModelFamilyField('opus_model', 'opus', 'Opus'),
+    ModelFamilyField('sonnet_model', 'sonnet', 'Sonnet'),
+    ModelFamilyField('haiku_model', 'haiku', 'Haiku'),
   ];
 
   /// 必需的配置字段(缺失即抛异常,保持原有严格性)
   static const requiredFields = [
-    'anthropic_default_haiku_model',
-    'anthropic_default_sonnet_model',
-    'anthropic_default_opus_model',
+    'haiku_model',
+    'sonnet_model',
+    'opus_model',
   ];
 
   /// 取值:按元数据表字段读取对应模型 ID。
   String valueFor(ModelFamilyField field) {
     return switch (field.family) {
-      'haiku' => anthropicDefaultHaikuModel,
-      'sonnet' => anthropicDefaultSonnetModel,
-      'opus' => anthropicDefaultOpusModel,
-      'fable' => anthropicDefaultFableModel,
+      'haiku' => haikuModel,
+      'sonnet' => sonnetModel,
+      'opus' => opusModel,
+      'fable' => fableModel,
       _ => '',
     };
   }
@@ -62,10 +62,10 @@ class DefaultModelMapperEntity {
   /// 按族名 map 构建(设置页遍历保存用);未出现的族回退为空。
   factory DefaultModelMapperEntity.fromFamilyValues(Map<String, String> values) {
     return DefaultModelMapperEntity(
-      anthropicDefaultHaikuModel: values['haiku'] ?? '',
-      anthropicDefaultSonnetModel: values['sonnet'] ?? '',
-      anthropicDefaultOpusModel: values['opus'] ?? '',
-      anthropicDefaultFableModel: values['fable'] ?? '',
+      haikuModel: values['haiku'] ?? '',
+      sonnetModel: values['sonnet'] ?? '',
+      opusModel: values['opus'] ?? '',
+      fableModel: values['fable'] ?? '',
     );
   }
 
@@ -87,12 +87,12 @@ class DefaultModelMapperEntity {
     }
 
     return DefaultModelMapperEntity(
-      anthropicDefaultHaikuModel: yaml['anthropic_default_haiku_model'] as String,
-      anthropicDefaultSonnetModel:
-          yaml['anthropic_default_sonnet_model'] as String,
-      anthropicDefaultOpusModel: yaml['anthropic_default_opus_model'] as String,
-      anthropicDefaultFableModel:
-          (yaml['anthropic_default_fable_model'] as String?) ?? '',
+      haikuModel: yaml['haiku_model'] as String,
+      sonnetModel:
+          yaml['sonnet_model'] as String,
+      opusModel: yaml['opus_model'] as String,
+      fableModel:
+          (yaml['fable_model'] as String?) ?? '',
     );
   }
 
@@ -116,10 +116,10 @@ class DefaultModelMapperEntity {
 
   /// 默认配置(仅用于创建新配置文件)
   static const defaultConfig = DefaultModelMapperEntity(
-    anthropicDefaultHaikuModel: 'claude-haiku-4-5-20251001',
-    anthropicDefaultSonnetModel: 'claude-sonnet-4-5-20250929',
-    anthropicDefaultOpusModel: 'claude-opus-4-5-20251101',
-    anthropicDefaultFableModel: 'claude-fable-5-1',
+    haikuModel: 'claude-haiku-4-5-20251001',
+    sonnetModel: 'claude-sonnet-4-5-20250929',
+    opusModel: 'claude-opus-4-5-20251101',
+    fableModel: 'claude-fable-5-1',
   );
 }
 

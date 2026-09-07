@@ -54,13 +54,16 @@ class EndpointEntity {
   final String? anthropicBaseUrl;
 
   /// Anthropic 默认 Haiku 模型名称
-  final String? anthropicDefaultHaikuModel;
+  final String? haikuModel;
 
   /// Anthropic 默认 Sonnet 模型名称
-  final String? anthropicDefaultSonnetModel;
+  final String? sonnetModel;
 
   /// Anthropic 默认 Opus 模型名称
-  final String? anthropicDefaultOpusModel;
+  final String? opusModel;
+
+  /// Anthropic 默认 Fable 模型名称
+  final String? fableModel;
 
   const EndpointEntity({
     required this.id,
@@ -72,9 +75,10 @@ class EndpointEntity {
     this.apiFormat = EndpointApiFormat.anthropic,
     this.anthropicAuthToken,
     this.anthropicBaseUrl,
-    this.anthropicDefaultHaikuModel,
-    this.anthropicDefaultSonnetModel,
-    this.anthropicDefaultOpusModel,
+    this.haikuModel,
+    this.sonnetModel,
+    this.opusModel,
+    this.fableModel,
   });
 
   /// 从 JSON 反序列化
@@ -89,10 +93,11 @@ class EndpointEntity {
       apiFormat: apiFormatFromString(json['apiFormat'] as String?),
       anthropicAuthToken: json['anthropicAuthToken'] as String?,
       anthropicBaseUrl: json['anthropicBaseUrl'] as String?,
-      anthropicDefaultHaikuModel: json['anthropicDefaultHaikuModel'] as String?,
-      anthropicDefaultSonnetModel:
-          json['anthropicDefaultSonnetModel'] as String?,
-      anthropicDefaultOpusModel: json['anthropicDefaultOpusModel'] as String?,
+      haikuModel: json['haikuModel'] as String?,
+      sonnetModel:
+          json['sonnetModel'] as String?,
+      opusModel: json['opusModel'] as String?,
+      fableModel: json['fableModel'] as String?,
     );
   }
 
@@ -108,9 +113,10 @@ class EndpointEntity {
       'apiFormat': apiFormat.name,
       'anthropicAuthToken': anthropicAuthToken,
       'anthropicBaseUrl': anthropicBaseUrl,
-      'anthropicDefaultHaikuModel': anthropicDefaultHaikuModel,
-      'anthropicDefaultSonnetModel': anthropicDefaultSonnetModel,
-      'anthropicDefaultOpusModel': anthropicDefaultOpusModel,
+      'haikuModel': haikuModel,
+      'sonnetModel': sonnetModel,
+      'opusModel': opusModel,
+      'fableModel': fableModel,
     };
   }
 
@@ -125,9 +131,10 @@ class EndpointEntity {
     EndpointApiFormat? apiFormat,
     String? anthropicAuthToken,
     String? anthropicBaseUrl,
-    String? anthropicDefaultHaikuModel,
-    String? anthropicDefaultSonnetModel,
-    String? anthropicDefaultOpusModel,
+    String? haikuModel,
+    String? sonnetModel,
+    String? opusModel,
+    String? fableModel,
   }) {
     return EndpointEntity(
       id: id ?? this.id,
@@ -139,12 +146,14 @@ class EndpointEntity {
       apiFormat: apiFormat ?? this.apiFormat,
       anthropicAuthToken: anthropicAuthToken ?? this.anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl ?? this.anthropicBaseUrl,
-      anthropicDefaultHaikuModel:
-          anthropicDefaultHaikuModel ?? this.anthropicDefaultHaikuModel,
-      anthropicDefaultSonnetModel:
-          anthropicDefaultSonnetModel ?? this.anthropicDefaultSonnetModel,
-      anthropicDefaultOpusModel:
-          anthropicDefaultOpusModel ?? this.anthropicDefaultOpusModel,
+      haikuModel:
+          haikuModel ?? this.haikuModel,
+      sonnetModel:
+          sonnetModel ?? this.sonnetModel,
+      opusModel:
+          opusModel ?? this.opusModel,
+      fableModel:
+          fableModel ?? this.fableModel,
     );
   }
 
@@ -160,9 +169,10 @@ class EndpointEntity {
       apiFormat: apiFormat,
       anthropicAuthToken: anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl,
-      anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
-      anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
-      anthropicDefaultOpusModel: anthropicDefaultOpusModel,
+      haikuModel: haikuModel,
+      sonnetModel: sonnetModel,
+      opusModel: opusModel,
+      fableModel: fableModel,
     );
   }
 

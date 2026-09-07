@@ -128,10 +128,10 @@ void main() {
         // 注入确定性配置,避免断言依赖用户机器上的真实 yaml 内容
         ClaudeCodeModelConfigService.instance.replaceConfigForTesting(
           const DefaultModelMapperEntity(
-            anthropicDefaultHaikuModel: 'claude-haiku-4-5-20251001',
-            anthropicDefaultSonnetModel: 'claude-sonnet-4-5-20250929',
-            anthropicDefaultOpusModel: 'claude-opus-4-5-20251101',
-            anthropicDefaultFableModel: 'claude-fable-5-1',
+            haikuModel: 'claude-haiku-4-5-20251001',
+            sonnetModel: 'claude-sonnet-4-5-20250929',
+            opusModel: 'claude-opus-4-5-20251101',
+            fableModel: 'claude-fable-5-1',
           ),
         );
         final request = shelf.Request(

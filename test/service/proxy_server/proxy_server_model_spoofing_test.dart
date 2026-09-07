@@ -41,7 +41,7 @@ void main() {
         anthropicBaseUrl: 'http://127.0.0.1:$port',
         anthropicAuthToken: 'upstream-token',
         // 端点实际模型：请求侧的 claude-opus-5 会被映射到这里
-        anthropicDefaultOpusModel: 'upstream-real-opus-model',
+        opusModel: 'upstream-real-opus-model',
       );
     }
 

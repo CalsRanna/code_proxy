@@ -24,6 +24,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController haikuModelController;
   late final TextEditingController sonnetModelController;
   late final TextEditingController opusModelController;
+  late final TextEditingController fableModelController;
   late final TextEditingController weightController;
 
   late EndpointAuthMode _authMode;
@@ -85,11 +86,23 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
               children: [
                 Expanded(
                   child: ShadInputFormField(
-                    controller: haikuModelController,
-                    label: const Text('Haiku 模型'),
-                    placeholder: const Text('Haiku模型'),
+                    controller: fableModelController,
+                    label: const Text('Fable 模型'),
+                    placeholder: const Text('Fable模型'),
                   ),
                 ),
+                Expanded(
+                  child: ShadInputFormField(
+                    controller: opusModelController,
+                    label: const Text('Opus 模型'),
+                    placeholder: const Text('Opus模型'),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              spacing: ShadcnSpacing.spacing16,
+              children: [
                 Expanded(
                   child: ShadInputFormField(
                     controller: sonnetModelController,
@@ -97,12 +110,14 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
                     placeholder: const Text('Sonnet模型'),
                   ),
                 ),
+                Expanded(
+                  child: ShadInputFormField(
+                    controller: haikuModelController,
+                    label: const Text('Haiku 模型'),
+                    placeholder: const Text('Haiku模型'),
+                  ),
+                ),
               ],
-            ),
-            ShadInputFormField(
-              controller: opusModelController,
-              label: const Text('Opus 模型'),
-              placeholder: const Text('Opus模型'),
             ),
             // 认证方式：label 由 ShadInputDecorator 渲染，样式与其他字段一致
             ShadRadioGroupFormField<EndpointAuthMode>(
@@ -155,6 +170,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     haikuModelController.dispose();
     sonnetModelController.dispose();
     opusModelController.dispose();
+    fableModelController.dispose();
     weightController.dispose();
     super.dispose();
   }
@@ -172,13 +188,16 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
       text: widget.endpoint?.anthropicBaseUrl,
     );
     haikuModelController = TextEditingController(
-      text: widget.endpoint?.anthropicDefaultHaikuModel,
+      text: widget.endpoint?.haikuModel,
     );
     sonnetModelController = TextEditingController(
-      text: widget.endpoint?.anthropicDefaultSonnetModel,
+      text: widget.endpoint?.sonnetModel,
     );
     opusModelController = TextEditingController(
-      text: widget.endpoint?.anthropicDefaultOpusModel,
+      text: widget.endpoint?.opusModel,
+    );
+    fableModelController = TextEditingController(
+      text: widget.endpoint?.fableModel,
     );
     weightController = TextEditingController(
       text: widget.endpoint?.weight.toString() ?? '1',
@@ -229,15 +248,18 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           note: noteController.text.isEmpty ? null : noteController.text,
           anthropicAuthToken: authTokenController.text,
           anthropicBaseUrl: baseUrlController.text,
-          anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
+          haikuModel: haikuModelController.text.isEmpty
               ? null
               : haikuModelController.text,
-          anthropicDefaultSonnetModel: sonnetModelController.text.isEmpty
+          sonnetModel: sonnetModelController.text.isEmpty
               ? null
               : sonnetModelController.text,
-          anthropicDefaultOpusModel: opusModelController.text.isEmpty
+          opusModel: opusModelController.text.isEmpty
               ? null
               : opusModelController.text,
+          fableModel: fableModelController.text.isEmpty
+              ? null
+              : fableModelController.text,
           authMode: _authMode,
           apiFormat: _apiFormat,
         );
@@ -253,15 +275,18 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
             apiFormat: _apiFormat,
             anthropicAuthToken: authTokenController.text,
             anthropicBaseUrl: baseUrlController.text,
-            anthropicDefaultHaikuModel: haikuModelController.text.isEmpty
+            haikuModel: haikuModelController.text.isEmpty
                 ? null
                 : haikuModelController.text,
-            anthropicDefaultSonnetModel: sonnetModelController.text.isEmpty
+            sonnetModel: sonnetModelController.text.isEmpty
                 ? null
                 : sonnetModelController.text,
-            anthropicDefaultOpusModel: opusModelController.text.isEmpty
+            opusModel: opusModelController.text.isEmpty
                 ? null
                 : opusModelController.text,
+            fableModel: fableModelController.text.isEmpty
+                ? null
+                : fableModelController.text,
           ),
         );
       }

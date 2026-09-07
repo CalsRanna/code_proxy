@@ -8,17 +8,18 @@ void main() {
   final configuredEndpoint = EndpointEntity(
     id: 'ep-1',
     name: 'Configured',
-    anthropicDefaultHaikuModel: 'ep-haiku',
-    anthropicDefaultSonnetModel: 'ep-sonnet',
-    anthropicDefaultOpusModel: 'ep-opus',
+    haikuModel: 'ep-haiku',
+    sonnetModel: 'ep-sonnet',
+    opusModel: 'ep-opus',
+    fableModel: 'ep-fable',
   );
   final bareEndpoint = EndpointEntity(id: 'ep-2', name: 'Bare');
 
   const globalConfig = DefaultModelMapperEntity(
-    anthropicDefaultHaikuModel: 'claude-haiku-4-5-20251001',
-    anthropicDefaultSonnetModel: 'claude-sonnet-4-5-20250929',
-    anthropicDefaultOpusModel: 'claude-opus-4-5-20251101',
-    anthropicDefaultFableModel: 'claude-fable-5-1',
+    haikuModel: 'claude-haiku-4-5-20251001',
+    sonnetModel: 'claude-sonnet-4-5-20250929',
+    opusModel: 'claude-opus-4-5-20251101',
+    fableModel: 'claude-fable-5-1',
   );
 
   setUp(() {
@@ -28,17 +29,17 @@ void main() {
   group('入口精确表（default_model 真实 ID,模型发现统一入口）', () {
     test('入口 ID → 端点同族映射优先', () {
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.anthropicDefaultOpusModel,
+        ProxyServerModelMapper.mapModel(globalConfig.opusModel,
             endpoint: configuredEndpoint),
         'ep-opus',
       );
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.anthropicDefaultSonnetModel,
+        ProxyServerModelMapper.mapModel(globalConfig.sonnetModel,
             endpoint: configuredEndpoint),
         'ep-sonnet',
       );
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.anthropicDefaultHaikuModel,
+        ProxyServerModelMapper.mapModel(globalConfig.haikuModel,
             endpoint: configuredEndpoint),
         'ep-haiku',
       );
@@ -46,17 +47,25 @@ void main() {
 
     test('入口 ID 且端点未配置映射 → 原样透传（即全局默认自身）', () {
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.anthropicDefaultOpusModel,
+        ProxyServerModelMapper.mapModel(globalConfig.opusModel,
             endpoint: bareEndpoint),
-        globalConfig.anthropicDefaultOpusModel,
+        globalConfig.opusModel,
       );
     });
 
-    test('fable 入口 → 无端点级覆盖,透传', () {
+    test('fable 入口且端点已配置映射 → 端点覆盖优先', () {
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.anthropicDefaultFableModel,
+        ProxyServerModelMapper.mapModel(globalConfig.fableModel,
             endpoint: configuredEndpoint),
-        globalConfig.anthropicDefaultFableModel,
+        'ep-fable',
+      );
+    });
+
+    test('fable 入口且端点未配置映射 → 透传', () {
+      expect(
+        ProxyServerModelMapper.mapModel(globalConfig.fableModel,
+            endpoint: bareEndpoint),
+        globalConfig.fableModel,
       );
     });
   });
@@ -79,11 +88,11 @@ void main() {
             endpoint: configuredEndpoint),
         'ep-opus',
       );
-      // fable 族无端点级覆盖:兜底命中后仍原样
+      // fable 族端点已配置映射:兜底命中后取 ep-fable(与入口表一致)
       expect(
         ProxyServerModelMapper.mapModel('claude-fable-5-1',
             endpoint: configuredEndpoint),
-        'claude-fable-5-1',
+        'ep-fable',
       );
     });
 

@@ -47,9 +47,10 @@ class EndpointViewModel {
     String? note,
     String? anthropicAuthToken,
     String? anthropicBaseUrl,
-    String? anthropicDefaultHaikuModel,
-    String? anthropicDefaultSonnetModel,
-    String? anthropicDefaultOpusModel,
+    String? haikuModel,
+    String? sonnetModel,
+    String? opusModel,
+    String? fableModel,
     EndpointAuthMode authMode = EndpointAuthMode.preserve,
     EndpointApiFormat apiFormat = EndpointApiFormat.anthropic,
     bool claudeCodeDisableNonessentialTraffic = false,
@@ -67,9 +68,10 @@ class EndpointViewModel {
       apiFormat: apiFormat,
       anthropicAuthToken: anthropicAuthToken,
       anthropicBaseUrl: anthropicBaseUrl,
-      anthropicDefaultHaikuModel: anthropicDefaultHaikuModel,
-      anthropicDefaultSonnetModel: anthropicDefaultSonnetModel,
-      anthropicDefaultOpusModel: anthropicDefaultOpusModel,
+      haikuModel: haikuModel,
+      sonnetModel: sonnetModel,
+      opusModel: opusModel,
+      fableModel: fableModel,
     );
     await _endpointRepository.insert(endpoint);
     await _loadEndpoints();

@@ -44,15 +44,16 @@ class ProxyServerModelMapper {
     return _mapByFamily(originalModel, endpoint);
   }
 
-  /// 端点同族覆盖;无端点级覆盖的家族(fable 等)返回 null。
+  /// 端点同族覆盖;无端点级覆盖的家族返回 null。
   static String? _endpointOverrideFor(
     EndpointEntity endpoint,
     String family,
   ) {
     return switch (family) {
-      'haiku' => endpoint.anthropicDefaultHaikuModel,
-      'sonnet' => endpoint.anthropicDefaultSonnetModel,
-      'opus' => endpoint.anthropicDefaultOpusModel,
+      'haiku' => endpoint.haikuModel,
+      'sonnet' => endpoint.sonnetModel,
+      'opus' => endpoint.opusModel,
+      'fable' => endpoint.fableModel,
       _ => null,
     };
   }

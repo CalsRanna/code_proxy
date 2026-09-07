@@ -29,6 +29,8 @@ void main() {
       'Haiku 模型',
       'Sonnet 模型',
       'Opus 模型',
+      'Fable 模型',
+      'Fable 模型',
       '认证方式',
     ]) {
       expect(find.text(label), findsOneWidget);
@@ -68,6 +70,8 @@ void main() {
       'Haiku 模型',
       'Sonnet 模型',
       'Opus 模型',
+      'Fable 模型',
+      'Fable 模型',
       '认证方式',
       'Default',
       'x-api-key',
@@ -148,5 +152,29 @@ void main() {
       find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
     );
     expect(formatField.initialValue, EndpointApiFormat.openai);
+  });
+
+  testWidgets('编辑已有端点时 Fable 模型初始化为端点配置值', (tester) async {
+    final viewModel = EndpointViewModel();
+
+    await tester.pumpWidget(
+      ShadApp(
+        home: Scaffold(
+          body: EndpointFormDialog(
+            endpoint: createEndpoint(
+              fableModel: 'claude-fable-5-1',
+            ),
+            viewModel: viewModel,
+          ),
+        ),
+      ),
+    );
+
+    // Fable 模型输入框应回显端点配置值
+    final fableField = tester.widget<ShadInputFormField>(
+      find.byWidgetPredicate((w) =>
+          w is ShadInputFormField && w.controller?.text == 'claude-fable-5-1'),
+    );
+    expect(fableField, isNotNull);
   });
 }

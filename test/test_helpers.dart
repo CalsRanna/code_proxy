@@ -19,6 +19,10 @@ EndpointEntity createEndpoint({
   EndpointApiFormat apiFormat = EndpointApiFormat.anthropic,
   String? anthropicAuthToken,
   String? anthropicBaseUrl,
+  String? haikuModel,
+  String? sonnetModel,
+  String? opusModel,
+  String? fableModel,
 }) {
   return EndpointEntity(
     id: id,
@@ -27,5 +31,9 @@ EndpointEntity createEndpoint({
     apiFormat: apiFormat,
     anthropicAuthToken: anthropicAuthToken,
     anthropicBaseUrl: anthropicBaseUrl,
+    haikuModel: haikuModel,
+    sonnetModel: sonnetModel,
+    opusModel: opusModel,
+    fableModel: fableModel,
   );
 }

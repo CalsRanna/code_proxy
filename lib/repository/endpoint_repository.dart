@@ -33,9 +33,10 @@ class EndpointRepository {
         'api_format': endpoint.apiFormat.name,
         'anthropic_auth_token': endpoint.anthropicAuthToken,
         'anthropic_base_url': endpoint.anthropicBaseUrl,
-        'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
-        'anthropic_default_sonnet_model': endpoint.anthropicDefaultSonnetModel,
-        'anthropic_default_opus_model': endpoint.anthropicDefaultOpusModel,
+        'haiku_model': endpoint.haikuModel,
+        'sonnet_model': endpoint.sonnetModel,
+        'opus_model': endpoint.opusModel,
+        'fable_model': endpoint.fableModel,
       },
     ]);
   }
@@ -51,9 +52,10 @@ class EndpointRepository {
       'api_format': endpoint.apiFormat.name,
       'anthropic_auth_token': endpoint.anthropicAuthToken,
       'anthropic_base_url': endpoint.anthropicBaseUrl,
-      'anthropic_default_haiku_model': endpoint.anthropicDefaultHaikuModel,
-      'anthropic_default_sonnet_model': endpoint.anthropicDefaultSonnetModel,
-      'anthropic_default_opus_model': endpoint.anthropicDefaultOpusModel,
+      'haiku_model': endpoint.haikuModel,
+      'sonnet_model': endpoint.sonnetModel,
+      'opus_model': endpoint.opusModel,
+      'fable_model': endpoint.fableModel,
     });
   }
 
@@ -82,11 +84,13 @@ class EndpointRepository {
       apiFormat: apiFormatFromString(row['api_format'] as String?),
       anthropicAuthToken: row['anthropic_auth_token'] as String?,
       anthropicBaseUrl: row['anthropic_base_url'] as String?,
-      anthropicDefaultHaikuModel:
-          row['anthropic_default_haiku_model'] as String?,
-      anthropicDefaultSonnetModel:
-          row['anthropic_default_sonnet_model'] as String?,
-      anthropicDefaultOpusModel: row['anthropic_default_opus_model'] as String?,
+      haikuModel:
+          row['haiku_model'] as String?,
+      sonnetModel:
+          row['sonnet_model'] as String?,
+      opusModel: row['opus_model'] as String?,
+      fableModel:
+          row['fable_model'] as String?,
     );
   }
 }
