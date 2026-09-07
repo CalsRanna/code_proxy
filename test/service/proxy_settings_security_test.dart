@@ -39,6 +39,83 @@ void main() {
     expect(second, first);
   });
 
+  test('后台数据收集开关按 DISABLE_NONESSENTIAL_TRAFFIC 语义写入', () async {
+    final settingsFile = File(p.join(tempDirectory.path, 'settings.json'));
+    // 预先写入该变量（模拟用户之前关闭了数据收集）
+    await settingsFile.writeAsString(
+      jsonEncode({
+        'env': {'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': 1},
+      }),
+    );
+    final service = ClaudeCodeSettingService(settingsPath: settingsFile.path);
+
+    // 开启后台数据收集：该变量语义特殊，0 也会禁用流量，必须删除而非写 0
+    await service.updateProxySetting(
+      authToken: 'cp-test-token',
+      port: 9123,
+      backgroundDataCollection: true,
+    );
+    var codeJson =
+        jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>;
+    expect(
+      codeJson['env'],
+      isNot(contains('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC')),
+    );
+
+    // 关闭后台数据收集：变量设为 1
+    await service.updateProxySetting(
+      authToken: 'cp-test-token',
+      port: 9123,
+      backgroundDataCollection: false,
+    );
+    codeJson =
+        jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>;
+    expect(codeJson['env']['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'], 1);
+  });
+
+  test('Claude Desktop 3P profile 同步后台数据收集开关', () async {
+    final normalDirectory = Directory(p.join(tempDirectory.path, 'Claude'));
+    final threepDirectory = Directory(p.join(tempDirectory.path, 'Claude-3p'));
+    await normalDirectory.create(recursive: true);
+    final service = ClaudeDesktopSettingService(
+      paths: ClaudeDesktopConfigPaths(
+        normalConfigDir: normalDirectory.path,
+        threepConfigDir: threepDirectory.path,
+      ),
+    );
+    final profileFile = File(
+      p.join(
+        threepDirectory.path,
+        'configLibrary',
+        '00000000-0000-4000-8000-0000c0de0001.json',
+      ),
+    );
+
+    // 开启后台数据收集：不写入任何遥测禁用键（3P 默认即允许）
+    await service.updateProxySetting(
+      authToken: 'cp-test-token',
+      port: 9123,
+      backgroundDataCollection: true,
+    );
+    var profile =
+        jsonDecode(await profileFile.readAsString()) as Map<String, dynamic>;
+    expect(profile, isNot(contains('disableEssentialTelemetry')));
+    expect(profile, isNot(contains('disableNonessentialTelemetry')));
+    expect(profile, isNot(contains('disableNonessentialServices')));
+
+    // 关闭后台数据收集：与 CLI 侧 NONESSENTIAL_TRAFFIC 同步，三个键均为 true
+    await service.updateProxySetting(
+      authToken: 'cp-test-token',
+      port: 9123,
+      backgroundDataCollection: false,
+    );
+    profile =
+        jsonDecode(await profileFile.readAsString()) as Map<String, dynamic>;
+    expect(profile['disableEssentialTelemetry'], isTrue);
+    expect(profile['disableNonessentialTelemetry'], isTrue);
+    expect(profile['disableNonessentialServices'], isTrue);
+  });
+
   test('Claude Code 配置损坏时拒绝覆盖原文件', () async {
     final settingsFile = File(p.join(tempDirectory.path, 'settings.json'));
     const malformed = '{"hooks": [';

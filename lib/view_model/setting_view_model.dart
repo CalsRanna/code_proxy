@@ -7,6 +7,7 @@ import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
+import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/app_restart_util.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -323,7 +324,10 @@ class SettingViewModel {
   Future<void> toggleBackgroundDataCollection(bool value) async {
     backgroundDataCollection.value = value;
     await SharedPreferenceUtil.instance.setBackgroundDataCollection(value);
+    // 同时作用于 Claude Code CLI 与 Claude Desktop 3P 配置
+    // （Claude Desktop 未安装时会静默跳过）
     await ClaudeCodeSettingService().updateProxySetting();
+    await ClaudeDesktopSettingService().updateProxySetting();
   }
 
   Future<void> toggleClientAttribution(bool value) async {

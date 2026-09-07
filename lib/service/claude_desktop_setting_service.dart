@@ -127,12 +127,18 @@ class ClaudeDesktopSettingService {
   /// 代理启动时：激活 3P 模式并写入 gateway 推理 profile。
   ///
   /// 自动检测 Claude Desktop 是否安装；未安装则静默跳过。
-  Future<void> updateProxySetting({String? authToken, int? port}) async {
+  Future<void> updateProxySetting({
+    String? authToken,
+    int? port,
+    bool? backgroundDataCollection,
+  }) async {
     if (!isClaudeDesktopInstalled) return;
 
     final instance = SharedPreferenceUtil.instance;
     final resolvedPort = port ?? await instance.getPort();
     final token = authToken ?? await instance.getOrCreateProxyAuthToken();
+    final backgroundDataCollectionEnabled =
+        backgroundDataCollection ?? await instance.getBackgroundDataCollection();
 
     // 在产生任何写入之前解析全部共享配置。损坏的用户配置必须让更新
     // 失败关闭，不能退化为空对象后覆盖原文件。
@@ -162,7 +168,11 @@ class ClaudeDesktopSettingService {
     await Directory(_configLibraryDir).create(recursive: true);
 
     // 2. 写入 profile（flat keys 格式）
-    final profile = _buildProfile(resolvedPort, token);
+    final profile = _buildProfile(
+      resolvedPort,
+      token,
+      backgroundDataCollection: backgroundDataCollectionEnabled,
+    );
     await _writeJsonFile(_profilePath, profile);
 
     // 3. 写入 _meta.json（保留其他 profile）
@@ -213,7 +223,11 @@ class ClaudeDesktopSettingService {
     } catch (_) {}
   }
 
-  Map<String, dynamic> _buildProfile(int port, String token) {
+  Map<String, dynamic> _buildProfile(
+    int port,
+    String token, {
+    required bool backgroundDataCollection,
+  }) {
     return {
       'inferenceProvider': 'gateway',
       'inferenceGatewayBaseUrl': 'http://localhost:$port',
@@ -221,6 +235,13 @@ class ClaudeDesktopSettingService {
       'inferenceGatewayAuthScheme': 'bearer',
       'inferenceCredentialKind': 'static',
       'disableDeploymentModeChooser': true,
+      // 与 Claude Code CLI 侧 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+      // 语义对齐：关闭后台数据收集时同时禁止桌面端的遥测与服务出站。
+      if (!backgroundDataCollection) ...{
+        'disableEssentialTelemetry': true,
+        'disableNonessentialTelemetry': true,
+        'disableNonessentialServices': true,
+      },
       'coworkEgressAllowedHosts': ['*'],
     };
   }

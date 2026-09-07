@@ -129,7 +129,9 @@ class _SettingPageState extends State<SettingPage> {
     var backgroundDataCollectionTile = Watch((context) {
       return ListTile(
         title: const Text('后台数据收集'),
-        subtitle: const Text('允许自动更新检查、反馈收集、错误上报及遥测数据'),
+        subtitle: const Text(
+          '允许自动更新检查、反馈收集、错误上报及遥测数据。同时作用于 Claude Code CLI 与 Claude Desktop',
+        ),
         trailing: ShadSwitch(
           value: viewModel.backgroundDataCollection.value,
           onChanged: (value) => viewModel.toggleBackgroundDataCollection(value),

@@ -36,12 +36,16 @@ class ClaudeCodeSettingService {
     'ANTHROPIC_DEFAULT_SONNET_MODEL_NAME',
   };
 
-  Future<void> updateProxySetting({String? authToken, int? port}) async {
+  Future<void> updateProxySetting({
+    String? authToken,
+    int? port,
+    bool? backgroundDataCollection,
+  }) async {
     final instance = SharedPreferenceUtil.instance;
     final resolvedPort = port ?? await instance.getPort();
     final apiTimeout = await instance.getApiTimeout();
-    final backgroundDataCollection = await instance
-        .getBackgroundDataCollection();
+    final backgroundDataCollectionEnabled =
+        backgroundDataCollection ?? await instance.getBackgroundDataCollection();
     final experimentalApiFeatures = await instance.getExperimentalApiFeatures();
     final clientAttribution = await instance.getClientAttribution();
     final enableAgentTeams = await instance.getEnableAgentTeams();
@@ -99,9 +103,14 @@ class ClaudeCodeSettingService {
     env['CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS'] = experimentalApiFeatures
         ? 0
         : 1;
-    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = backgroundDataCollection
-        ? 0
-        : 1;
+    // CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 语义特殊：任何非空值
+    // （包括 0 和 false）都会禁用非必要流量，只有不设置该变量才允许。
+    // 因此开启后台数据收集时删除变量，而不是写入 0。
+    if (backgroundDataCollectionEnabled) {
+      env.remove('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC');
+    } else {
+      env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = 1;
+    }
     env['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'] = enableAgentTeams ? 1 : 0;
     existing['env'] = env;
 
