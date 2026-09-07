@@ -20,8 +20,31 @@ class _RequestLogPageState extends State<RequestLogPage> {
   final viewModel = GetIt.instance.get<RequestLogViewModel>();
   final _filterController = ShadPopoverController();
 
+  /// 表格垂直滚动控制器：翻页/筛选等整页内容切换后滚回第一行。
+  final _verticalScrollController = ScrollController();
+
+  EffectCleanup? _scrollToTopEffect;
+
+  @override
+  void initState() {
+    super.initState();
+    // 整页内容切换（翻页/改每页条数/切换状态码筛选，含 loadLogs 的越界
+    // 页码修正）时把表格滚回第一行；页内数据刷新（代理新日志入库直接调
+    // loadLogs）不改变这三个信号，用户浏览位置得以保持。
+    _scrollToTopEffect = effect(() {
+      viewModel.currentPage.value;
+      viewModel.pageSize.value;
+      viewModel.statusCodeFilter.value;
+      if (_verticalScrollController.hasClients) {
+        _verticalScrollController.jumpTo(0);
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _scrollToTopEffect?.call();
+    _verticalScrollController.dispose();
     _filterController.dispose();
     super.dispose();
   }
@@ -251,6 +274,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
           },
           pinnedRowCount: 1,
           rowCount: logs.length,
+          verticalScrollController: _verticalScrollController,
         );
       },
     );
