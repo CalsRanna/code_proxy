@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/util/path_util.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:yaml/yaml.dart';
 
@@ -83,5 +84,10 @@ class ClaudeCodeModelConfigService {
     await file.writeAsString(
       DefaultModelMapperEntity.defaultConfig.toYamlString(),
     );
+  }
+
+  @visibleForTesting
+  void replaceConfigForTesting(DefaultModelMapperEntity config) {
+    _config = config;
   }
 }

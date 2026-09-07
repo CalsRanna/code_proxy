@@ -283,4 +283,35 @@ void main() {
     expect(serializedHeaders, isNot(contains('upstream-secret')));
     expect(serializedHeaders, isNot(contains('client-secret')));
   });
+
+  test('CLI 配置启用模型发现且清理旧哨兵 env', () async {
+    final settingsFile = File(p.join(tempDirectory.path, 'settings.json'));
+    // 模拟升级前残留：旧哨兵（值=变量名）、用户自定义真实值、旧派生显示名
+    await settingsFile.writeAsString(
+      jsonEncode({
+        'env': {
+          'ANTHROPIC_DEFAULT_OPUS_MODEL': 'ANTHROPIC_DEFAULT_OPUS_MODEL',
+          'ANTHROPIC_DEFAULT_SONNET_MODEL': 'claude-sonnet-4-6',
+          'ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME': 'Claude Haiku 4.5',
+        },
+      }),
+    );
+
+    await ClaudeCodeSettingService(
+      settingsPath: settingsFile.path,
+    ).updateProxySetting(authToken: 'cp-test-token', port: 9123);
+
+    final codeJson =
+        jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>;
+    final env = codeJson['env'] as Map<String, dynamic>;
+
+    // 模型发现默认启用：CLI 经 GET /v1/models 获取模型列表
+    expect(env['CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY'], '1');
+    // 旧哨兵（值=变量名）被清理，不再写入
+    expect(env, isNot(contains('ANTHROPIC_DEFAULT_OPUS_MODEL')));
+    // 用户自定义的真实模型名保留
+    expect(env['ANTHROPIC_DEFAULT_SONNET_MODEL'], 'claude-sonnet-4-6');
+    // 旧派生显示名被清理
+    expect(env, isNot(contains('ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME')));
+  });
 }

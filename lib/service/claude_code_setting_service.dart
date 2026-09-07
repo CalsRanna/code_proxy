@@ -1,9 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
-import 'package:code_proxy/util/logger_util.dart';
-import 'package:code_proxy/util/model_display_name_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
@@ -22,7 +19,10 @@ class ClaudeCodeSettingService {
 
   List<String> get managedFilePaths => [_settingsPath];
 
-  static const _placeholderKeys = {
+  /// 已停用的哨兵 env 键(2026-09 前写入"值=变量名自身"):
+  /// - 值=变量名自身(旧哨兵)→ 删除,入口已统一为模型发现
+  /// - 值=其他(用户自定义真实模型名)→ 保留,不碰用户配置
+  static const _deprecatedSentinelKeys = {
     'ANTHROPIC_DEFAULT_HAIKU_MODEL',
     'ANTHROPIC_DEFAULT_OPUS_MODEL',
     'ANTHROPIC_DEFAULT_SONNET_MODEL',
@@ -30,11 +30,19 @@ class ClaudeCodeSettingService {
 
   static const _retiredKeys = {'ANTHROPIC_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL'};
 
-  static const _derivedKeys = {
+  /// 已停用的派生显示名 env:模型发现后由 /v1/models 的 display_name
+  /// 承担该职责,历史写入值直接清理(非模型入口,用户不会手工配置)。
+  static const _deprecatedDerivedKeys = {
     'ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME',
     'ANTHROPIC_DEFAULT_OPUS_MODEL_NAME',
     'ANTHROPIC_DEFAULT_SONNET_MODEL_NAME',
   };
+
+  /// 网关模型发现开关:CLI 从代理 GET /v1/models 获取模型列表,
+  /// 请求携带发现列表 id(哨兵,见 ProxySentinel),由
+  /// ProxyServerModelMapper 映射到端点实际模型 —— 不再依赖 env 哨兵。
+  static const _gatewayModelDiscoveryEnvKey =
+      'CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY';
 
   Future<void> updateProxySetting({
     String? authToken,
@@ -68,35 +76,23 @@ class ClaudeCodeSettingService {
         : Map<String, dynamic>.from(rawEnv as Map);
     env['ANTHROPIC_AUTH_TOKEN'] = token;
     env['ANTHROPIC_BASE_URL'] = 'http://127.0.0.1:$resolvedPort';
-    // 哨兵约定：把这三个变量的值设成 key 自身的名字。
+    // 模型入口统一为模型发现：CLI 读该开关并从代理 GET /v1/models 获取
+    // 模型列表，请求携带发现列表 id(哨兵,见 ProxySentinel)。同一份
+    // settings.json 适配所有端点,切换端点时无需重写 —— 与 2026-09 前
+    // 的「值=变量名」哨兵约定作用相同,但入口形态与 Desktop 完全一致。
     //
-    // 代理转发请求时由 ProxyServerModelMapper 识别这个「值等于变量名」的
-    // 哨兵，再按当前端点的配置替换成该端点真实的模型名。这样同一份
-    // settings.json 可以适配所有端点，切换端点时无需重写。
-    //
-    // 代价：代理没有运行时，Claude Code 会把
-    // 'ANTHROPIC_DEFAULT_OPUS_MODEL' 这个字符串本身当成模型名发给上游。
-    for (final key in _placeholderKeys) {
-      env[key] = key;
+    // 代价：代理没有运行时,CLI 模型选择器可能为空或回退内置默认。
+    env[_gatewayModelDiscoveryEnvKey] = '1';
+
+    // 清理旧哨兵(值=变量名自身)与旧派生显示名;用户自定义真实模型名保留。
+    for (final key in _deprecatedSentinelKeys) {
+      if (env[key] == key) env.remove(key);
+    }
+    for (final key in _deprecatedDerivedKeys) {
+      env.remove(key);
     }
     for (final key in _retiredKeys) {
       if (env[key] == key) env.remove(key);
-    }
-    try {
-      final c = ClaudeCodeModelConfigService.instance.config;
-      for (final key in _derivedKeys) {
-        final modelId = switch (key) {
-          'ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME' => c.anthropicDefaultHaikuModel,
-          'ANTHROPIC_DEFAULT_SONNET_MODEL_NAME' =>
-            c.anthropicDefaultSonnetModel,
-          'ANTHROPIC_DEFAULT_OPUS_MODEL_NAME' => c.anthropicDefaultOpusModel,
-          _ => null,
-        };
-        if (modelId != null) env[key] = modelDisplayName(modelId);
-      }
-    } catch (e) {
-      // 部分降级：崩溃点之前的 *_MODEL_NAME 已写入 env。记日志避免静默失效。
-      LoggerUtil.instance.w('Failed to derive *_MODEL_NAME env entries: $e');
     }
     env['API_TIMEOUT_MS'] = apiTimeout;
     env['CLAUDE_CODE_ATTRIBUTION_HEADER'] = clientAttribution ? 1 : 0;

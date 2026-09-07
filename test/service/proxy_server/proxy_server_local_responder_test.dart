@@ -139,9 +139,25 @@ void main() {
         expect(response!.statusCode, 200);
         final respBody = await response.readAsString();
         final json = jsonDecode(respBody) as Map<String, dynamic>;
-        expect(json['data'], isA<List<dynamic>>());
+        final models = (json['data'] as List<dynamic>)
+            .cast<Map<String, dynamic>>();
         // 至少返回默认配置里的 Haiku / Sonnet / Opus 三个模型
-        expect(json['data'], isNotEmpty);
+        expect(models, isNotEmpty);
+        // id 使用统一哨兵名（claude- 开头,通过客户端自动发现过滤）
+        final ids = models.map((m) => m['id']).toSet();
+        expect(ids, contains('claude-opus-proxy'));
+        expect(ids, contains('claude-sonnet-proxy'));
+        expect(ids, contains('claude-haiku-proxy'));
+        for (final model in models) {
+          // 官方放行通道：anthropic_family_tier 标记 Claude 族
+          expect(model['anthropic_family_tier'], isNotNull);
+          expect(model['display_name'], isNotEmpty);
+          // 定价数据未加载(测试环境)时该字段可能缺席,存在则必须是 int
+          expect(
+            model['max_input_tokens'],
+            anyOf(isNull, isA<int>()),
+          );
+        }
       });
     });
   });
