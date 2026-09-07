@@ -199,6 +199,10 @@ class ProxyServerResponseHandler {
     Map<String, String>? forwardedHeaders,
   }) async {
     final isStream = _processor.isStream(response.headers);
+    // 响应模型伪装（默认行为）：Anthropic 透传路径把响应中的 model 回填为
+    // 客户端请求的原始模型名，仅改响应呈现、不改变已映射的上游请求。
+    // OpenAI 转换路径由转换器回填，两条路径行为一致。
+    final originalModel = _extractOriginalModel(originalRequestBodyBytes);
     final contentEncoding = response.headers['content-encoding'];
     // 转发响应头（移除 transfer-encoding 因为 http 包已自动解码 chunked，
     // 保留 content-encoding 让客户端自行解压）
@@ -267,6 +271,7 @@ class ProxyServerResponseHandler {
           responseBody: responseBody.isEmpty ? null : responseBody,
         ),
         onStreamError: () => _onStreamError?.call(endpoint),
+        originalModel: originalModel,
       );
     } else {
       // 非流式响应：在读取完响应体后计算响应时间并提取 token
@@ -290,6 +295,7 @@ class ProxyServerResponseHandler {
               tokenUsage: usage,
               responseBody: responseBody,
             ),
+        originalModel: originalModel,
       );
     }
   }
@@ -786,8 +792,105 @@ class AnthropicSseScanner {
   }
 }
 
+/// Anthropic SSE 流中的模型名改写器 —— 响应模型伪装。
+///
+/// 与 [AnthropicSseScanner] 一样按行喂入、内部行缓冲（跨 chunk 拼接），
+/// 但输出的是改写后的文本：仅对 `message_start` 事件的 `message.model`
+/// 做替换，其余行（事件名、其他 data 行、错误事件）原样透传，换行与
+/// 事件边界结构不被改动。
+///
+/// 用法：每收到一个 chunk 调用 [add] 得到应转发给客户端的增量文本，
+/// 流结束时再调用 [flush] 处理没有换行结尾的残留行。
+class AnthropicSseModelRewriter {
+  AnthropicSseModelRewriter(this._targetModel);
+
+  /// 伪装目标模型名（客户端请求的原始模型名）
+  final String _targetModel;
+
+  final StringBuffer _pending = StringBuffer();
+
+  /// 喂入一段已解码文本，返回改写后的增量文本。
+  ///
+  /// 不完整的尾行（没有换行结尾）会留在内部缓冲，与 [AnthropicSseScanner]
+  /// 的语义一致。
+  String add(String text) {
+    if (text.isEmpty) return '';
+    _pending.write(text);
+
+    final buffered = _pending.toString();
+    final lastNewline = buffered.lastIndexOf('\n');
+    if (lastNewline < 0) return '';
+
+    // 处理到最后一个换行（含），其后的内容才可能是未完成的行。
+    // 以 \n 结尾（如事件分隔的空行）时整个缓冲都已是完整行。
+    _pending
+      ..clear()
+      ..write(buffered.substring(lastNewline + 1));
+
+    return _rewriteBlock(buffered.substring(0, lastNewline + 1));
+  }
+
+  /// 流结束时处理最后一行没有换行结尾的残留。
+  String flush() {
+    final remainder = _pending.toString();
+    _pending.clear();
+    return remainder.isEmpty ? '' : _rewriteBlock(remainder);
+  }
+
+  /// 逐行改写，保留原有的换行结构（`split.join` 不增删换行）。
+  String _rewriteBlock(String text) {
+    return text.split('\n').map(_rewriteLine).join('\n');
+  }
+
+  /// 改写单行：仅重写 message_start 的 data 行，其余原样返回。
+  String _rewriteLine(String line) {
+    final match = _dataLinePattern.firstMatch(line);
+    if (match == null) return line;
+
+    final payload = match.group(3)!;
+    if (!payload.startsWith('{')) return line;
+
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) return line;
+      if (decoded['type'] != 'message_start') return line;
+
+      final message = decoded['message'];
+      if (message is! Map<String, dynamic>) return line;
+      if (message['model'] is! String) return line;
+
+      message['model'] = _targetModel;
+      // 保留原行的前导空白与 "data:" 后的间隔，只替换 payload
+      return '${match.group(1)}${match.group(2)}${jsonEncode(decoded)}';
+    } catch (_) {
+      // 非 JSON 或损坏的行：原样透传
+      return line;
+    }
+  }
+
+  /// `data:` 行匹配：前导空白 + `data:` + 间隔 + payload。
+  static final RegExp _dataLinePattern = RegExp(r'^(\s*data:)(\s*)(.*)$');
+}
+
 class ResponseProcessor {
   const ResponseProcessor();
+
+  /// 压缩流解码器：响应模型伪装开启时把上游压缩流先解码为 identity。
+  ///
+  /// 仅支持 gzip/deflate（请求侧 accept-encoding 白名单内），其他编码返回
+  /// null 表示维持原样透传（跳过伪装）。
+  static StreamTransformer<List<int>, List<int>>? _streamContentDecoder(
+    String? normalizedEncoding,
+  ) {
+    switch (normalizedEncoding) {
+      case 'gzip':
+        return gzip.decoder;
+      case 'deflate':
+        return zlib.decoder;
+      default:
+        return null;
+    }
+  }
 
   bool isStream(Map<String, String> headers) {
     final contentType = headers['content-type'] ?? '';
@@ -806,8 +909,9 @@ class ResponseProcessor {
       Map<String, int?>? usage,
       String responseBody,
     )
-    recordStats,
-  ) async {
+    recordStats, {
+    String? originalModel,
+  }) async {
     final responseBodyBytes = await response.stream.toBytes();
     final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;
 
@@ -817,16 +921,56 @@ class ResponseProcessor {
       contentEncoding,
     );
     final bodyStr = utf8.decode(decompressedBytes, allowMalformed: true);
-    final usage = extractor.extractUsage(bodyStr);
 
-    recordStats(responseTime, usage, bodyStr);
+    // 响应模型伪装：把顶层 model 回填为客户端请求的原始模型名
+    String clientBody = bodyStr;
+    List<int> bodyToSend = responseBodyBytes;
+    if (originalModel != null) {
+      final rewritten = _rewriteModelInJson(bodyStr, originalModel);
+      if (rewritten != null) {
+        clientBody = rewritten;
+        final normalizedEncoding = contentEncoding?.trim().toLowerCase();
+        if (normalizedEncoding == 'gzip') {
+          bodyToSend = gzip.encode(utf8.encode(rewritten));
+        } else if (normalizedEncoding == 'deflate') {
+          bodyToSend = zlib.encode(utf8.encode(rewritten));
+        } else if (normalizedEncoding != null &&
+            normalizedEncoding != 'identity') {
+          // 无法重新压缩（br/zstd 等）：转为 identity 发送
+          responseHeaders.remove('content-encoding');
+          bodyToSend = utf8.encode(rewritten);
+        } else {
+          bodyToSend = utf8.encode(rewritten);
+        }
+      }
+    }
 
-    // 返回原始压缩数据给客户端
+    final usage = extractor.extractUsage(clientBody);
+
+    recordStats(responseTime, usage, clientBody);
+
     return shelf.Response(
       response.statusCode,
       headers: responseHeaders,
-      body: responseBodyBytes,
+      body: bodyToSend,
     );
+  }
+
+  /// 非流式响应体中的 model 字段改写。
+  ///
+  /// 仅当响应体为 JSON 对象且顶层含字符串 `model` 时替换；解析失败或结构
+  /// 不符返回 null（调用方原样透传）。
+  static String? _rewriteModelInJson(String body, String targetModel) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) return null;
+      if (decoded['model'] is! String) return null;
+      decoded['model'] = targetModel;
+      return jsonEncode(decoded);
+    } catch (e) {
+      LoggerUtil.instance.w('Failed to rewrite model in response body: $e');
+      return null;
+    }
   }
 
   shelf.Response processStreamResponse(
@@ -842,13 +986,36 @@ class ResponseProcessor {
     recordStats,
     void Function(Object error, String responseBody) recordException, {
     void Function()? onStreamError,
+    String? originalModel,
   }) {
     final responseChunks = <String>[];
     final normalizedEncoding = contentEncoding?.trim().toLowerCase();
-    final isCompressed =
+    var isCompressed =
         normalizedEncoding != null &&
         normalizedEncoding.isNotEmpty &&
         normalizedEncoding != 'identity';
+
+    // 响应模型伪装开启且上游为压缩流时：流式解压后统一走文本改写管线，
+    // 输出 identity（不再转发压缩字节），避免为改写而整段缓存重压。
+    // 请求侧已把 accept-encoding 限定为 gzip/deflate，其他编码（br/zstd）
+    // 无法解压，跳过伪装原样透传。
+    Stream<List<int>> upstreamStream = response.stream;
+    if (originalModel != null && isCompressed) {
+      final decoder = _streamContentDecoder(normalizedEncoding);
+      if (decoder != null) {
+        isCompressed = false;
+        upstreamStream = response.stream.transform(decoder);
+        responseHeaders.remove('content-encoding');
+      } else {
+        LoggerUtil.instance.w(
+          'Unsupported content-encoding ($normalizedEncoding) for model '
+          'spoofing, passing through unchanged',
+        );
+      }
+    }
+    final modelRewriter = originalModel != null
+        ? AnthropicSseModelRewriter(originalModel)
+        : null;
     final rawChunks = isCompressed ? <List<int>>[] : null;
 
     // 非压缩流：使用带内部状态的 chunked decoder。
@@ -881,13 +1048,12 @@ class ResponseProcessor {
       );
     }
 
-    final transformedStream = response.stream.transform(
+    final transformedStream = upstreamStream.transform(
       StreamTransformer.fromHandlers(
         handleData: (chunk, sink) {
-          // 原始数据原封不动转发给客户端
-          sink.add(chunk);
-
           if (isCompressed) {
+            // 原始数据原封不动转发给客户端
+            sink.add(chunk);
             // 压缩数据先收集，流结束后统一解压
             rawChunks!.add(chunk);
           } else {
@@ -895,8 +1061,19 @@ class ResponseProcessor {
             final text = utf8Buffer.toString();
             utf8Buffer.clear();
             if (text.isEmpty) return;
-            responseChunks.add(text);
-            scanner.add(text);
+            if (modelRewriter == null) {
+              // 无伪装：原样转发原始字节（与历史行为一致）
+              responseChunks.add(text);
+              scanner.add(text);
+              sink.add(chunk);
+            } else {
+              final forwarded = modelRewriter.add(text);
+              if (forwarded.isNotEmpty) {
+                responseChunks.add(forwarded);
+                scanner.add(forwarded);
+                sink.add(utf8.encode(forwarded));
+              }
+            }
           }
         },
         handleDone: (sink) {
@@ -922,11 +1099,26 @@ class ResponseProcessor {
             utf8Sink!.close();
             final tail = utf8Buffer.toString();
             if (tail.isNotEmpty) {
-              responseChunks.add(tail);
-              scanner.add(tail);
+              if (modelRewriter == null) {
+                responseChunks.add(tail);
+                scanner.add(tail);
+              } else {
+                final forwarded = modelRewriter.add(tail);
+                if (forwarded.isNotEmpty) {
+                  responseChunks.add(forwarded);
+                  scanner.add(forwarded);
+                  sink.add(utf8.encode(forwarded));
+                }
+              }
             }
           }
-          // 处理最后一行没有换行结尾的残留
+          // 处理最后一行没有换行结尾的残留（含伪装改写器的行缓冲）
+          final flushed = modelRewriter?.flush() ?? '';
+          if (flushed.isNotEmpty) {
+            responseChunks.add(flushed);
+            scanner.add(flushed);
+            sink.add(utf8.encode(flushed));
+          }
           scanner.flush();
 
           final responseBody = responseChunks.join();
