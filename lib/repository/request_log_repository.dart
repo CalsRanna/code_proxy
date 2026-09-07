@@ -3,6 +3,83 @@ import 'package:code_proxy/model/dashboard_overview_stats.dart';
 import 'package:code_proxy/model/model_date_token_stat.dart';
 import 'package:code_proxy/model/request_log_entity.dart';
 
+/// Dashboard 聚合查询 SQL 的唯一来源。
+///
+/// 主 isolate 的 [RequestLogRepository] 与后台 isolate 的
+/// DashboardStatsLoader 都从这里取 SQL 执行，保证两侧口径永远一致；
+/// request_logs 表结构或统计口径变更时只需修改此处。
+class DashboardAggregationSql {
+  /// SQLite `date()` 的时区修饰符，把 UTC 毫秒时间戳折算到本机当地日期。
+  ///
+  /// 用 `'+N minutes'` 而非 `'localtime'`：前者是标准语法、跨平台一致，
+  /// 且支持半小时（UTC+5:30）与 45 分钟（UTC+5:45）这类非整时偏移。
+  static String localDateModifier() {
+    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
+    return offsetMinutes >= 0
+        ? '+$offsetMinutes minutes'
+        : '$offsetMinutes minutes';
+  }
+
+  /// 每日请求数（折线图与热力图共用，仅时间段不同）。
+  static String dailyRequestStats(String localOffsetModifier) => '''
+    SELECT date(timestamp / 1000, 'unixepoch', '$localOffsetModifier') as date,
+           COUNT(id) as request_count
+    FROM request_logs
+    WHERE timestamp BETWEEN ? AND ?
+    GROUP BY date
+    ORDER BY date
+  ''';
+
+  /// 按端点的 token 总量（仅列出四类 token 之和 > 0 的端点）。
+  static String endpointTokenStats(String localOffsetModifier) => '''
+    SELECT endpoint_name,
+           SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) +
+               COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)) as total_tokens
+    FROM request_logs
+    WHERE timestamp BETWEEN ? AND ?
+    GROUP BY endpoint_name
+    HAVING total_tokens > 0
+    ORDER BY total_tokens DESC
+  ''';
+
+  /// 按「本地日期 + 模型」聚合的 token 用量（仅 2xx 成功请求）。
+  ///
+  /// `total > 0` 的过滤留给调用方：费用计算不需要过滤而图表需要，
+  /// 放在 SQL 里就得为两种需求各开一条查询。
+  static String modelDateTokenStats(String localOffsetModifier) => '''
+    SELECT date(timestamp / 1000, 'unixepoch', '$localOffsetModifier') as date,
+           COALESCE(model, 'unknown') as model,
+           SUM(COALESCE(input_tokens, 0)) as input,
+           SUM(COALESCE(output_tokens, 0)) as output,
+           SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation,
+           SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read
+    FROM request_logs
+    WHERE timestamp BETWEEN ? AND ? AND status_code = 200
+    GROUP BY date, model
+    ORDER BY date, model
+  ''';
+
+  /// 概览统计：消息数、token 总量、活跃天数、缓存命中率，四合一聚合。
+  ///
+  /// 口径说明详见 [RequestLogRepository.getOverviewStats]。
+  static String overviewStats(String localOffsetModifier) => '''
+    SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', '$localOffsetModifier')) AS active_days,
+           COUNT(CASE WHEN path = 'v1/messages' AND status_code = 200 THEN 1 END) AS messages,
+           COALESCE(SUM(CASE WHEN status_code = 200 THEN
+             COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) +
+             COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)
+           END), 0) AS total_tokens,
+           COALESCE(
+             SUM(CASE WHEN status_code = 200 THEN COALESCE(cache_read_input_tokens, 0) END) * 1.0 /
+             NULLIF(SUM(CASE WHEN status_code = 200 THEN
+               COALESCE(cache_read_input_tokens, 0) + COALESCE(input_tokens, 0)
+             END), 0),
+             0
+           ) AS cache_hit_rate
+    FROM request_logs
+  ''';
+}
+
 /// Request Log Repository
 ///
 /// Handles CRUD operations for request logs and statistics
@@ -49,34 +126,17 @@ class RequestLogRepository {
     return results.map((r) => _fromRow(r.toMap())).toList();
   }
 
-  /// SQLite `date()` 的时区修饰符，把 UTC 毫秒时间戳折算到本机当地日期。
-  ///
-  /// 用 `'+N minutes'` 而非 `'localtime'`：前者是标准语法、跨平台一致，
-  /// 且支持半小时（UTC+5:30）与 45 分钟（UTC+5:45）这类非整时偏移。
-  static String _localDateModifier() {
-    final offsetMinutes = DateTime.now().timeZoneOffset.inMinutes;
-    return offsetMinutes >= 0
-        ? '+$offsetMinutes minutes'
-        : '$offsetMinutes minutes';
-  }
-
   /// Get daily request stats for charts
   Future<Map<String, int>> getDailyRequestStats({
     required int startTimestamp,
     required int endTimestamp,
   }) async {
-    final offsetModifier = _localDateModifier();
-
-    final results = await _database.laconic
-        .table('request_logs')
-        .select([
-          'date(timestamp / 1000, \'unixepoch\', \'$offsetModifier\') as date',
-          'COUNT(id) as request_count',
-        ])
-        .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
-        .groupBy('date')
-        .orderBy('date')
-        .get();
+    final results = await _database.laconic.select(
+      DashboardAggregationSql.dailyRequestStats(
+        DashboardAggregationSql.localDateModifier(),
+      ),
+      [startTimestamp, endTimestamp],
+    );
 
     final Map<String, int> dailyStats = {};
     for (final row in results) {
@@ -94,17 +154,12 @@ class RequestLogRepository {
     required int startTimestamp,
     required int endTimestamp,
   }) async {
-    final results = await _database.laconic
-        .table('request_logs')
-        .select([
-          'endpoint_name',
-          'SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) + COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)) as total_tokens',
-        ])
-        .whereBetween('timestamp', min: startTimestamp, max: endTimestamp)
-        .groupBy('endpoint_name')
-        .having('total_tokens', 0, operator: '>')
-        .orderBy('total_tokens', direction: 'desc')
-        .get();
+    final results = await _database.laconic.select(
+      DashboardAggregationSql.endpointTokenStats(
+        DashboardAggregationSql.localDateModifier(),
+      ),
+      [startTimestamp, endTimestamp],
+    );
 
     final Map<String, int> endpointTokenStats = {};
     for (final row in results) {
@@ -129,21 +184,10 @@ class RequestLogRepository {
     required int startTimestamp,
     required int endTimestamp,
   }) async {
-    final offsetModifier = _localDateModifier();
-
     final results = await _database.laconic.select(
-      '''
-      SELECT date(timestamp / 1000, 'unixepoch', '$offsetModifier') as date,
-             COALESCE(model, 'unknown') as model,
-             SUM(COALESCE(input_tokens, 0)) as input,
-             SUM(COALESCE(output_tokens, 0)) as output,
-             SUM(COALESCE(cache_creation_input_tokens, 0)) as cache_creation,
-             SUM(COALESCE(cache_read_input_tokens, 0)) as cache_read
-      FROM request_logs
-      WHERE timestamp BETWEEN ? AND ? AND status_code = 200
-      GROUP BY date, model
-      ORDER BY date, model
-    ''',
+      DashboardAggregationSql.modelDateTokenStats(
+        DashboardAggregationSql.localDateModifier(),
+      ),
       [startTimestamp, endTimestamp],
     );
 
@@ -172,24 +216,12 @@ class RequestLogRepository {
   ///   cache_creation 是首次写入缓存，不算命中也不算未命中，不入公式。
   ///   分子乘 1.0 强制浮点除法（SQLite 整数除法会截断为 0）。
   Future<DashboardOverviewStats> getOverviewStats() async {
-    final offsetModifier = _localDateModifier();
-
-    final results = await _database.laconic.select('''
-      SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', '$offsetModifier')) AS active_days,
-             COUNT(CASE WHEN path = 'v1/messages' AND status_code = 200 THEN 1 END) AS messages,
-             COALESCE(SUM(CASE WHEN status_code = 200 THEN
-               COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) +
-               COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)
-             END), 0) AS total_tokens,
-             COALESCE(
-               SUM(CASE WHEN status_code = 200 THEN COALESCE(cache_read_input_tokens, 0) END) * 1.0 /
-               NULLIF(SUM(CASE WHEN status_code = 200 THEN
-                 COALESCE(cache_read_input_tokens, 0) + COALESCE(input_tokens, 0)
-               END), 0),
-               0
-             ) AS cache_hit_rate
-      FROM request_logs
-    ''', []);
+    final results = await _database.laconic.select(
+      DashboardAggregationSql.overviewStats(
+        DashboardAggregationSql.localDateModifier(),
+      ),
+      [],
+    );
 
     final row = results.first.toMap();
     return DashboardOverviewStats(

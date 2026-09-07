@@ -59,13 +59,18 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildContent() {
     return Watch((context) {
-      return switch (viewModel.selectedIndex.value) {
-        0 => DashboardPage(),
-        1 => EndpointPage(),
-        2 => RequestLogPage(),
-        3 => SettingPage(),
-        _ => DashboardPage(),
-      };
+      // IndexedStack 保活四个页面：切换 tab 只改变可见索引，不再销毁
+      // 重建 widget 树。此前 switch 直接替换页面，切回概览页时两个
+      // Syncfusion 图表 + 全年热力图要从零 build/layout/paint，明显卡顿。
+      return IndexedStack(
+        index: viewModel.selectedIndex.value,
+        children: const [
+          DashboardPage(),
+          EndpointPage(),
+          RequestLogPage(),
+          SettingPage(),
+        ],
+      );
     });
   }
 

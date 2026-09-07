@@ -1,7 +1,7 @@
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/dashboard_overview_stats.dart';
 import 'package:code_proxy/model/model_date_token_stat.dart';
-import 'package:code_proxy/repository/request_log_repository.dart';
+import 'package:code_proxy/service/dashboard_stats_loader.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:signals/signals.dart';
@@ -18,44 +18,47 @@ class DashboardViewModel {
     const DashboardOverviewStats(messages: 0, totalTokens: 0, activeDays: 0),
   );
 
-  Future<void> initSignals() async {
-    _loadHeatmapData();
-    _loadChartData();
-    _loadOverviewStats();
+  /// 数据新鲜度窗口。
+  ///
+  /// 每次切入概览页都会触发 initSignals()。聚合查询已移到后台 isolate
+  /// （见 DashboardStatsLoader）不再阻塞 UI，但每次切入都重跑一遍聚合
+  /// 并重建整页图表仍是浪费。统计只会在代理产生新请求时变化，因此用
+  /// 「新鲜度 + dirty」双条件：无新请求的频繁切换直接复用上次结果，
+  /// 零查询、零重建。
+  static const _freshThreshold = Duration(seconds: 60);
+
+  DateTime? _lastLoadedAt;
+  bool _dirty = false;
+  bool _loading = false;
+
+  /// 代理每完成一次请求后调用，标记下次进入概览页时重新聚合。
+  void markDirty() {
+    _dirty = true;
   }
 
-  Future<void> _loadOverviewStats() async {
+  Future<void> initSignals() async {
+    if (_loading) return;
+    final lastLoadedAt = _lastLoadedAt;
+    final isFresh = lastLoadedAt != null &&
+        DateTime.now().difference(lastLoadedAt) < _freshThreshold;
+    if (!_dirty && isFresh) return;
+
+    _loading = true;
     try {
-      final repository = RequestLogRepository(Database.instance);
-      overviewStats.value = await repository.getOverviewStats();
-    } catch (e) {
-      LoggerUtil.instance.e('Failed to load dashboard overview stats: $e');
+      _loadStats();
+      // 查询发起即视为已刷新：加载失败会在下次超窗（或 markDirty）后重试
+      _lastLoadedAt = DateTime.now();
+      _dirty = false;
+    } finally {
+      _loading = false;
     }
   }
 
-  Future<void> _loadChartData() async {
+  Future<void> _loadStats() async {
     try {
-      final repository = RequestLogRepository(Database.instance);
-      final endDate = DateTime.now();
-      final startDate = endDate.subtract(const Duration(days: 15));
-
-      final results = await Future.wait([
-        repository.getDailyRequestStats(
-          startTimestamp: startDate.millisecondsSinceEpoch,
-          endTimestamp: endDate.millisecondsSinceEpoch,
-        ),
-        repository.getEndpointTokenStats(
-          startTimestamp: startDate.millisecondsSinceEpoch,
-          endTimestamp: endDate.millisecondsSinceEpoch,
-        ),
-        repository.getModelDateTokenStats(
-          startTimestamp: startDate.millisecondsSinceEpoch,
-          endTimestamp: endDate.millisecondsSinceEpoch,
-        ),
-      ]);
-
-      dailyRequests.value = results[0] as Map<String, int>;
-      endpointTokenUsage.value = results[1] as Map<String, int>;
+      // 聚合查询在后台 isolate 执行（见 DashboardStatsLoader），
+      // 5 万行以上的全年/全历史聚合不再阻塞 UI isolate。
+      final stats = await DashboardStatsLoader().load(Database.instance.path);
 
       // 费用计算前必须先就绪定价数据：首次进 dashboard 时 HomeViewModel
       // 可能还没加载完，缺了这一步每日费用会静默全部算成 0。
@@ -64,14 +67,17 @@ class DashboardViewModel {
         await pricingService.load();
       }
 
-      // 同一份聚合结果同时喂给柱状图和每日费用，不再各查一次库
-      final windowStats = results[2] as List<ModelDateTokenStat>;
-      modelDateTokenUsage.value = _toChartShape(windowStats);
-      dailyCost.value = _toDailyCost(windowStats);
+      dailyHeatmapRequests.value = stats.heatmapRequests;
+      dailyRequests.value = stats.dailyRequests;
+      endpointTokenUsage.value = stats.endpointTokens;
 
-      await _loadTotalCost(repository);
+      // 同一份聚合结果同时喂给柱状图和每日费用，不再各查一次库
+      modelDateTokenUsage.value = _toChartShape(stats.recentModelTokens);
+      dailyCost.value = _toDailyCost(stats.recentModelTokens);
+      totalCost.value = _totalCost(stats.allModelTokens);
+      overviewStats.value = stats.overview;
     } catch (e) {
-      LoggerUtil.instance.e('Failed to load dashboard chart data: $e');
+      LoggerUtil.instance.e('Failed to load dashboard stats: $e');
     }
   }
 
@@ -107,21 +113,16 @@ class DashboardViewModel {
 
   /// 全时间总费用。
   ///
-  /// 单独查一次而非从 15 天结果推算：区间不同，且反过来从全时间结果里切
-  /// 15 天会把边界那天从「按时间戳部分统计」变成「整天统计」，与折线图的
-  /// 请求数口径对不上。
-  Future<void> _loadTotalCost(RequestLogRepository repository) async {
-    final allStats = await repository.getModelDateTokenStats(
-      startTimestamp: 0,
-      endTimestamp: DateTime.now().millisecondsSinceEpoch,
-    );
-
+  /// 与 [dailyCost] 共用后台 isolate 返回的全时间聚合结果：区间不同，
+  /// 从 15 天结果反推会把边界那天从「按时间戳部分统计」变成「整天统计」，
+  /// 与折线图的请求数口径对不上。
+  double _totalCost(List<ModelDateTokenStat> allStats) {
     final pricingService = ModelPricingService.instance;
     var total = 0.0;
     for (final stat in allStats) {
       total += _cost(pricingService, stat);
     }
-    totalCost.value = total;
+    return total;
   }
 
   double _cost(ModelPricingService pricingService, ModelDateTokenStat stat) {
@@ -132,21 +133,5 @@ class DashboardViewModel {
       cacheCreationTokens: stat.cacheCreation,
       cacheReadTokens: stat.cacheRead,
     );
-  }
-
-  Future<void> _loadHeatmapData() async {
-    try {
-      final repository = RequestLogRepository(Database.instance);
-      final now = DateTime.now();
-      final startDate = DateTime(now.year, 1, 1);
-      final endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
-      final stats = await repository.getDailyRequestStats(
-        startTimestamp: startDate.millisecondsSinceEpoch,
-        endTimestamp: endDate.millisecondsSinceEpoch,
-      );
-      dailyHeatmapRequests.value = stats;
-    } catch (e) {
-      LoggerUtil.instance.e('Failed to load heatmap data: $e');
-    }
   }
 }

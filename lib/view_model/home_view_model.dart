@@ -170,7 +170,15 @@ class HomeViewModel {
     // isolate。
     _scheduleLogRefresh();
 
-    // 4. 异步写入审计日志文件
+    // 4. 标记概览页统计过期：下次切入概览页时重新聚合，避免每次切换
+    //    都跑一遍全年热力图/全历史费用等重查询。
+    try {
+      GetIt.instance.get<DashboardViewModel>().markDirty();
+    } catch (e) {
+      // 忽略获取 ViewModel 的错误（启动早期可能尚未注册）
+    }
+
+    // 5. 异步写入审计日志文件
     if (response.responseBody != null) {
       ClaudeCodeAuditService.instance.writeAuditLog(
         id: log.id,

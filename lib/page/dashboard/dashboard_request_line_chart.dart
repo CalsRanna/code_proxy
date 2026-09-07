@@ -1,3 +1,4 @@
+import 'package:code_proxy/page/dashboard/dashboard_tooltip.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -82,15 +83,7 @@ class DashboardRequestsChart extends StatelessWidget {
                   return const SizedBox.shrink();
                 }
                 final entry = data[pointIndex];
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A2E),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                return DashboardTooltip(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
