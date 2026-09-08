@@ -67,6 +67,12 @@ class ProxyServerBruteForceExecutor {
     void dispose() {
       context.dispose();
       _active.remove(context);
+      LoggerUtil.instance.d(
+        'brute_force request=$requestId endpoint=${endpoint.id} '
+        'attempts=$attempt elapsed_ms=${context.stopwatch.elapsedMilliseconds} '
+        'result=${context.cancellation.reason?.runtimeType ?? (responseOwnsContext ? 'response_completed' : 'failed')}'
+        '${context.cancellation.reason is ProxyServerRequestCancelled ? ' reason=${context.cancellation.reason}' : ''}',
+      );
     }
 
     final responseHandler = ProxyServerResponseHandler(
@@ -185,11 +191,6 @@ class ProxyServerBruteForceExecutor {
       }
       return _error(status, message);
     } finally {
-      LoggerUtil.instance.d(
-        'brute_force request=$requestId endpoint=${endpoint.id} '
-        'attempts=$attempt elapsed_ms=${context.stopwatch.elapsedMilliseconds} '
-        'result=${responseOwnsContext ? 'response_started' : context.cancellation.reason?.runtimeType ?? 'failed'}',
-      );
       if (!responseOwnsContext) dispose();
     }
   }

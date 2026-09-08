@@ -146,7 +146,7 @@ void main() {
         expect(response.statusCode, 200);
         expect(hits, 2);
         expect(backupHits, 0);
-        expect(logs.map((log) => log.statusCode), [status, 200]);
+        expect(logs.map((log) => log.statusCode), [200]);
         expect(proxy!.getOpenCircuitBreakerEndpointIds(['a', 'b']), isEmpty);
         expect(unavailable, 0);
         expect(restored, 0);
@@ -169,7 +169,7 @@ void main() {
     expect(response.body, contains('after 1 attempts'));
     expect(hits, 1);
     expect(watch.elapsedMilliseconds, inInclusiveRange(200, 1200));
-    expect(logs.map((log) => log.statusCode), [429]);
+    expect(logs, isEmpty);
   });
 
   test('deadline closes a socket which never sends response headers', () async {
@@ -188,8 +188,152 @@ void main() {
     await start([endpoint('a', raw.port)], timeout: 150);
     expect((await send()).statusCode, 504);
     await disconnected.future.timeout(const Duration(seconds: 2));
-    expect(logs.map((log) => log.statusCode), [504]);
+    expect(logs, isEmpty);
   });
+
+  test('client disconnect cancels the pending upstream header wait', () async {
+    final raw = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    rawServers.add(raw);
+    final received = Completer<void>();
+    final disconnected = Completer<void>();
+    raw.listen((socket) {
+      addTearDown(socket.destroy);
+      socket.listen((_) {
+        if (!received.isCompleted) received.complete();
+      }, onDone: disconnected.complete);
+    });
+    await start([endpoint('a', raw.port)], timeout: 10000);
+    final downstream = client();
+    final pending = downstream.send(request());
+    final cancelled = expectLater(
+      pending,
+      throwsA(isA<http.ClientException>()),
+    );
+    await received.future.timeout(const Duration(seconds: 2));
+    downstream.close();
+    await cancelled;
+    await disconnected.future.timeout(const Duration(seconds: 2));
+    expect(logs, isEmpty);
+    expect(unavailable, 0);
+  });
+
+  test(
+    'client disconnect stops retry backoff without cancelling a new request',
+    () async {
+      var hits = 0;
+      final failed = Completer<void>();
+      final a = await upstream((request) async {
+        hits++;
+        if (hits == 1) {
+          request.response.statusCode = 429;
+          request.response.headers.set('retry-after', '1');
+          await request.response.close();
+          failed.complete();
+        } else {
+          request.response.write('{"ok":true}');
+          await request.response.close();
+        }
+      });
+      await start([endpoint('a', a.port)], timeout: 10000);
+      final downstream = client();
+      final pending = downstream.send(request());
+      final cancelled = expectLater(
+        pending,
+        throwsA(isA<http.ClientException>()),
+      );
+      await failed.future.timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      downstream.close();
+      await cancelled;
+      expect((await send()).statusCode, 200);
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      expect(hits, 2);
+      expect(logs.map((log) => log.statusCode), [200]);
+      expect(unavailable, 0);
+    },
+  );
+
+  test('client disconnect closes a silent upstream SSE connection', () async {
+    final raw = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    rawServers.add(raw);
+    final disconnected = Completer<void>();
+    raw.listen((socket) {
+      addTearDown(socket.destroy);
+      var sent = false;
+      socket.listen((_) {
+        if (sent) return;
+        sent = true;
+        socket.write(
+          'HTTP/1.1 200 OK\r\n'
+          'Content-Type: text/event-stream\r\n'
+          'Connection: close\r\n\r\n'
+          ': ${'x' * 8192}\n\n',
+        );
+      }, onDone: disconnected.complete);
+    });
+    await start([endpoint('a', raw.port)], timeout: 10000);
+    final downstream = client();
+    final response = await downstream.send(request(stream: true));
+    final received = Completer<void>();
+    final subscription = response.stream.listen((_) {
+      if (!received.isCompleted) received.complete();
+    }, onError: (Object _) {});
+    await received.future.timeout(const Duration(seconds: 2));
+    downstream.close();
+    await disconnected.future.timeout(const Duration(seconds: 2));
+    await subscription.cancel();
+    expect(logs, isEmpty);
+    expect(unavailable, 0);
+  });
+
+  test('keep-alive requests remain usable across a mode switch', () async {
+    var hits = 0;
+    final a = await upstream((request) async {
+      hits++;
+      request.response.write('{"ok":true}');
+      await request.response.close();
+    });
+    await start([endpoint('a', a.port)]);
+    final downstream = HttpClient();
+    addTearDown(() => downstream.close(force: true));
+    final localPorts = <int?>[];
+    for (final enabled in [true, false, true]) {
+      proxy!.setBruteForceModeEnabled(enabled);
+      final outgoing = await downstream.postUrl(url());
+      outgoing.headers.set('x-api-key', testProxyAuthToken);
+      outgoing.headers.contentType = ContentType.json;
+      outgoing.add(request().bodyBytes);
+      final response = await outgoing.close();
+      localPorts.add(response.connectionInfo?.localPort);
+      expect(response.statusCode, 200);
+      await response.drain<void>();
+    }
+    expect(localPorts.first, isNotNull);
+    expect(localPorts.toSet(), hasLength(1));
+    expect(hits, 3);
+    expect(logs, hasLength(3));
+  });
+
+  test(
+    'stopping releases the listening port and the service can restart',
+    () async {
+      final a = await upstream((request) async {
+        request.response.write('{"ok":true}');
+        await request.response.close();
+      });
+      await start([endpoint('a', a.port)]);
+      expect((await send()).statusCode, 200);
+      final port = proxy!.boundPort!;
+      await proxy!.stop();
+      final rebound = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        port,
+      );
+      await rebound.close();
+      await proxy!.start();
+      expect((await send()).statusCode, 200);
+    },
+  );
 
   for (final status in [200, 500]) {
     test(
@@ -227,7 +371,7 @@ void main() {
         expect((await send()).statusCode, 504);
         expect(watch.elapsedMilliseconds, lessThan(1000));
         await disconnected.future.timeout(const Duration(seconds: 2));
-        expect(logs, hasLength(1));
+        expect(logs, isEmpty);
       },
     );
   }
@@ -261,6 +405,34 @@ void main() {
     expect(watch.elapsedMilliseconds, greaterThan(400));
     expect(logs.map((log) => log.statusCode), [200]);
   });
+
+  test(
+    'truncated SSE still reports an error without persisting a failure',
+    () async {
+      var hits = 0;
+      final a = await upstream((request) async {
+        hits++;
+        request.response.headers.contentType = ContentType(
+          'text',
+          'event-stream',
+        );
+        request.response.write(
+          'event: content_block_delta\n'
+          'data: {"type":"content_block_delta","index":0,'
+          '"delta":{"type":"text_delta","text":"partial"}}\n\n',
+        );
+        await request.response.close();
+      });
+      await start([endpoint('a', a.port)]);
+      final stream = await client().send(request(stream: true));
+      final body = await stream.stream.bytesToString();
+      expect(stream.statusCode, 200);
+      expect(body, contains('partial'));
+      expect(body, contains('event: error'));
+      expect(hits, 1);
+      expect(logs, isEmpty);
+    },
+  );
 
   test(
     'switch interrupts normal header wait while retaining port and auth',
@@ -323,7 +495,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 30));
       proxy!.setBruteForceModeEnabled(false);
       expect((await oldRequest).statusCode, 503);
+      expect(logs, isEmpty);
       expect((await send()).statusCode, 401);
+      expect(logs.map((log) => log.statusCode), [401]);
       await Future<void>.delayed(const Duration(milliseconds: 1100));
       expect(hits, 2);
       expect(proxy!.boundPort, port);
@@ -497,7 +671,7 @@ void main() {
       expect((await send()).statusCode, 200);
       expect(hits, 4);
       expect(unavailable, 0);
-      expect(logs, hasLength(4));
+      expect(logs.map((log) => log.statusCode), [200]);
     },
   );
 

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/brute_force/proxy_server_brute_force_executor.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_client_connections.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_cancellation.dart';
@@ -42,6 +43,7 @@ class ProxyServerService {
   late final ProxyServerLocalResponder _localResponder;
   late final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
   HttpServer? _server;
+  ProxyServerClientConnections? _clientConnections;
 
   ProxyServerService({
     required this.config,
@@ -108,13 +110,15 @@ class ProxyServerService {
     _requestHandler = requestHandler;
 
     try {
-      _server = await shelf_io.serve(
-        _proxyHandler,
-        config.address,
-        config.port,
-        poweredByHeader: null,
+      final connections = ProxyServerClientConnections(
+        await ServerSocket.bind(config.address, config.port),
       );
+      _clientConnections = connections;
+      _server = HttpServer.listenOn(connections);
+      shelf_io.serveRequests(_server!, _proxyHandler, poweredByHeader: null);
     } catch (_) {
+      await _clientConnections?.close();
+      _clientConnections = null;
       if (identical(_requestHandler, requestHandler)) {
         _requestHandler = null;
       }
@@ -132,11 +136,15 @@ class ProxyServerService {
     _cancelActiveRequests('Proxy server stopped');
     final server = _server;
     _server = null;
+    final connections = _clientConnections;
+    _clientConnections = null;
     final handler = _requestHandler;
     _requestHandler = null;
     try {
       await server?.close(force: true);
     } finally {
+      // HttpServer.listenOn does not own the listening ServerSocket.
+      await connections?.close();
       handler?.close();
     }
   }
@@ -172,6 +180,15 @@ class ProxyServerService {
 
     final cancellation = ProxyServerRequestCancellation();
     _activeRequests.add(cancellation);
+    final untrack = _clientConnections!.track(
+      request.context['shelf.io.connection_info'] as HttpConnectionInfo,
+      cancellation,
+    );
+    void completed() {
+      untrack();
+      _activeRequests.remove(cancellation);
+    }
+
     try {
       final response = await _handleAuthorizedRequest(request, cancellation);
       cancellation.throwIfCancelled();
@@ -179,11 +196,11 @@ class ProxyServerService {
         body: cancellation.bindStream(
           response.read(),
           cancelWithError: false,
-          onDone: () => _activeRequests.remove(cancellation),
+          onDone: completed,
         ),
       );
     } on ProxyServerRequestCancelled catch (error) {
-      _activeRequests.remove(cancellation);
+      completed();
       return shelf.Response(
         HttpStatus.serviceUnavailable,
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -193,7 +210,7 @@ class ProxyServerService {
         }),
       );
     } catch (_) {
-      _activeRequests.remove(cancellation);
+      completed();
       rethrow;
     }
   }
@@ -222,7 +239,9 @@ class ProxyServerService {
         rawBody,
         cancellation,
         onRequestCompleted: (endpoint, request, response) {
-          if (!cancellation.isCancelled) {
+          // 持续重试模式仅持久化成功响应，失败不写请求数据库及关联审计文件。
+          if (!cancellation.isCancelled &&
+              response.statusCode < HttpStatus.badRequest) {
             onRequestCompleted?.call(endpoint, request, response);
           }
         },

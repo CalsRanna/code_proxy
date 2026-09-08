@@ -241,7 +241,7 @@ void main() {
         expect(real.statusCode, 200);
         expect(jsonDecode(real.body)['upstream'], true);
         expect(upstreamHits, 2);
-        expect(statuses, [503, 200]);
+        expect(statuses, bruteForce ? [200] : [503, 200]);
 
         for (final endpoints in [
           <EndpointEntity>[],
@@ -259,7 +259,7 @@ void main() {
             'No enabled endpoints',
           );
           expect(upstreamHits, 2);
-          expect(statuses, [503, 200]);
+          expect(statuses, bruteForce ? [200] : [503, 200]);
         }
       },
     );
