@@ -112,8 +112,7 @@ class ProxyServerRouteSession {
        _endpoints = endpoints;
 
   EndpointEntity? get currentEndpoint {
-    if (_currentEndpointIndex >= 0 &&
-        _currentEndpointIndex < _endpoints.length) {
+    if (_currentEndpointIndex < _endpoints.length) {
       return _endpoints[_currentEndpointIndex];
     }
     return null;

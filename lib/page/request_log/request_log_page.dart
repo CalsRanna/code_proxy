@@ -184,7 +184,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
             var log = logs[index.row];
             var time = DateTime.fromMillisecondsSinceEpoch(log.timestamp);
             var statusCode = log.statusCode;
-            var tokenText = '${log.inputTokens ?? 0} / ${log.outputTokens}';
+            var tokenText = '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}';
             Widget child;
             switch (index.column) {
               case 0:

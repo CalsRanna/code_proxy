@@ -20,24 +20,16 @@ class ProxyServerModelMapper {
   }) {
     if (originalModel == null) return null;
 
-    // 全局默认配置加载失败时保留原始模型名,
-    // 不应让整个请求体处理(含格式转换)失败。
-    //
-    // 此处刻意不记日志:配置加载失败在启动时已由 HomeViewModel.initSignals
-    // 报错并弹窗,且那种情况下代理服务器根本不会启动,所以生产链路走不到
-    // 这里;而这是每请求路径,一旦记录就会刷屏。
-    DefaultModelMapperEntity? defaultConfig;
-    try {
-      defaultConfig = ClaudeCodeModelConfigService.instance.config;
-    } catch (_) {}
+    // 配置加载失败（ModelConfigException）向上传播，由调用方
+    // ProxyServerRequestHandler._processRequestBody 的 catch-all 兜住，
+    // 整体按「解析失败」处理并原样透传请求体。
+    final defaultConfig = ClaudeCodeModelConfigService.instance.config;
 
     // —— 入口精确表:请求 ID 是否等于全局默认某族 ——
     // 遍历元数据表(而非硬编码),新增家族自动生效。
-    if (defaultConfig != null) {
-      for (final field in DefaultModelMapperEntity.familyFields) {
-        if (originalModel == defaultConfig.valueFor(field)) {
-          return _endpointOverrideFor(endpoint, field.family) ?? originalModel;
-        }
+    for (final field in DefaultModelMapperEntity.familyFields) {
+      if (originalModel == defaultConfig.valueFor(field)) {
+        return _endpointOverrideFor(endpoint, field.family) ?? originalModel;
       }
     }
 

@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
@@ -11,6 +13,19 @@ import 'package:http/http.dart' as http;
 import '../../support/authenticated_http_client.dart';
 
 void main() {
+  // 端到端测试直接启动代理服务，不经过 HomeViewModel 的配置加载流程；
+  // 模型映射要求默认模型配置已加载（见 ProxyServerModelMapper）。
+  setUp(() {
+    ClaudeCodeModelConfigService.instance.replaceConfigForTesting(
+      const DefaultModelMapperEntity(
+        haikuModel: 'claude-haiku-4-5-20251001',
+        sonnetModel: 'claude-sonnet-4-5-20250929',
+        opusModel: 'claude-opus-4-5-20251101',
+        fableModel: 'claude-fable-5-1',
+      ),
+    );
+  });
+
   group('OpenAI 兼容端点格式转换（端到端）', () {
     ProxyServerService? service;
     final upstreamServers = <HttpServer>[];

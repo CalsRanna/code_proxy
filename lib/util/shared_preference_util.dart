@@ -55,7 +55,7 @@ class SharedPreferenceUtil {
 
     // 检测旧 key 是否存在
     final hasOld = _deprecatedKeys.any((k) => prefs.containsKey(k));
-    if (version < 1 && hasOld) {
+    if (hasOld) {
       // 读取旧值
       final oldAttributionHeader = prefs.getBool('attribution_header') ?? true;
       final oldDisableBetas =
@@ -80,10 +80,9 @@ class SharedPreferenceUtil {
     }
 
     // 版本 3：清理已移除的「重试所有上游错误」开关键及其前身键。
-    if (version < 3) {
-      await prefs.remove('retry_all_errors_enabled');
-      await prefs.remove('brute_force_mode_enabled');
-    }
+    // 上方已保证 version < 3，无需再判断；remove 幂等。
+    await prefs.remove('retry_all_errors_enabled');
+    await prefs.remove('brute_force_mode_enabled');
 
     await prefs.setInt(_prefVersionKey, _currentPrefVersion);
   }

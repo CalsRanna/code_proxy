@@ -34,7 +34,8 @@ class ProxyServerService {
   ///
   /// 不做成 `late final` 单例：stop() 会关闭其内部 HttpClient，
   /// 若重启失败后回滚复用同一实例，后续所有转发都会抛
-  /// "Client is already closed"。见 [_proxyHandler] 中的空值兜底。
+  /// "Client is already closed"。stop() 先取消全部在途请求再置空，
+  /// 处理路径按「server 运行 ⇒ handler 非空」直接断言。
   ProxyServerRequestHandler? _requestHandler;
   final _activeRequests = <ProxyServerRequestCancellation>{};
   late final ProxyServerLocalResponder _localResponder;
@@ -252,14 +253,7 @@ class ProxyServerService {
       if (endpoint == null) break;
       int? startTime;
       http.Request? preparedRequest;
-      final requestHandler = _requestHandler;
-      if (requestHandler == null) {
-        // 理论上不可达：_server 非 null 时 _requestHandler 必已重建。
-        // 防御 stop() 与在途请求的极端交错，避免空引用崩溃。
-        return shelf.Response.internalServerError(
-          body: 'Proxy server is shutting down',
-        );
-      }
+      final requestHandler = _requestHandler!;
       try {
         // 1. 构建请求
         preparedRequest = requestHandler.prepareRequest(
