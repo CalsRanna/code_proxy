@@ -9,11 +9,6 @@ class TrayUtil with TrayListener {
 
   TrayUtil._();
 
-  Future<void> dispose() async {
-    trayManager.removeListener(this);
-    await trayManager.destroy();
-  }
-
   Future<void> ensureInitialized() async {
     trayManager.addListener(this);
     await _setContextMenu();

@@ -46,7 +46,6 @@ class ProxyServerController {
   List<EndpointEntity> _endpoints = [];
 
   Stream<void> get circuitBreakerChanges => _circuitBreakerChanges.stream;
-  int? get boundPort => _proxyServer?.boundPort;
 
   Future<void> start() async {
     _proxyServer = await _startConfiguredServer();

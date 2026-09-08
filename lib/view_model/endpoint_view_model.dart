@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/service/proxy_server_controller.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
 
@@ -26,26 +25,9 @@ class EndpointViewModel {
   /// 断路中的端点 ID 集合（纯内存状态）
   final forbiddenEndpointIds = setSignal<String>({});
 
-  // 使用 getter 来安全地访问 enabledEndpoints
-  List<EndpointEntity> get enabledEndpoints {
-    return endpoints.value.where((e) => e.enabled).toList();
-  }
-
-  final shadPopoverController = ShadPopoverController();
-
   Future<void> initSignals() async {
     _ensureCircuitBreakerSyncStarted();
     await _loadEndpoints();
-  }
-
-  /// 标记端点为断路中
-  void markForbidden(String endpointId) {
-    forbiddenEndpointIds.add(endpointId);
-  }
-
-  /// 移除端点的断路标记
-  void markRestored(String endpointId) {
-    forbiddenEndpointIds.remove(endpointId);
   }
 
   Future<void> addEndpoint({
@@ -59,7 +41,6 @@ class EndpointViewModel {
     String? fableModel,
     EndpointAuthMode authMode = EndpointAuthMode.preserve,
     EndpointApiFormat apiFormat = EndpointApiFormat.anthropic,
-    bool claudeCodeDisableNonessentialTraffic = false,
   }) async {
     // 计算新的 weight 值：当前列表数量 + 1（作为最后一个）
     final newWeight = endpoints.value.length + 1;
@@ -154,7 +135,6 @@ class EndpointViewModel {
   void dispose() {
     _circuitBreakerSubscription?.cancel();
     _circuitBreakerSyncTimer?.cancel();
-    shadPopoverController.dispose();
   }
 
   bool _setEquals(Set<String> left, Set<String> right) {

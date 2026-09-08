@@ -338,23 +338,5 @@ void main() {
       expect(result['error']['type'], 'api_error');
     });
 
-    test('mapErrorTypeFromStatus 状态码映射', () {
-      expect(
-        OpenAiCompatResponseConverter.mapErrorTypeFromStatus(400),
-        'invalid_request_error',
-      );
-      expect(
-        OpenAiCompatResponseConverter.mapErrorTypeFromStatus(401),
-        'authentication_error',
-      );
-      expect(
-        OpenAiCompatResponseConverter.mapErrorTypeFromStatus(429),
-        'rate_limit_error',
-      );
-      expect(
-        OpenAiCompatResponseConverter.mapErrorTypeFromStatus(503),
-        'api_error',
-      );
-    });
   });
 }

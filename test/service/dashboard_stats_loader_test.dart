@@ -106,7 +106,7 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  test('各时间窗口的聚合结果与主 isolate repository 口径一致', () async {
+  test('各时间窗口的聚合结果正确', () async {
     final result =
         await DashboardStatsLoader().load(dbPath, now: now);
 
@@ -132,9 +132,6 @@ void main() {
       '2026-09-07': 2,
     });
 
-    // 端点 token：15 天窗口、不过滤失败请求（与主 isolate 口径一致）
-    expect(result.endpointTokens, {'ep-1': 110, 'ep-2': 1998});
-
     // 模型日期统计：15 天窗口
     expect(result.recentModelTokens.map((s) => s.date).toSet(),
         {'2026-09-06', '2026-09-07'});
@@ -158,24 +155,6 @@ void main() {
     expect(lastYear.output, 100);
   });
 
-  test('isolate 查询结果与主 isolate repository 查询一致', () async {
-    final fromLoader = await DashboardStatsLoader().load(dbPath, now: now);
-    final fromRepo = await repository.getOverviewStats();
-
-    expect(fromLoader.overview.messages, fromRepo.messages);
-    expect(fromLoader.overview.totalTokens, fromRepo.totalTokens);
-    expect(fromLoader.overview.activeDays, fromRepo.activeDays);
-    expect(fromLoader.overview.cacheHitRate,
-        closeTo(fromRepo.cacheHitRate, 1e-9));
-
-    // 15 天窗口的每日请求数对照
-    final dailyFromRepo = await repository.getDailyRequestStats(
-      startTimestamp:
-          now.subtract(const Duration(days: 15)).millisecondsSinceEpoch,
-      endTimestamp: now.millisecondsSinceEpoch,
-    );
-    expect(fromLoader.dailyRequests, dailyFromRepo);
-  });
 }
 
 Future<void> _insert(

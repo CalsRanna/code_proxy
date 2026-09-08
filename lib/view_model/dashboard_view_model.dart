@@ -29,7 +29,6 @@ class DashboardViewModel {
 
   final dailyHeatmapRequests = signal<Map<String, int>>({});
   final dailyRequests = signal<Map<String, int>>({});
-  final endpointTokenUsage = signal<Map<String, int>>({});
   final modelDateTokenUsage =
       signal<Map<String, Map<String, Map<String, int>>>>({});
   final dailyCost = signal<Map<String, double>>({});
@@ -90,7 +89,6 @@ class DashboardViewModel {
 
       dailyHeatmapRequests.value = stats.heatmapRequests;
       dailyRequests.value = stats.dailyRequests;
-      endpointTokenUsage.value = stats.endpointTokens;
 
       // 同一份聚合结果同时喂给柱状图和每日费用，不再各查一次库
       modelDateTokenUsage.value = _toChartShape(stats.recentModelTokens);

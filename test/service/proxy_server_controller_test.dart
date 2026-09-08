@@ -118,7 +118,7 @@ void main() {
       controller.updateProxyEndpoints([endpoint]);
       await controller.start();
       expect(servers.map((s) => s.config.port), [9000, 9001]);
-      expect(controller.boundPort, 9001);
+      expect(servers.last.boundPort, 9001);
       expect(preferences.port, 9001);
       expect(settings.ports, [9001]);
       expect(servers.last.currentEndpoints, [endpoint]);
@@ -131,7 +131,7 @@ void main() {
     await expectLater(controller.start(), throwsA(isA<SocketException>()));
     expect(servers, hasLength(1));
     expect(settings.ports, isEmpty);
-    expect(controller.boundPort, isNull);
+    expect(servers.single.boundPort, isNull);
   });
 
   test(
@@ -146,7 +146,7 @@ void main() {
       expect(old.stops, 1);
       expect(servers.last.running, isFalse);
       expect(servers.last.stops, 1);
-      expect(controller.boundPort, old.config.port);
+      expect(old.boundPort, old.config.port);
     },
   );
 
@@ -155,7 +155,7 @@ void main() {
     await expectLater(controller.start(), throwsStateError);
     expect(servers.single.running, isFalse);
     expect(servers.single.stops, 1);
-    expect(controller.boundPort, isNull);
+    expect(servers.single.boundPort, isNull);
   });
 
   test('endpoint edits during startup reach the published server', () async {

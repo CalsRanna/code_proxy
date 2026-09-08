@@ -184,14 +184,6 @@ class SharedPreferenceUtil {
     await (await _preferences).setInt(_keyPort, port);
   }
 
-  Future<void> setWindowHeight(double height) async {
-    await (await _preferences).setDouble(_keyWindowHeight, height);
-  }
-
-  Future<void> setWindowWidth(double width) async {
-    await (await _preferences).setDouble(_keyWindowWidth, width);
-  }
-
   Future<bool> getLaunchAtStartup() async {
     return (await _preferences).getBool(_keyLaunchAtStartup) ?? false;
   }

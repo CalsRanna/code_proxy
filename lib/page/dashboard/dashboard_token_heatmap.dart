@@ -20,9 +20,8 @@ class DashboardTokenHeatmap extends StatefulWidget {
   static const double _weekdayLabelFontSize = 10.0;
 
   final Map<String, int> chartData;
-  final DateTime? now;
 
-  const DashboardTokenHeatmap(this.chartData, {super.key, this.now});
+  const DashboardTokenHeatmap(this.chartData, {super.key});
 
   @override
   State<DashboardTokenHeatmap> createState() => _DashboardTokenHeatmapState();
@@ -35,7 +34,7 @@ class _DashboardTokenHeatmapState extends State<DashboardTokenHeatmap> {
 
   @override
   Widget build(BuildContext context) {
-    final currentDate = widget.now ?? DateTime.now();
+    final currentDate = DateTime.now();
     final heatmapData = _generateHeatmapData(currentDate);
 
     final maxRequests = widget.chartData.values.isEmpty

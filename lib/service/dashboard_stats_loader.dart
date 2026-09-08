@@ -16,9 +16,6 @@ class DashboardStatsResult {
   /// 全年每日请求数（热力图）。
   final Map<String, int> heatmapRequests;
 
-  /// 最近 15 天按端点的 token 总量。
-  final Map<String, int> endpointTokens;
-
   /// 最近 15 天按「日期 + 模型」的 token 用量（柱状图与每日费用）。
   final List<ModelDateTokenStat> recentModelTokens;
 
@@ -29,7 +26,6 @@ class DashboardStatsResult {
     required this.overview,
     required this.dailyRequests,
     required this.heatmapRequests,
-    required this.endpointTokens,
     required this.recentModelTokens,
     required this.allModelTokens,
   });
@@ -83,14 +79,6 @@ DashboardStatsResult _compute(String dbPath, {DateTime? now}) {
       dateKey: 'date',
       countKey: 'request_count',
     );
-    final endpointTokens = _toIntMap(
-      db.select(
-        DashboardAggregationSql.endpointTokenStats(modifier),
-        [recentStart, endTimestamp],
-      ),
-      dateKey: 'endpoint_name',
-      countKey: 'total_tokens',
-    );
     final recentModelTokens = _toModelTokenStats(
       db.select(
         DashboardAggregationSql.modelDateTokenStats(modifier),
@@ -118,7 +106,6 @@ DashboardStatsResult _compute(String dbPath, {DateTime? now}) {
       ),
       dailyRequests: dailyRequests,
       heatmapRequests: heatmapRequests,
-      endpointTokens: endpointTokens,
       recentModelTokens: recentModelTokens,
       allModelTokens: allModelTokens,
     );

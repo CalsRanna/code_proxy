@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
@@ -183,46 +182,6 @@ class ClaudeDesktopSettingService {
     await _writeJsonFile(_threepConfigPath, threepConfig);
   }
 
-  /// 代理停止时：恢复 1P 模式并清理 profile 文件。
-  Future<void> removeProxySetting() async {
-    // 恢复 deploymentMode
-    await _setDeploymentMode(_normalConfigPath, '1p');
-    await _setDeploymentMode(_threepConfigPath, '1p');
-
-    // 清理 profile 文件
-    try {
-      final profileFile = File(_profilePath);
-      if (await profileFile.exists()) await profileFile.delete();
-    } catch (e) {
-      // best-effort 清理：失败只会留下一个孤立的 profile 文件，不影响
-      // 已完成的 deployment mode 还原。记日志便于排查残留。
-      LoggerUtil.instance.w('Failed to delete Claude Desktop profile: $e');
-    }
-
-    // 清理 _meta.json（如果只有我们的 entry）
-    try {
-      final metaFile = File(_metaPath);
-      if (await metaFile.exists()) {
-        final content = await metaFile.readAsString();
-        final meta = jsonDecode(content) as Map<String, dynamic>;
-        meta.remove('appliedId');
-        final entries = (meta['entries'] as List<dynamic>?)
-            ?.where((e) => e['id'] != _profileId)
-            .toList();
-        if (entries == null || entries.isEmpty) {
-          meta.remove('entries');
-        } else {
-          meta['entries'] = entries;
-        }
-        if (meta.isEmpty) {
-          await metaFile.delete();
-        } else {
-          await _writeJsonFile(_metaPath, meta);
-        }
-      }
-    } catch (_) {}
-  }
-
   Map<String, dynamic> _buildProfile(
     int port,
     String token, {
@@ -247,19 +206,6 @@ class ClaudeDesktopSettingService {
       },
       'coworkEgressAllowedHosts': ['*'],
     };
-  }
-
-  /// 在指定的 claude_desktop_config.json 中设置 deploymentMode。
-  Future<void> _setDeploymentMode(String configPath, String mode) async {
-    final file = File(configPath);
-    final config = await _readJsonObject(file);
-    if (!await file.exists()) {
-      await file.parent.create(recursive: true);
-    }
-
-    config['deploymentMode'] = mode;
-
-    await _writeJsonFile(configPath, config);
   }
 
   Future<void> _writeJsonFile(String path, Map<String, dynamic> data) async {

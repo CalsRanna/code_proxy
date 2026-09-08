@@ -16,12 +16,6 @@ class WindowUtil with WindowListener {
 
   Stream<WindowEvent> get stream => _controller.stream;
 
-  Future<void> destroy() async {
-    windowManager.removeListener(this);
-    await _controller.close();
-    await windowManager.destroy();
-  }
-
   Future<void> ensureInitialized() async {
     var instance = SharedPreferenceUtil.instance;
     var height = await instance.getWindowHeight();
@@ -70,12 +64,6 @@ class WindowUtil with WindowListener {
     await windowManager.minimize();
   }
 
-  Future<void> restore() async {
-    if (await windowManager.isMinimized()) {
-      await windowManager.restore();
-    }
-  }
-
   Future<void> show() async {
     await windowManager.setSkipTaskbar(false);
     await windowManager.show();
@@ -85,10 +73,6 @@ class WindowUtil with WindowListener {
       FocusManager.instance.primaryFocus?.requestFocus();
     });
     _controller.add(WindowEvent.shown);
-  }
-
-  Future<void> startDragging() async {
-    await windowManager.startDragging();
   }
 
   Future<void> unmaximize() async {

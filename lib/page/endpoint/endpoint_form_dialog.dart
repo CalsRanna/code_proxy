@@ -25,7 +25,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
   late final TextEditingController sonnetModelController;
   late final TextEditingController opusModelController;
   late final TextEditingController fableModelController;
-  late final TextEditingController weightController;
 
   late EndpointAuthMode _authMode;
   late EndpointApiFormat _apiFormat;
@@ -171,7 +170,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     sonnetModelController.dispose();
     opusModelController.dispose();
     fableModelController.dispose();
-    weightController.dispose();
     super.dispose();
   }
 
@@ -198,9 +196,6 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     );
     fableModelController = TextEditingController(
       text: widget.endpoint?.fableModel,
-    );
-    weightController = TextEditingController(
-      text: widget.endpoint?.weight.toString() ?? '1',
     );
     _authMode = widget.endpoint?.authMode ?? EndpointAuthMode.preserve;
     _apiFormat = widget.endpoint?.apiFormat ?? EndpointApiFormat.anthropic;
@@ -269,8 +264,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
           widget.endpoint!.copyWith(
             name: nameController.text,
             note: noteController.text.isEmpty ? null : noteController.text,
-            weight:
-                int.tryParse(weightController.text) ?? widget.endpoint!.weight,
+            weight: widget.endpoint!.weight,
             authMode: _authMode,
             apiFormat: _apiFormat,
             anthropicAuthToken: authTokenController.text,

@@ -116,24 +116,6 @@ class OpenAiCompatResponseConverter {
     };
   }
 
-  /// 按 HTTP 状态码推断错误类型（错误体中无类型信息时使用）。
-  static String mapErrorTypeFromStatus(int statusCode) {
-    switch (statusCode) {
-      case 400:
-        return 'invalid_request_error';
-      case 401:
-        return 'authentication_error';
-      case 403:
-        return 'permission_error';
-      case 404:
-        return 'not_found_error';
-      case 429:
-        return 'rate_limit_error';
-      default:
-        return 'api_error';
-    }
-  }
-
   /// OpenAI 错误体的 type/code 字段 → Anthropic 错误类型。
   ///
   /// code 比 type 更具体（如 type=invalid_request_error 但

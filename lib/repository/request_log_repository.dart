@@ -1,12 +1,9 @@
 import 'package:code_proxy/database/database.dart';
-import 'package:code_proxy/model/dashboard_overview_stats.dart';
-import 'package:code_proxy/model/model_date_token_stat.dart';
 import 'package:code_proxy/model/request_log_entity.dart';
 
 /// Dashboard 聚合查询 SQL 的唯一来源。
 ///
-/// 主 isolate 的 [RequestLogRepository] 与后台 isolate 的
-/// DashboardStatsLoader 都从这里取 SQL 执行，保证两侧口径永远一致；
+/// 后台 isolate 的 DashboardStatsLoader 从这里取 SQL 执行；
 /// request_logs 表结构或统计口径变更时只需修改此处。
 class DashboardAggregationSql {
   /// SQLite `date()` 的时区修饰符，把 UTC 毫秒时间戳折算到本机当地日期。
@@ -30,18 +27,6 @@ class DashboardAggregationSql {
     ORDER BY date
   ''';
 
-  /// 按端点的 token 总量（仅列出四类 token 之和 > 0 的端点）。
-  static String endpointTokenStats(String localOffsetModifier) => '''
-    SELECT endpoint_name,
-           SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) +
-               COALESCE(cache_creation_input_tokens, 0) + COALESCE(cache_read_input_tokens, 0)) as total_tokens
-    FROM request_logs
-    WHERE timestamp BETWEEN ? AND ?
-    GROUP BY endpoint_name
-    HAVING total_tokens > 0
-    ORDER BY total_tokens DESC
-  ''';
-
   /// 按「本地日期 + 模型」聚合的 token 用量（仅 2xx 成功请求）。
   ///
   /// `total > 0` 的过滤留给调用方：费用计算不需要过滤而图表需要，
@@ -61,7 +46,13 @@ class DashboardAggregationSql {
 
   /// 概览统计：消息数、token 总量、活跃天数、缓存命中率，四合一聚合。
   ///
-  /// 口径说明详见 [RequestLogRepository.getOverviewStats]。
+  /// - messages：成功的 `/v1/messages` 请求数（count_tokens、models 等
+  ///   本地应答路径不计入）
+  /// - totalTokens：SUM 四类 token，仅 2xx 成功请求（失败请求的 usage
+  ///   不可靠，与 token 图表口径一致）
+  /// - activeDays：有任意请求（含失败）的本地去重日期数，与热力图口径一致
+  /// - cacheHitRate：cache_read / (cache_read + input)，仅 2xx 成功请求；
+  ///   分子乘 1.0 强制浮点除法（SQLite 整数除法会截断为 0）。
   static String overviewStats(String localOffsetModifier) => '''
     SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', '$localOffsetModifier')) AS active_days,
            COUNT(CASE WHEN path = 'v1/messages' AND status_code = 200 THEN 1 END) AS messages,
@@ -124,112 +115,6 @@ class RequestLogRepository {
 
     final results = await query.get();
     return results.map((r) => _fromRow(r.toMap())).toList();
-  }
-
-  /// Get daily request stats for charts
-  Future<Map<String, int>> getDailyRequestStats({
-    required int startTimestamp,
-    required int endTimestamp,
-  }) async {
-    final results = await _database.laconic.select(
-      DashboardAggregationSql.dailyRequestStats(
-        DashboardAggregationSql.localDateModifier(),
-      ),
-      [startTimestamp, endTimestamp],
-    );
-
-    final Map<String, int> dailyStats = {};
-    for (final row in results) {
-      final rowMap = row.toMap();
-      final date = rowMap['date'] as String;
-      final count = rowMap['request_count'] as int;
-      dailyStats[date] = count;
-    }
-
-    return dailyStats;
-  }
-
-  /// Get endpoint token stats for charts
-  Future<Map<String, int>> getEndpointTokenStats({
-    required int startTimestamp,
-    required int endTimestamp,
-  }) async {
-    final results = await _database.laconic.select(
-      DashboardAggregationSql.endpointTokenStats(
-        DashboardAggregationSql.localDateModifier(),
-      ),
-      [startTimestamp, endTimestamp],
-    );
-
-    final Map<String, int> endpointTokenStats = {};
-    for (final row in results) {
-      final rowMap = row.toMap();
-      final endpointName = rowMap['endpoint_name'] as String;
-      final totalTokens = rowMap['total_tokens'] as int;
-      endpointTokenStats[endpointName] = totalTokens;
-    }
-
-    return endpointTokenStats;
-  }
-
-  /// 按「本地日期 + 模型」聚合的 token 用量（仅 2xx 成功请求）。
-  ///
-  /// Token 柱状图与费用计算共用此结果 —— 两者此前各跑一条 `GROUP BY
-  /// (date, model)` 的 SUM 查询，字段与过滤条件几乎相同，只是返回形状不同，
-  /// dashboard 一次加载会把同一份聚合算两遍。
-  ///
-  /// `total > 0` 的过滤留给调用方（见 [ModelDateTokenStat.total]）：
-  /// 费用计算不需要过滤，图表需要，放在 SQL 里就得为两种需求各开一条查询。
-  Future<List<ModelDateTokenStat>> getModelDateTokenStats({
-    required int startTimestamp,
-    required int endTimestamp,
-  }) async {
-    final results = await _database.laconic.select(
-      DashboardAggregationSql.modelDateTokenStats(
-        DashboardAggregationSql.localDateModifier(),
-      ),
-      [startTimestamp, endTimestamp],
-    );
-
-    return results.map((row) {
-      final rowMap = row.toMap();
-      return ModelDateTokenStat(
-        date: rowMap['date'] as String,
-        model: rowMap['model'] as String,
-        input: rowMap['input'] as int,
-        output: rowMap['output'] as int,
-        cacheCreation: rowMap['cache_creation'] as int,
-        cacheRead: rowMap['cache_read'] as int,
-      );
-    }).toList();
-  }
-
-  /// 概览统计：消息数、token 总量、活跃天数、缓存命中率。
-  ///
-  /// 四个指标一次全表扫描聚合成，避免跑四条相近的查询：
-  /// - messages：成功的 `/v1/messages` 请求数（`/v1/messages/count_tokens`、
-  ///   `/v1/models` 等本地应答路径不计入）
-  /// - totalTokens：SUM 四类 token，仅 2xx 成功请求（失败请求的 usage
-  ///   不可靠，与 token 图表口径一致）
-  /// - activeDays：有任意请求（含失败）的本地去重日期数，与热力图口径一致
-  /// - cacheHitRate：cache_read / (cache_read + input)，仅 2xx 成功请求；
-  ///   cache_creation 是首次写入缓存，不算命中也不算未命中，不入公式。
-  ///   分子乘 1.0 强制浮点除法（SQLite 整数除法会截断为 0）。
-  Future<DashboardOverviewStats> getOverviewStats() async {
-    final results = await _database.laconic.select(
-      DashboardAggregationSql.overviewStats(
-        DashboardAggregationSql.localDateModifier(),
-      ),
-      [],
-    );
-
-    final row = results.first.toMap();
-    return DashboardOverviewStats(
-      messages: row['messages'] as int,
-      totalTokens: row['total_tokens'] as int,
-      activeDays: row['active_days'] as int,
-      cacheHitRate: (row['cache_hit_rate'] as num).toDouble(),
-    );
   }
 
   /// Get total count of request logs
