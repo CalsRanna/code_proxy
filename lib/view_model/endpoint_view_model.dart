@@ -1,16 +1,22 @@
 import 'dart:async';
 
-import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
-import 'package:code_proxy/view_model/home_view_model.dart';
-import 'package:get_it/get_it.dart';
+import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:signals/signals.dart';
 import 'package:uuid/uuid.dart';
 
 class EndpointViewModel {
-  final _endpointRepository = EndpointRepository(Database.instance);
+  EndpointViewModel({
+    required EndpointRepository repository,
+    required ProxyServerController proxy,
+  }) : _endpointRepository = repository,
+       _proxy = proxy;
+
+  final EndpointRepository _endpointRepository;
+  final ProxyServerController _proxy;
+  StreamSubscription<void>? _circuitBreakerSubscription;
   final Uuid _uuid = const Uuid();
   Timer? _circuitBreakerSyncTimer;
 
@@ -81,15 +87,13 @@ class EndpointViewModel {
     await _endpointRepository.delete(id);
     forbiddenEndpointIds.remove(id);
     // 清理断路器实例，避免内存泄漏
-    final homeViewModel = GetIt.instance.get<HomeViewModel>();
-    homeViewModel.removeCircuitBreaker(id);
+    _proxy.removeCircuitBreaker(id);
     await _loadEndpoints();
   }
 
   /// 重置指定端点的断路器
   Future<void> resetCircuitBreaker(String id) async {
-    final homeViewModel = GetIt.instance.get<HomeViewModel>();
-    homeViewModel.resetCircuitBreaker(id);
+    _proxy.resetCircuitBreaker(id);
   }
 
   Future<void> toggleEnabled(String id) async {
@@ -120,12 +124,14 @@ class EndpointViewModel {
 
   /// 通知代理服务器端点列表已更新
   void _notifyProxyServer() {
-    final homeViewModel = GetIt.instance.get<HomeViewModel>();
     final enabled = endpoints.value.where((e) => e.enabled).toList();
-    homeViewModel.updateProxyEndpoints(enabled);
+    _proxy.updateProxyEndpoints(enabled);
   }
 
   void _ensureCircuitBreakerSyncStarted() {
+    _circuitBreakerSubscription ??= _proxy.circuitBreakerChanges.listen(
+      (_) => _syncForbiddenEndpointIds(),
+    );
     _circuitBreakerSyncTimer ??= Timer.periodic(
       const Duration(seconds: 1),
       (_) => _syncForbiddenEndpointIds(),
@@ -133,9 +139,8 @@ class EndpointViewModel {
   }
 
   void _syncForbiddenEndpointIds() {
-    final homeViewModel = GetIt.instance.get<HomeViewModel>();
     final endpointIds = endpoints.value.map((e) => e.id);
-    final openEndpointIds = homeViewModel.getOpenCircuitBreakerEndpointIds(
+    final openEndpointIds = _proxy.getOpenCircuitBreakerEndpointIds(
       endpointIds,
     );
 
@@ -144,6 +149,12 @@ class EndpointViewModel {
     }
 
     forbiddenEndpointIds.value = openEndpointIds;
+  }
+
+  void dispose() {
+    _circuitBreakerSubscription?.cancel();
+    _circuitBreakerSyncTimer?.cancel();
+    shadPopoverController.dispose();
   }
 
   bool _setEquals(Set<String> left, Set<String> right) {

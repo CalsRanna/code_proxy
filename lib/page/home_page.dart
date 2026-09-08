@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/page/dashboard/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
+import 'package:code_proxy/page/home_startup_dialogs.dart';
 import 'package:code_proxy/page/request_log/request_log_page.dart';
 import 'package:code_proxy/page/setting_page.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
+import 'package:code_proxy/util/window_util.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:code_proxy/view_model/home_view_model.dart';
@@ -33,6 +37,8 @@ class _HomePageState extends State<HomePage> {
   final logsViewModel = GetIt.instance.get<RequestLogViewModel>();
   final settingsViewModel = GetIt.instance.get<SettingViewModel>();
 
+  StreamSubscription<WindowEvent>? _windowSubscription;
+
   final icons = [
     LucideIcons.layoutGrid,
     LucideIcons.shell,
@@ -50,11 +56,62 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    viewModel.initSignals(context);
+    logsViewModel.setActive(viewModel.selectedIndex.value == 2);
+    _initialize();
     dashboardViewModel.initSignals();
     endpointsViewModel.initSignals();
     logsViewModel.initSignals();
     settingsViewModel.initSignals();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await viewModel.initSignals();
+    } on ModelConfigException catch (error) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showConfigErrorDialog(
+          context,
+          error.message,
+          viewModel.modelConfigPath,
+        );
+      });
+      return;
+    } catch (error) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) showStartupErrorDialog(context, error);
+      });
+    }
+    if (!mounted) return;
+    _windowSubscription = WindowUtil.instance.stream.listen((event) {
+      if (event == WindowEvent.shown && viewModel.selectedIndex.value == 0) {
+        dashboardViewModel.initSignals();
+      }
+    });
+  }
+
+  void _selectTab(int index) {
+    final previous = viewModel.selectedIndex.value;
+    viewModel.updateSelectedIndex(index);
+    logsViewModel.setActive(index == 2);
+    if (previous == index) return;
+    switch (index) {
+      case 0:
+        dashboardViewModel.initSignals();
+      case 1:
+        endpointsViewModel.initSignals();
+      case 2:
+        logsViewModel.initSignals();
+      case 3:
+        settingsViewModel.initSignals();
+    }
+  }
+
+  @override
+  void dispose() {
+    _windowSubscription?.cancel();
+    logsViewModel.setActive(false);
+    super.dispose();
   }
 
   Widget _buildContent() {
@@ -80,7 +137,7 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: isSelected ? ShadcnColors.zinc100 : null,
       icon: Icon(icons[index]),
       onPressed: () {
-        viewModel.updateSelectedIndex(index);
+        _selectTab(index);
       },
     );
     var anchor = ShadAnchor(

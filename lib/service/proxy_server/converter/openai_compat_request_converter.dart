@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:code_proxy/service/proxy_server/converter/anthropic_request_utils.dart';
+
 /// Anthropic Messages API → OpenAI Chat Completions API 请求体转换器。
 ///
 /// 采用重建式（白名单）转换：只复制 OpenAI 支持的字段，
@@ -64,24 +66,8 @@ class OpenAiCompatRequestConverter {
   /// 转换顶层 system 字段：string 或 content blocks 数组，
   /// 多个 text block 以空行连接。缺失或全空白时返回 null。
   Map<String, dynamic>? _convertSystem(dynamic system) {
-    String? text;
-    if (system is String) {
-      text = system;
-    } else if (system is List) {
-      final parts = <String>[];
-      for (final block in system) {
-        if (block is Map &&
-            block['type'] == 'text' &&
-            block['text'] is String) {
-          parts.add(block['text'] as String);
-        }
-      }
-      text = parts.join('\n\n');
-    }
-
-    final trimmed = text?.trim();
-    if (trimmed == null || trimmed.isEmpty) return null;
-    return {'role': 'system', 'content': trimmed};
+    final text = anthropicSystemText(system);
+    return text == null ? null : {'role': 'system', 'content': text};
   }
 
   /// 转换单条 Anthropic 消息为若干条 OpenAI 消息。
@@ -210,7 +196,10 @@ class OpenAiCompatRequestConverter {
       url = source['url'] as String;
     }
     if (url == null) return null;
-    return {'type': 'image_url', 'image_url': {'url': url}};
+    return {
+      'type': 'image_url',
+      'image_url': {'url': url},
+    };
   }
 
   /// document block 降级为文本：纯文本 source 可完整保留；
@@ -245,32 +234,12 @@ class OpenAiCompatRequestConverter {
   }
 
   void _convertTools(Map<String, dynamic> body, Map<String, dynamic> out) {
-    final tools = body['tools'];
-    if (tools is! List || tools.isEmpty) return;
-
-    final converted = <Map<String, dynamic>>[];
-    for (final tool in tools) {
-      if (tool is! Map) continue;
-      final type = tool['type'];
-      // 仅转发自定义工具；server tools（web_search 等为 Anthropic 专有）丢弃
-      if (type != null && type != 'custom') continue;
-      final name = tool['name'];
-      final schema = tool['input_schema'];
-      if (name is! String ||
-          name.trim().isEmpty ||
-          schema is! Map) {
-        continue;
-      }
-      converted.add({
-        'type': 'function',
-        'function': {
-          'name': name,
-          'description': tool['description'] ?? '',
-          'parameters': schema,
-        },
-      });
+    final tools = customFunctionTools(body['tools']);
+    if (tools.isNotEmpty) {
+      out['tools'] = [
+        for (final tool in tools) {'type': 'function', 'function': tool},
+      ];
     }
-    if (converted.isNotEmpty) out['tools'] = converted;
   }
 
   /// `output_config.effort` → Chat Completions 顶层 `reasoning_effort`
@@ -284,14 +253,6 @@ class OpenAiCompatRequestConverter {
     if (effort != null) {
       out['reasoning_effort'] = effort;
     }
-  }
-
-  /// 读取 Anthropic `output_config.effort`，仅当为合法非空字符串时返回，
-  /// 供 Chat Completions 与 Responses 转换器共用。
-  static String? outputConfigEffort(Map<String, dynamic> body) {
-    final config = body['output_config'];
-    final effort = config is Map ? config['effort'] : null;
-    return effort is String && effort.isNotEmpty ? effort : null;
   }
 
   void _convertToolChoice(Map<String, dynamic> body, Map<String, dynamic> out) {
@@ -319,38 +280,4 @@ class OpenAiCompatRequestConverter {
   static String _genId() {
     return DateTime.now().microsecondsSinceEpoch.toRadixString(36);
   }
-}
-
-/// 将 tool_result 的 content 归一化为字符串。
-///
-/// 公开为顶层函数以便响应侧与测试复用：
-/// - string 原样返回
-/// - 数组拼接其中全部 text 块文本
-/// - dict 取 text 字段或 JSON 序列化
-/// - 其余 toString 兜底
-String normalizeToolResultContent(dynamic content) {
-  if (content == null) return '';
-  if (content is String) return content;
-  if (content is List) {
-    final parts = <String>[];
-    for (final item in content) {
-      if (item is Map) {
-        if (item['text'] is String) {
-          parts.add(item['text'] as String);
-        } else {
-          parts.add(jsonEncode(item));
-        }
-      } else if (item is String) {
-        parts.add(item);
-      } else {
-        parts.add('$item');
-      }
-    }
-    return parts.join('\n').trim();
-  }
-  if (content is Map) {
-    if (content['text'] is String) return content['text'] as String;
-    return jsonEncode(content);
-  }
-  return '$content';
 }

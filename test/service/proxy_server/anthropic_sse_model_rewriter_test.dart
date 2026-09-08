@@ -1,4 +1,4 @@
-import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
+import 'package:code_proxy/service/proxy_server/anthropic_sse_model_rewriter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

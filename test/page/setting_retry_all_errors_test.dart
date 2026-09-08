@@ -1,14 +1,16 @@
 import 'dart:async';
 
 import 'package:code_proxy/page/setting_page.dart';
-import 'package:code_proxy/view_model/home_view_model.dart';
+import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-class _HomeViewModel implements HomeViewModel {
+import '../support/setting_view_model_factory.dart';
+
+class _ProxyController implements ProxyServerController {
   final changes = <bool>[];
   late Completer<void> pending;
 
@@ -28,17 +30,15 @@ class _HomeViewModel implements HomeViewModel {
 
 void main() {
   late SettingViewModel settings;
-  late _HomeViewModel home;
+  late _ProxyController proxy;
 
   setUp(() {
-    settings = SettingViewModel();
-    home = _HomeViewModel();
+    proxy = _ProxyController();
+    settings = createSettingViewModel(proxy: proxy);
     GetIt.instance.registerSingleton<SettingViewModel>(settings);
-    GetIt.instance.registerSingleton<HomeViewModel>(home);
   });
 
   tearDown(() async {
-    settings.dispose();
     await GetIt.instance.reset();
   });
 
@@ -66,14 +66,14 @@ void main() {
 
       await tester.tap(modeSwitch());
       await tester.pump();
-      expect(home.changes, [true]);
+      expect(proxy.changes, [true]);
       expect(find.text('正在切换…'), findsNothing);
       expect(find.textContaining('切换会中断当前请求'), findsOneWidget);
       expect(tester.widget<ShadSwitch>(modeSwitch()).onChanged, isNull);
       await tester.tap(find.text('重试所有上游错误'));
-      expect(home.changes, [true]);
+      expect(proxy.changes, [true]);
 
-      home.pending.complete();
+      proxy.pending.complete();
       await tester.pumpAndSettle();
       expect(tester.widget<ShadSwitch>(modeSwitch()).value, isTrue);
       const descriptions = {
@@ -96,9 +96,9 @@ void main() {
       }
 
       await tester.tap(find.text('重试所有上游错误'));
-      home.pending.complete();
+      proxy.pending.complete();
       await tester.pumpAndSettle();
-      expect(home.changes, [true, false]);
+      expect(proxy.changes, [true, false]);
       expect(tester.widget<ShadSwitch>(modeSwitch()).value, isFalse);
       for (final entry in descriptions.entries) {
         final tile = find.ancestor(
@@ -123,7 +123,7 @@ void main() {
   ) async {
     await showSettings(tester);
     await tester.tap(modeSwitch());
-    home.pending.completeError(StateError('save failed'));
+    proxy.pending.completeError(StateError('save failed'));
     await tester.pumpAndSettle();
     expect(tester.widget<ShadSwitch>(modeSwitch()).value, isFalse);
     expect(tester.widget<ShadSwitch>(modeSwitch()).onChanged, isNotNull);

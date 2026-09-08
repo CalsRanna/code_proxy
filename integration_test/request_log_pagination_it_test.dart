@@ -74,18 +74,15 @@ void main() {
 
   testWidgets('真实桌面环境：翻页后表格滚动位置保留', (tester) async {
     GetIt.instance.registerSingleton<RequestLogViewModel>(
-      RequestLogViewModel(),
+      RequestLogViewModel(
+        repository: RequestLogRepository(Database.instance),
+        logChanges: const Stream<void>.empty(),
+      ),
     );
     final viewModel = GetIt.instance.get<RequestLogViewModel>();
     viewModel.initSignals();
 
-    await tester.pumpWidget(
-      ShadApp(
-        home: Scaffold(
-          body: RequestLogPage(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(ShadApp(home: Scaffold(body: RequestLogPage())));
     await tester.pumpAndSettle();
 
     final tableFinder = find.byType(TableView);

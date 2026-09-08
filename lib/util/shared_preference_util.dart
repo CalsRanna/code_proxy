@@ -44,6 +44,11 @@ class SharedPreferenceUtil {
 
   SharedPreferenceUtil._();
 
+  Future<void> clearAll() async {
+    final preferences = await _preferences;
+    await preferences.clear();
+  }
+
   Future<void> migrateIfNeeded() async {
     final prefs = await _preferences;
     final version = prefs.getInt(_prefVersionKey) ?? 0;

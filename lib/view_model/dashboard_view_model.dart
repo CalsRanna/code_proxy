@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/dashboard_overview_stats.dart';
 import 'package:code_proxy/model/model_date_token_stat.dart';
@@ -7,6 +9,24 @@ import 'package:code_proxy/util/logger_util.dart';
 import 'package:signals/signals.dart';
 
 class DashboardViewModel {
+  DashboardViewModel({
+    required Database database,
+    required DashboardStatsLoader statsLoader,
+    required ModelPricingService pricing,
+    required Stream<void> logChanges,
+  }) : _database = database,
+       _statsLoader = statsLoader,
+       _pricing = pricing {
+    _subscription = logChanges.listen((_) => markDirty());
+  }
+
+  final Database _database;
+  final DashboardStatsLoader _statsLoader;
+  final ModelPricingService _pricing;
+  late final StreamSubscription<void> _subscription;
+
+  void dispose() => _subscription.cancel();
+
   final dailyHeatmapRequests = signal<Map<String, int>>({});
   final dailyRequests = signal<Map<String, int>>({});
   final endpointTokenUsage = signal<Map<String, int>>({});
@@ -39,7 +59,8 @@ class DashboardViewModel {
   Future<void> initSignals() async {
     if (_loading) return;
     final lastLoadedAt = _lastLoadedAt;
-    final isFresh = lastLoadedAt != null &&
+    final isFresh =
+        lastLoadedAt != null &&
         DateTime.now().difference(lastLoadedAt) < _freshThreshold;
     if (!_dirty && isFresh) return;
 
@@ -58,11 +79,11 @@ class DashboardViewModel {
     try {
       // 聚合查询在后台 isolate 执行（见 DashboardStatsLoader），
       // 5 万行以上的全年/全历史聚合不再阻塞 UI isolate。
-      final stats = await DashboardStatsLoader().load(Database.instance.path);
+      final stats = await _statsLoader.load(_database.path);
 
       // 费用计算前必须先就绪定价数据：首次进 dashboard 时 HomeViewModel
       // 可能还没加载完，缺了这一步每日费用会静默全部算成 0。
-      final pricingService = ModelPricingService.instance;
+      final pricingService = _pricing;
       if (pricingService.modelCount.value == 0) {
         await pricingService.load();
       }
@@ -103,7 +124,7 @@ class DashboardViewModel {
   }
 
   Map<String, double> _toDailyCost(List<ModelDateTokenStat> stats) {
-    final pricingService = ModelPricingService.instance;
+    final pricingService = _pricing;
     final Map<String, double> costs = {};
     for (final stat in stats) {
       costs[stat.date] = (costs[stat.date] ?? 0) + _cost(pricingService, stat);
@@ -117,7 +138,7 @@ class DashboardViewModel {
   /// 从 15 天结果反推会把边界那天从「按时间戳部分统计」变成「整天统计」，
   /// 与折线图的请求数口径对不上。
   double _totalCost(List<ModelDateTokenStat> allStats) {
-    final pricingService = ModelPricingService.instance;
+    final pricingService = _pricing;
     var total = 0.0;
     for (final stat in allStats) {
       total += _cost(pricingService, stat);

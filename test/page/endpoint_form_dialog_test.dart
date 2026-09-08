@@ -1,5 +1,8 @@
+import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/page/endpoint/endpoint_form_dialog.dart';
+import 'package:code_proxy/repository/endpoint_repository.dart';
+import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +17,7 @@ void main() {
         home: Scaffold(
           body: EndpointFormDialog(
             endpoint: null,
-            viewModel: EndpointViewModel(),
+            viewModel: _createViewModel(),
           ),
         ),
       ),
@@ -87,15 +90,13 @@ void main() {
 
   testWidgets('编辑已有端点时认证方式初始化为端点配置值', (tester) async {
     // 编辑模式下默认选中「强制 x-api-key」
-    final viewModel = EndpointViewModel();
+    final viewModel = _createViewModel();
 
     await tester.pumpWidget(
       ShadApp(
         home: Scaffold(
           body: EndpointFormDialog(
-            endpoint: createEndpoint(
-              authMode: EndpointAuthMode.xApiKey,
-            ),
+            endpoint: createEndpoint(authMode: EndpointAuthMode.xApiKey),
             viewModel: viewModel,
           ),
         ),
@@ -103,15 +104,15 @@ void main() {
     );
 
     // 初始值回显断言（shadcn 内部泛型推断为 dynamic，直接查 form field）
-    final radioGroupFormField =
-        tester.widget<ShadRadioGroupFormField<EndpointAuthMode>>(
-      find.byType(ShadRadioGroupFormField<EndpointAuthMode>),
-    );
+    final radioGroupFormField = tester
+        .widget<ShadRadioGroupFormField<EndpointAuthMode>>(
+          find.byType(ShadRadioGroupFormField<EndpointAuthMode>),
+        );
     expect(radioGroupFormField.initialValue, EndpointAuthMode.xApiKey);
   });
 
   testWidgets('端点表单渲染 API 格式区块，默认选中 Anthropic', (tester) async {
-    final viewModel = EndpointViewModel();
+    final viewModel = _createViewModel();
 
     await tester.pumpWidget(
       ShadApp(
@@ -126,44 +127,42 @@ void main() {
     expect(find.text('Chat Completions'), findsOneWidget);
     expect(find.text('Responses'), findsOneWidget);
 
-    final formatField = tester.widget<ShadRadioGroupFormField<EndpointApiFormat>>(
-      find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
-    );
+    final formatField = tester
+        .widget<ShadRadioGroupFormField<EndpointApiFormat>>(
+          find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
+        );
     expect(formatField.initialValue, EndpointApiFormat.anthropic);
   });
 
   testWidgets('编辑已有端点时 API 格式初始化为端点配置值', (tester) async {
-    final viewModel = EndpointViewModel();
+    final viewModel = _createViewModel();
 
     await tester.pumpWidget(
       ShadApp(
         home: Scaffold(
           body: EndpointFormDialog(
-            endpoint: createEndpoint(
-              apiFormat: EndpointApiFormat.openai,
-            ),
+            endpoint: createEndpoint(apiFormat: EndpointApiFormat.openai),
             viewModel: viewModel,
           ),
         ),
       ),
     );
 
-    final formatField = tester.widget<ShadRadioGroupFormField<EndpointApiFormat>>(
-      find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
-    );
+    final formatField = tester
+        .widget<ShadRadioGroupFormField<EndpointApiFormat>>(
+          find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
+        );
     expect(formatField.initialValue, EndpointApiFormat.openai);
   });
 
   testWidgets('编辑已有端点时 Fable 模型初始化为端点配置值', (tester) async {
-    final viewModel = EndpointViewModel();
+    final viewModel = _createViewModel();
 
     await tester.pumpWidget(
       ShadApp(
         home: Scaffold(
           body: EndpointFormDialog(
-            endpoint: createEndpoint(
-              fableModel: 'claude-fable-5-1',
-            ),
+            endpoint: createEndpoint(fableModel: 'claude-fable-5-1'),
             viewModel: viewModel,
           ),
         ),
@@ -172,9 +171,22 @@ void main() {
 
     // Fable 模型输入框应回显端点配置值
     final fableField = tester.widget<ShadInputFormField>(
-      find.byWidgetPredicate((w) =>
-          w is ShadInputFormField && w.controller?.text == 'claude-fable-5-1'),
+      find.byWidgetPredicate(
+        (w) =>
+            w is ShadInputFormField && w.controller?.text == 'claude-fable-5-1',
+      ),
     );
     expect(fableField, isNotNull);
   });
+}
+
+class _ProxyController extends Fake implements ProxyServerController {}
+
+EndpointViewModel _createViewModel() {
+  final viewModel = EndpointViewModel(
+    repository: EndpointRepository(Database.instance),
+    proxy: _ProxyController(),
+  );
+  addTearDown(viewModel.dispose);
+  return viewModel;
 }

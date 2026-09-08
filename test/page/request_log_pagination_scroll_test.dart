@@ -12,6 +12,11 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 /// 模拟大库慢查询：每次 loadLogs 前有 80ms 真实查询窗口（实际磁盘库，
 /// 尤其大量日志时 COUNT + ORDER BY 可达此量级），放大竞态窗口。
 class SlowRequestLogViewModel extends RequestLogViewModel {
+  SlowRequestLogViewModel()
+    : super(
+        repository: RequestLogRepository(Database.instance),
+        logChanges: const Stream<void>.empty(),
+      );
   @override
   Future<void> loadLogs() async {
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -87,18 +92,15 @@ void main() {
 
   testWidgets('翻页后表格自动回到第一行（滚动位置清零）', (tester) async {
     GetIt.instance.registerSingleton<RequestLogViewModel>(
-      RequestLogViewModel(),
+      RequestLogViewModel(
+        repository: RequestLogRepository(Database.instance),
+        logChanges: const Stream<void>.empty(),
+      ),
     );
     final viewModel = GetIt.instance.get<RequestLogViewModel>();
     viewModel.initSignals();
 
-    await tester.pumpWidget(
-      ShadApp(
-        home: Scaffold(
-          body: RequestLogPage(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(ShadApp(home: Scaffold(body: RequestLogPage())));
     await tester.pumpAndSettle();
 
     final tableFinder = find.byType(TableView);
@@ -128,18 +130,15 @@ void main() {
 
   testWidgets('自动刷新（新日志入库）不重置滚动位置', (tester) async {
     GetIt.instance.registerSingleton<RequestLogViewModel>(
-      RequestLogViewModel(),
+      RequestLogViewModel(
+        repository: RequestLogRepository(Database.instance),
+        logChanges: const Stream<void>.empty(),
+      ),
     );
     final viewModel = GetIt.instance.get<RequestLogViewModel>();
     viewModel.initSignals();
 
-    await tester.pumpWidget(
-      ShadApp(
-        home: Scaffold(
-          body: RequestLogPage(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(ShadApp(home: Scaffold(body: RequestLogPage())));
     await tester.pumpAndSettle();
 
     final tableFinder = find.byType(TableView);
@@ -171,13 +170,7 @@ void main() {
     final viewModel = GetIt.instance.get<RequestLogViewModel>();
     viewModel.initSignals();
 
-    await tester.pumpWidget(
-      ShadApp(
-        home: Scaffold(
-          body: RequestLogPage(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(ShadApp(home: Scaffold(body: RequestLogPage())));
     await tester.pump(const Duration(milliseconds: 100));
 
     final tableFinder = find.byType(TableView);
@@ -215,18 +208,15 @@ void main() {
 
   testWidgets('翻页期间代理持续写入日志（并发 loadLogs）时仍正确回顶', (tester) async {
     GetIt.instance.registerSingleton<RequestLogViewModel>(
-      RequestLogViewModel(),
+      RequestLogViewModel(
+        repository: RequestLogRepository(Database.instance),
+        logChanges: const Stream<void>.empty(),
+      ),
     );
     final viewModel = GetIt.instance.get<RequestLogViewModel>();
     viewModel.initSignals();
 
-    await tester.pumpWidget(
-      ShadApp(
-        home: Scaffold(
-          body: RequestLogPage(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(ShadApp(home: Scaffold(body: RequestLogPage())));
     await tester.pumpAndSettle();
 
     final tableFinder = find.byType(TableView);

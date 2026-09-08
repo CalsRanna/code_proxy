@@ -1,11 +1,45 @@
-import 'package:code_proxy/database/database.dart';
+import 'dart:async';
+
 import 'package:code_proxy/model/request_log_entity.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:signals/signals.dart';
 
 class RequestLogViewModel {
-  final _requestLogRepository = RequestLogRepository(Database.instance);
+  RequestLogViewModel({
+    required RequestLogRepository repository,
+    required Stream<void> logChanges,
+  }) : _requestLogRepository = repository {
+    _subscription = logChanges.listen((_) => _scheduleLogRefresh());
+  }
+
+  final RequestLogRepository _requestLogRepository;
+  late final StreamSubscription<void> _subscription;
+  Timer? _refreshTimer;
+  bool _refreshPending = false;
+  bool _active = false;
+
+  void setActive(bool active) => _active = active;
+
+  // 500ms leading-edge 节流；不在请求页时不查询，切入时由 initSignals 补刷。
+  void _scheduleLogRefresh() {
+    if (!_active) return;
+    if (_refreshTimer?.isActive ?? false) {
+      _refreshPending = true;
+      return;
+    }
+    loadLogs();
+    _refreshTimer = Timer(const Duration(milliseconds: 500), () {
+      final pending = _refreshPending;
+      _refreshPending = false;
+      if (pending) _scheduleLogRefresh();
+    });
+  }
+
+  void dispose() {
+    _subscription.cancel();
+    _refreshTimer?.cancel();
+  }
 
   final logs = listSignal<RequestLogEntity>([]);
 

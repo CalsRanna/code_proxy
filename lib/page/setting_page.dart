@@ -1,4 +1,5 @@
 import 'package:code_proxy/model/model_pricing_entity.dart';
+import 'package:code_proxy/page/setting/setting_dialogs.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
@@ -17,6 +18,7 @@ class SettingPage extends StatefulWidget {
 
 class _SettingPageState extends State<SettingPage> {
   final viewModel = GetIt.instance.get<SettingViewModel>();
+  late final dialogs = SettingDialogs(viewModel);
   String selectedTab = 'proxy';
 
   @override
@@ -51,7 +53,7 @@ class _SettingPageState extends State<SettingPage> {
           '连续失败 ${viewModel.circuitBreakerFailureThreshold.value} 次后禁用端点并故障转移',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editDisableDuration(context),
+        onTap: () => dialogs.editDisableDuration(context),
       );
     });
     var circuitBreakerRecoveryTile = Watch((context) {
@@ -61,7 +63,7 @@ class _SettingPageState extends State<SettingPage> {
           '端点被禁用 ${viewModel.circuitBreakerRecoveryTimeout.value} 秒后尝试探测恢复',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editCircuitBreakerRecoveryTimeout(context),
+        onTap: () => dialogs.editCircuitBreakerRecoveryTimeout(context),
       );
     });
     var apiTimeoutTile = Watch((context) {
@@ -69,7 +71,7 @@ class _SettingPageState extends State<SettingPage> {
         title: const Text('API 超时时间'),
         subtitle: Text('${viewModel.apiTimeout.value} 毫秒'),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editApiTimeout(context),
+        onTap: () => dialogs.editApiTimeout(context),
       );
     });
     var launchAtStartupTile = Watch((context) {
@@ -89,7 +91,7 @@ class _SettingPageState extends State<SettingPage> {
         title: const Text('审计日志保留天数'),
         subtitle: Text('保留最近 ${viewModel.auditRetainDays.value} 天的审计日志'),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editAuditRetainDays(context),
+        onTap: () => dialogs.editAuditRetainDays(context),
       );
     });
     var notificationEnabledTile = Watch((context) {
@@ -192,7 +194,7 @@ class _SettingPageState extends State<SettingPage> {
         title: const Text('默认模型'),
         subtitle: Text('端点没有配置模型时使用的默认模型'),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editDefaultModelMapping(context),
+        onTap: () => dialogs.editDefaultModelMapping(context),
       );
     });
     var versionTile = Watch((context) {
@@ -531,7 +533,7 @@ class _SettingPageState extends State<SettingPage> {
             ShadButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                viewModel.clearDatabase(context);
+                dialogs.clearDatabase(this.context);
               },
               child: const Text('确定'),
             ),

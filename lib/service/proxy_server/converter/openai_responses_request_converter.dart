@@ -1,11 +1,11 @@
 import 'dart:convert';
 
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_request_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/anthropic_request_utils.dart';
 
 /// Anthropic Messages API → OpenAI Responses API（POST /v1/responses）
 /// 请求体转换器。
 ///
-/// 与 [OpenAiCompatRequestConverter] 相同的白名单重建式转换策略：
+/// 与 Chat Completions 转换器 相同的白名单重建式转换策略：
 /// 只复制 Responses API 支持的字段，天然剥离 cache_control、metadata、
 /// thinking 等 Anthropic 专有字段。
 ///
@@ -44,7 +44,7 @@ class OpenAiResponsesRequestConverter {
     };
 
     // system → 顶层 instructions（Responses API 将其作为首条系统消息注入）
-    final instructions = _convertSystem(body['system']);
+    final instructions = anthropicSystemText(body['system']);
     if (instructions != null) converted['instructions'] = instructions;
 
     final maxTokens = body['max_tokens'];
@@ -67,26 +67,6 @@ class OpenAiResponsesRequestConverter {
 
   /// 转换顶层 system 字段为 instructions 文本：string 或 content blocks
   /// 数组，多个 text block 以空行连接。缺失或全空白时返回 null。
-  static String? _convertSystem(dynamic system) {
-    String? text;
-    if (system is String) {
-      text = system;
-    } else if (system is List) {
-      final parts = <String>[];
-      for (final block in system) {
-        if (block is Map &&
-            block['type'] == 'text' &&
-            block['text'] is String) {
-          parts.add(block['text'] as String);
-        }
-      }
-      text = parts.join('\n\n');
-    }
-
-    final trimmed = text?.trim();
-    if (trimmed == null || trimmed.isEmpty) return null;
-    return trimmed;
-  }
 
   /// 转换单条 Anthropic 消息为若干个 Responses input item。
   ///
@@ -131,11 +111,7 @@ class OpenAiResponsesRequestConverter {
     }
 
     if (normalParts.isNotEmpty) {
-      items.add({
-        'type': 'message',
-        'role': 'user',
-        'content': normalParts,
-      });
+      items.add({'type': 'message', 'role': 'user', 'content': normalParts});
     } else if (items.isEmpty) {
       // 全部块都被剥离（如仅含 thinking），保留空消息维持轮次交替
       items.add(_emptyUserMessage());
@@ -250,32 +226,12 @@ class OpenAiResponsesRequestConverter {
   }
 
   void _convertTools(Map<String, dynamic> body, Map<String, dynamic> out) {
-    final tools = body['tools'];
-    if (tools is! List || tools.isEmpty) return;
-
-    final converted = <Map<String, dynamic>>[];
-    for (final tool in tools) {
-      if (tool is! Map) continue;
-      final type = tool['type'];
-      // 仅转发自定义工具；server tools（web_search 等为 Anthropic 专有）丢弃
-      if (type != null && type != 'custom') continue;
-      final name = tool['name'];
-      final schema = tool['input_schema'];
-      if (name is! String ||
-          name.trim().isEmpty ||
-          schema is! Map) {
-        continue;
-      }
-      // Responses API 的 function tool 为扁平结构（name/description/parameters
-      // 直接位于顶层，无 function 嵌套）
-      converted.add({
-        'type': 'function',
-        'name': name,
-        'description': tool['description'] ?? '',
-        'parameters': schema,
-      });
+    final tools = customFunctionTools(body['tools']);
+    if (tools.isNotEmpty) {
+      out['tools'] = [
+        for (final tool in tools) {'type': 'function', ...tool},
+      ];
     }
-    if (converted.isNotEmpty) out['tools'] = converted;
   }
 
   /// `output_config.effort` → Responses API `reasoning.effort`
@@ -285,7 +241,7 @@ class OpenAiResponsesRequestConverter {
   /// 控制深度）：只要客户端携带即恒等透传，不降级——模型不支持某档位
   /// 时由上游返回错误，代理不做猜测；不携带则不发，保持请求最简。
   void _convertThinking(Map<String, dynamic> body, Map<String, dynamic> out) {
-    final effort = OpenAiCompatRequestConverter.outputConfigEffort(body);
+    final effort = outputConfigEffort(body);
     if (effort != null) {
       out['reasoning'] = {'effort': effort};
     }
@@ -311,20 +267,20 @@ class OpenAiResponsesRequestConverter {
   }
 
   static Map<String, dynamic> _emptyUserMessage() => {
-        'type': 'message',
-        'role': 'user',
-        'content': [
-          {'type': 'input_text', 'text': ''},
-        ],
-      };
+    'type': 'message',
+    'role': 'user',
+    'content': [
+      {'type': 'input_text', 'text': ''},
+    ],
+  };
 
   static Map<String, dynamic> _emptyAssistantMessage() => {
-        'type': 'message',
-        'role': 'assistant',
-        'content': [
-          {'type': 'output_text', 'text': ''},
-        ],
-      };
+    'type': 'message',
+    'role': 'assistant',
+    'content': [
+      {'type': 'output_text', 'text': ''},
+    ],
+  };
 
   static String _genId() {
     return DateTime.now().microsecondsSinceEpoch.toRadixString(36);

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
+import 'package:code_proxy/service/proxy_server/response_decompressor.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../test_helpers.dart';
