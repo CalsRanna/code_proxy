@@ -14,25 +14,17 @@ import '../support/memory_preferences.dart';
 import '../test_helpers.dart';
 
 class _Server extends Fake implements ProxyServerService {
-  _Server(this.config, this.startError) : retry = config.retryAllErrorsEnabled;
+  _Server(this.config, this.startError);
   @override
   final ProxyServerConfig config;
   final Object? startError;
   int starts = 0;
   int stops = 0;
   bool running = false;
-  bool retry;
   List<EndpointEntity> currentEndpoints = [];
   final openIds = <String>{};
   @override
   int? get boundPort => running ? config.port : null;
-  @override
-  bool get retryAllErrorsEnabled => retry;
-  @override
-  void setRetryAllErrorsEnabled(bool value) {
-    retry = value;
-  }
-
   @override
   set endpoints(List<EndpointEntity> value) {
     currentEndpoints = List.of(value);
@@ -166,38 +158,16 @@ void main() {
     expect(controller.boundPort, isNull);
   });
 
-  test(
-    'endpoint and retry edits during startup reach the published server',
-    () async {
-      settings.barrier = Completer<void>();
-      final starting = controller.start();
-      await settings.entered.future;
-      final endpoint = createEndpoint(id: 'edited-while-starting');
-      controller.updateProxyEndpoints([endpoint]);
-      await controller.updateRetryAllErrors(true);
-      settings.barrier!.complete();
-      await starting;
-      expect(servers.single.currentEndpoints, [endpoint]);
-      expect(servers.single.retry, isTrue);
-      expect(preferences.retry, isTrue);
-    },
-  );
-
-  test(
-    'retry preference failure restores live behavior without restarting',
-    () async {
-      await controller.start();
-      preferences.failRetrySave = true;
-      await expectLater(
-        controller.updateRetryAllErrors(true),
-        throwsStateError,
-      );
-      expect(servers.single.retry, isFalse);
-      expect(preferences.retry, isFalse);
-      expect(servers.single.starts, 1);
-      expect(servers.single.stops, 0);
-    },
-  );
+  test('endpoint edits during startup reach the published server', () async {
+    settings.barrier = Completer<void>();
+    final starting = controller.start();
+    await settings.entered.future;
+    final endpoint = createEndpoint(id: 'edited-while-starting');
+    controller.updateProxyEndpoints([endpoint]);
+    settings.barrier!.complete();
+    await starting;
+    expect(servers.single.currentEndpoints, [endpoint]);
+  });
 
   test('circuit reset updates runtime state and notifies observers', () async {
     await controller.start();

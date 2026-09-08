@@ -44,14 +44,12 @@ class ProxyServerController {
   final _circuitBreakerChanges = StreamController<void>.broadcast();
   ProxyServerService? _proxyServer;
   List<EndpointEntity> _endpoints = [];
-  bool? _retryAllErrorsOverride;
 
   Stream<void> get circuitBreakerChanges => _circuitBreakerChanges.stream;
   int? get boundPort => _proxyServer?.boundPort;
 
   Future<void> start() async {
     _proxyServer = await _startConfiguredServer();
-    _applyCurrentRetrySetting(_proxyServer!);
   }
 
   Future<void> restartProxyServer() async {
@@ -66,7 +64,6 @@ class ProxyServerController {
           await oldServer.start();
           _proxyServer = oldServer;
           oldServer.endpoints = _endpoints;
-          _applyCurrentRetrySetting(oldServer);
         } catch (restoreError) {
           LoggerUtil.instance.e(
             'Failed to restore proxy server on old port: $restoreError',
@@ -106,7 +103,6 @@ class ProxyServerController {
   Future<ProxyServerService> _startServerWithPortScan() async {
     final preferredPort = await _preferences.getPort();
     final apiTimeout = await _preferences.getApiTimeout();
-    final retryAllErrors = await _preferences.getRetryAllErrorsEnabled();
     final cbThreshold = await _preferences.getCircuitBreakerFailureThreshold();
     final cbRecovery = await _preferences.getCircuitBreakerRecoveryTimeout();
     final authToken = await _preferences.getOrCreateProxyAuthToken();
@@ -123,7 +119,6 @@ class ProxyServerController {
           address: '127.0.0.1',
           port: port,
           apiTimeoutMs: apiTimeout,
-          retryAllErrorsEnabled: _retryAllErrorsOverride ?? retryAllErrors,
           circuitBreakerFailureThreshold: cbThreshold,
           circuitBreakerRecoveryTimeoutMs: cbRecovery,
         ),
@@ -151,26 +146,6 @@ class ProxyServerController {
         StateError(
           'No available port in range $preferredPort-${preferredPort + maxAttempts - 1}',
         );
-  }
-
-  Future<void> updateRetryAllErrors(bool enabled) async {
-    final previous =
-        _proxyServer?.retryAllErrorsEnabled ??
-        await _preferences.getRetryAllErrorsEnabled();
-    _retryAllErrorsOverride = enabled;
-    _proxyServer?.setRetryAllErrorsEnabled(enabled);
-    try {
-      await _preferences.setRetryAllErrorsEnabled(enabled);
-    } catch (_) {
-      _retryAllErrorsOverride = previous;
-      _proxyServer?.setRetryAllErrorsEnabled(previous);
-      rethrow;
-    }
-  }
-
-  void _applyCurrentRetrySetting(ProxyServerService server) {
-    final enabled = _retryAllErrorsOverride;
-    if (enabled != null) server.setRetryAllErrorsEnabled(enabled);
   }
 
   void updateProxyEndpoints(List<EndpointEntity> endpoints) {

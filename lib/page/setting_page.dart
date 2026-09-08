@@ -23,29 +23,6 @@ class _SettingPageState extends State<SettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    var retryAllErrorsTile = Watch((context) {
-      final changing = viewModel.retryAllErrorsChanging.value;
-      return ListTile(
-        title: const Text('重试所有上游错误'),
-        subtitle: const Text(
-          '开启后，4xx 错误也会按代理重试策略处理。'
-          '切换会中断当前请求。',
-        ),
-        trailing: ShadSwitch(
-          value: viewModel.retryAllErrorsEnabled.value,
-          enabled: !changing,
-          onChanged: changing
-              ? null
-              : (enabled) => _toggleRetryAllErrors(context, enabled),
-        ),
-        onTap: changing
-            ? null
-            : () => _toggleRetryAllErrors(
-                context,
-                !viewModel.retryAllErrorsEnabled.value,
-              ),
-      );
-    });
     var circuitBreakerThresholdTile = Watch((context) {
       return ListTile(
         title: const Text('端点熔断阈值'),
@@ -223,7 +200,6 @@ class _SettingPageState extends State<SettingPage> {
           content: ListView(
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
-              retryAllErrorsTile,
               circuitBreakerThresholdTile,
               circuitBreakerRecoveryTile,
               launchAtStartupTile,
@@ -492,12 +468,6 @@ class _SettingPageState extends State<SettingPage> {
       return;
     }
     ShadSonner.of(context).show(ShadToast(description: Text(message)));
-  }
-
-  Future<void> _toggleRetryAllErrors(BuildContext context, bool enabled) async {
-    final error = await viewModel.toggleRetryAllErrors(enabled);
-    if (!context.mounted || error == null) return;
-    ShadSonner.of(context).show(ShadToast(description: Text(error)));
   }
 
   String _formatPrice(double price) {

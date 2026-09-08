@@ -12,7 +12,6 @@ class SharedPreferenceUtil {
   final String _keyWindowWidth = 'window_width';
   final String _keyPort = 'port';
   final String _keyApiTimeout = 'api_timeout';
-  final String _keyRetryAllErrorsEnabled = 'retry_all_errors_enabled';
   final String _keyCircuitBreakerFailureThreshold =
       'circuit_breaker_failure_threshold';
   final String _keyCircuitBreakerRecoveryTimeout =
@@ -40,7 +39,7 @@ class SharedPreferenceUtil {
   };
 
   static const _prefVersionKey = 'pref_version';
-  static const _currentPrefVersion = 2;
+  static const _currentPrefVersion = 3;
 
   SharedPreferenceUtil._();
 
@@ -80,14 +79,10 @@ class SharedPreferenceUtil {
       }
     }
 
-    // 版本 2：只迁移旧开关值，不保留固定端点持续重试的旧执行语义。
-    // 已有新键优先，迁移后删除旧键。
-    const oldRetryKey = 'brute_force_mode_enabled';
-    if (prefs.containsKey(oldRetryKey)) {
-      if (!prefs.containsKey(_keyRetryAllErrorsEnabled)) {
-        await setRetryAllErrorsEnabled(prefs.getBool(oldRetryKey) ?? false);
-      }
-      await prefs.remove(oldRetryKey);
+    // 版本 3：清理已移除的「重试所有上游错误」开关键及其前身键。
+    if (version < 3) {
+      await prefs.remove('retry_all_errors_enabled');
+      await prefs.remove('brute_force_mode_enabled');
     }
 
     await prefs.setInt(_prefVersionKey, _currentPrefVersion);
@@ -95,18 +90,6 @@ class SharedPreferenceUtil {
 
   Future<int> getApiTimeout() async {
     return (await _preferences).getInt(_keyApiTimeout) ?? 10 * 60 * 1000;
-  }
-
-  Future<bool> getRetryAllErrorsEnabled() async {
-    return (await _preferences).getBool(_keyRetryAllErrorsEnabled) ?? false;
-  }
-
-  Future<void> setRetryAllErrorsEnabled(bool enabled) async {
-    final saved = await (await _preferences).setBool(
-      _keyRetryAllErrorsEnabled,
-      enabled,
-    );
-    if (!saved) throw StateError('Failed to save retry-all-errors setting');
   }
 
   Future<int> getAuditRetainDays() async {

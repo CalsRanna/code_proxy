@@ -42,8 +42,6 @@ class SettingViewModel {
   static const int maxCircuitBreakerRecoveryTimeoutSeconds = 3600;
 
   final apiTimeout = signal(600000);
-  final retryAllErrorsEnabled = signal(false);
-  final retryAllErrorsChanging = signal(false);
   final circuitBreakerFailureThreshold = signal(5);
   final circuitBreakerRecoveryTimeout = signal(60);
   final backgroundDataCollection = signal(false);
@@ -68,7 +66,6 @@ class SettingViewModel {
   };
 
   Future<void> initSignals() async {
-    retryAllErrorsEnabled.value = await _preferences.getRetryAllErrorsEnabled();
     apiTimeout.value = await _preferences.getApiTimeout();
 
     circuitBreakerFailureThreshold.value = await _preferences
@@ -236,26 +233,6 @@ class SettingViewModel {
   Future<void> toggleNotificationEnabled(bool value) async {
     notificationEnabled.value = value;
     await _preferences.setNotificationEnabled(value);
-  }
-
-  Future<String?> toggleRetryAllErrors(bool enabled) async {
-    if (retryAllErrorsChanging.value ||
-        enabled == retryAllErrorsEnabled.value) {
-      return null;
-    }
-    retryAllErrorsChanging.value = true;
-    try {
-      await _proxy.updateRetryAllErrors(enabled);
-      retryAllErrorsEnabled.value = enabled;
-      return null;
-    } catch (error) {
-      LoggerUtil.instance.e(
-        'Failed to switch retry-all-errors setting: $error',
-      );
-      return '切换重试所有上游错误失败：$error';
-    } finally {
-      retryAllErrorsChanging.value = false;
-    }
   }
 
   void _loadPricingInfo() {

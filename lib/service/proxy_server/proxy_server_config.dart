@@ -11,12 +11,6 @@ class ProxyServerConfig {
   /// 各阶段分别计时，不限制整条重试链路或持续有数据的 SSE 的总时长。
   final int apiTimeoutMs;
 
-  /// Whether upstream 4xx responses join the normal retry and failover policy.
-  ///
-  /// Defaults to false. Enabling this does not change timeouts, logging, or
-  /// cancellation behavior, and does not replay interrupted SSE responses.
-  final bool retryAllErrorsEnabled;
-
   /// 同一端点共享的连续失败阈值，达到后打开断路器。
   ///
   /// 跨请求、跨模型累计，不是每个请求独立的重试次数。
@@ -32,7 +26,6 @@ class ProxyServerConfig {
     this.address = '127.0.0.1',
     this.port = 9000,
     this.apiTimeoutMs = 10 * 60 * 1000,
-    this.retryAllErrorsEnabled = false,
     this.circuitBreakerFailureThreshold = 5,
     this.circuitBreakerRecoveryTimeoutMs = 60 * 1000,
   });

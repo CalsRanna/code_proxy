@@ -163,105 +163,99 @@ void main() {
     });
   });
 
-  for (final retryAllErrors in [false, true]) {
-    test(
-      'local probe and real forwarding with retry all errors = $retryAllErrors',
-      () async {
-        var upstreamHits = 0;
-        final statuses = <int>[];
-        final upstream = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-        addTearDown(() => upstream.close(force: true));
-        upstream.listen((request) async {
-          await request.drain<void>();
-          upstreamHits++;
-          request.response.statusCode = upstreamHits == 1 ? 503 : 200;
-          request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({'upstream': true}));
-          await request.response.close();
-        });
-        final service = ProxyServerService(
-          authToken: testProxyAuthToken,
-          config: ProxyServerConfig(
-            port: 0,
-            apiTimeoutMs: 3000,
-            retryAllErrorsEnabled: retryAllErrors,
-            circuitBreakerFailureThreshold: 2,
-          ),
-          onRequestCompleted: (_, _, response) =>
-              statuses.add(response.statusCode),
-        );
-        addTearDown(service.stop);
-        service.endpoints = [
-          EndpointEntity(
-            id: 'endpoint',
-            name: 'Endpoint',
-            anthropicBaseUrl: 'http://127.0.0.1:${upstream.port}',
-            anthropicAuthToken: 'upstream-token',
-            haikuModel: 'mapped-upstream-haiku',
-          ),
-        ];
-        await service.start();
-        final client = http.Client();
-        addTearDown(client.close);
-        final uri = Uri.parse(
-          'http://127.0.0.1:${service.boundPort}/v1/messages',
-        );
-        const headers = {
-          'x-api-key': testProxyAuthToken,
-          'content-type': 'application/json',
-          'user-agent': 'An unrelated client',
-        };
-
-        final local = await client.post(
-          uri,
-          headers: headers,
-          body: jsonEncode(_probe),
-        );
-        expect(local.statusCode, 200);
-        expect(jsonDecode(local.body)['model'], 'configured-haiku');
-        expect(upstreamHits, 0);
-        expect(statuses, isEmpty);
-        expect(service.getOpenCircuitBreakerEndpointIds(['endpoint']), isEmpty);
-
-        final unauthorized = await client.post(uri, body: jsonEncode(_probe));
-        expect(unauthorized.statusCode, 401);
-        expect(upstreamHits, 0);
-        expect(statuses, isEmpty);
-
-        final real = await client.post(
-          uri,
-          headers: headers,
-          body: jsonEncode({
-            ..._probe,
-            'messages': [
-              {'role': 'user', 'content': 'Hello'},
-            ],
-          }),
-        );
-        expect(real.statusCode, 200);
-        expect(jsonDecode(real.body)['upstream'], true);
-        expect(upstreamHits, 2);
-        expect(statuses, [503, 200]);
-
-        for (final endpoints in [
-          <EndpointEntity>[],
-          [EndpointEntity(id: 'disabled', name: 'Disabled', enabled: false)],
-        ]) {
-          service.endpoints = endpoints;
-          final unavailable = await client.post(
-            uri,
-            headers: headers,
-            body: jsonEncode(_probe),
-          );
-          expect(unavailable.statusCode, 503);
-          expect(
-            jsonDecode(unavailable.body)['error']['message'],
-            'No enabled endpoints',
-          );
-          expect(upstreamHits, 2);
-          expect(statuses, [503, 200]);
-        }
-      },
+  test('local probe and real forwarding', () async {
+    var upstreamHits = 0;
+    final statuses = <int>[];
+    final upstream = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => upstream.close(force: true));
+    upstream.listen((request) async {
+      await request.drain<void>();
+      upstreamHits++;
+      request.response.statusCode = upstreamHits == 1 ? 503 : 200;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'upstream': true}));
+      await request.response.close();
+    });
+    final service = ProxyServerService(
+      authToken: testProxyAuthToken,
+      config: ProxyServerConfig(
+        port: 0,
+        apiTimeoutMs: 3000,
+        circuitBreakerFailureThreshold: 2,
+      ),
+      onRequestCompleted: (_, _, response) =>
+          statuses.add(response.statusCode),
     );
-  }
+    addTearDown(service.stop);
+    service.endpoints = [
+      EndpointEntity(
+        id: 'endpoint',
+        name: 'Endpoint',
+        anthropicBaseUrl: 'http://127.0.0.1:${upstream.port}',
+        anthropicAuthToken: 'upstream-token',
+        haikuModel: 'mapped-upstream-haiku',
+      ),
+    ];
+    await service.start();
+    final client = http.Client();
+    addTearDown(client.close);
+    final uri = Uri.parse(
+      'http://127.0.0.1:${service.boundPort}/v1/messages',
+    );
+    const headers = {
+      'x-api-key': testProxyAuthToken,
+      'content-type': 'application/json',
+      'user-agent': 'An unrelated client',
+    };
+
+    final local = await client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(_probe),
+    );
+    expect(local.statusCode, 200);
+    expect(jsonDecode(local.body)['model'], 'configured-haiku');
+    expect(upstreamHits, 0);
+    expect(statuses, isEmpty);
+    expect(service.getOpenCircuitBreakerEndpointIds(['endpoint']), isEmpty);
+
+    final unauthorized = await client.post(uri, body: jsonEncode(_probe));
+    expect(unauthorized.statusCode, 401);
+    expect(upstreamHits, 0);
+    expect(statuses, isEmpty);
+
+    final real = await client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        ..._probe,
+        'messages': [
+          {'role': 'user', 'content': 'Hello'},
+        ],
+      }),
+    );
+    expect(real.statusCode, 200);
+    expect(jsonDecode(real.body)['upstream'], true);
+    expect(upstreamHits, 2);
+    expect(statuses, [503, 200]);
+
+    for (final endpoints in [
+      <EndpointEntity>[],
+      [EndpointEntity(id: 'disabled', name: 'Disabled', enabled: false)],
+    ]) {
+      service.endpoints = endpoints;
+      final unavailable = await client.post(
+        uri,
+        headers: headers,
+        body: jsonEncode(_probe),
+      );
+      expect(unavailable.statusCode, 503);
+      expect(
+        jsonDecode(unavailable.body)['error']['message'],
+        'No enabled endpoints',
+      );
+      expect(upstreamHits, 2);
+      expect(statuses, [503, 200]);
+    }
+  });
 }

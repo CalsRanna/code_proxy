@@ -36,7 +36,6 @@ class ProxyServerService {
   /// 若重启失败后回滚复用同一实例，后续所有转发都会抛
   /// "Client is already closed"。见 [_proxyHandler] 中的空值兜底。
   ProxyServerRequestHandler? _requestHandler;
-  bool _retryAllErrorsEnabled;
   final _activeRequests = <ProxyServerRequestCancellation>{};
   late final ProxyServerLocalResponder _localResponder;
   late final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
@@ -49,8 +48,7 @@ class ProxyServerService {
     this.onRequestCompleted,
     this.onEndpointUnavailable,
     this.onEndpointRestored,
-  }) : _authToken = authToken,
-       _retryAllErrorsEnabled = config.retryAllErrorsEnabled {
+  }) : _authToken = authToken {
     if (authToken.trim().isEmpty) {
       throw ArgumentError.value(authToken, 'authToken', 'must not be empty');
     }
@@ -69,22 +67,6 @@ class ProxyServerService {
 
   set endpoints(List<EndpointEntity> endpoints) {
     _router.setEndpoints(endpoints);
-  }
-
-  bool get retryAllErrorsEnabled => _retryAllErrorsEnabled;
-
-  /// Cancels active requests and applies the retry setting when it changes.
-  ///
-  /// Includes SSE streams and pending retries. Retains the listener and auth
-  /// token; completed attempt logs are unaffected.
-  void setRetryAllErrorsEnabled(bool enabled) {
-    if (_retryAllErrorsEnabled == enabled) return;
-    _cancelActiveRequests('Proxy retry setting changed');
-    _requestHandler?.close();
-    _requestHandler = _server == null
-        ? null
-        : ProxyServerRequestHandler(config);
-    _retryAllErrorsEnabled = enabled;
   }
 
   void _cancelActiveRequests(String reason) {
@@ -319,10 +301,8 @@ class ProxyServerService {
           previousSucceeded = true;
           continue;
         }
-        // 默认直接返回上游 4xx；开启后与 5xx 共用重试和熔断流程。
-        if (!_retryAllErrorsEnabled &&
-            response.statusCode >= 400 &&
-            response.statusCode < 500) {
+        // 上游 4xx 直接返回客户端，不重试、不计入熔断。
+        if (response.statusCode >= 400 && response.statusCode < 500) {
           break;
         }
         retryAfter = response.headers['retry-after'];

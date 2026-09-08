@@ -55,7 +55,6 @@ void main() {
 
   Future<void> start(
     List<EndpointEntity> endpoints, {
-    bool enabled = true,
     int timeout = 3000,
     int threshold = 5,
   }) async {
@@ -64,7 +63,6 @@ void main() {
         port: 0,
         apiTimeoutMs: timeout,
         circuitBreakerFailureThreshold: threshold,
-        retryAllErrorsEnabled: enabled,
       ),
       authToken: testProxyAuthToken,
       onEndpointUnavailable: (_) => unavailable++,
@@ -121,7 +119,7 @@ void main() {
     rawServers.clear();
   });
 
-  for (final status in [400, 401, 403, 404, 408, 429, 500, 503]) {
+  for (final status in [500, 502, 503]) {
     test(
       'retries upstream $status before reaching the circuit breaker threshold',
       () async {
@@ -185,7 +183,7 @@ void main() {
       final a = await upstream((request) async {
         hits++;
         if (hits == 1) {
-          request.response.statusCode = 429;
+          request.response.statusCode = 500;
           request.response.headers.set('retry-after', '1');
           await request.response.close();
           failed.complete();
@@ -208,7 +206,7 @@ void main() {
       expect((await send()).statusCode, 200);
       await Future<void>.delayed(const Duration(milliseconds: 1200));
       expect(hits, 2);
-      expect(logs.map((log) => log.statusCode), [429, 200]);
+      expect(logs.map((log) => log.statusCode), [500, 200]);
       expect(unavailable, 0);
     },
   );
@@ -244,34 +242,6 @@ void main() {
     await subscription.cancel();
     expect(logs, isEmpty);
     expect(unavailable, 0);
-  });
-
-  test('keep-alive requests remain usable across a mode switch', () async {
-    var hits = 0;
-    final a = await upstream((request) async {
-      hits++;
-      request.response.write('{"ok":true}');
-      await request.response.close();
-    });
-    await start([endpoint('a', a.port)]);
-    final downstream = HttpClient();
-    addTearDown(() => downstream.close(force: true));
-    final localPorts = <int?>[];
-    for (final enabled in [true, false, true]) {
-      proxy!.setRetryAllErrorsEnabled(enabled);
-      final outgoing = await downstream.postUrl(url());
-      outgoing.headers.set('x-api-key', testProxyAuthToken);
-      outgoing.headers.contentType = ContentType.json;
-      outgoing.add(request().bodyBytes);
-      final response = await outgoing.close();
-      localPorts.add(response.connectionInfo?.localPort);
-      expect(response.statusCode, 200);
-      await response.drain<void>();
-    }
-    expect(localPorts.first, isNotNull);
-    expect(localPorts.toSet(), hasLength(1));
-    expect(hits, 3);
-    expect(logs, hasLength(3));
   });
 
   test(
@@ -353,122 +323,13 @@ void main() {
     },
   );
 
-  test(
-    'switch interrupts normal header wait while retaining port and auth',
-    () async {
-      final raw = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-      rawServers.add(raw);
-      final connected = Completer<void>();
-      final disconnected = Completer<void>();
-      raw.listen((socket) {
-        socket.listen(
-          (_) {
-            if (!connected.isCompleted) connected.complete();
-          },
-          onDone: () {
-            socket.destroy();
-            if (!disconnected.isCompleted) disconnected.complete();
-          },
-        );
-      });
-      await start([endpoint('a', raw.port)], enabled: false);
-      final port = proxy!.boundPort;
-      final oldRequest = send();
-      await connected.future;
-      proxy!.setRetryAllErrorsEnabled(true);
-      expect((await oldRequest).statusCode, 503);
-      await disconnected.future.timeout(const Duration(seconds: 2));
-      expect(proxy!.boundPort, port);
-      expect((await client().head(url())).statusCode, 200);
-      expect(logs, isEmpty);
-      expect(unavailable, 0);
-
-      final a = await upstream((request) async {
-        request.response.write('new mode');
-        await request.response.close();
-      });
-      proxy!.endpoints = [endpoint('b', a.port)];
-      expect((await send()).body, 'new mode');
-      final unauthenticated = http.Client();
-      clients.add(unauthenticated);
-      expect((await unauthenticated.post(url())).statusCode, 401);
-    },
-  );
-
-  test(
-    'disabling cancels retry waits and restores normal 4xx handling',
-    () async {
-      var hits = 0;
-      final failed = Completer<void>();
-      final a = await upstream((request) async {
-        hits++;
-        request.response.statusCode = 401;
-        request.response.headers.set('retry-after', '1');
-        await request.response.close();
-        if (!failed.isCompleted) failed.complete();
-      });
-      await start([endpoint('a', a.port)]);
-      final port = proxy!.boundPort;
-      final oldRequest = send();
-      await failed.future;
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-      proxy!.setRetryAllErrorsEnabled(false);
-      expect((await oldRequest).statusCode, 503);
-      expect(logs.map((log) => log.statusCode), [401]);
-      expect((await send()).statusCode, 401);
-      expect(logs.map((log) => log.statusCode), [401, 401]);
-      await Future<void>.delayed(const Duration(milliseconds: 1100));
-      expect(hits, 2);
-      expect(proxy!.boundPort, port);
-      expect(unavailable, 0);
-    },
-  );
-
-  for (final enabled in [false, true]) {
-    test(
-      'switch cancels active SSE from retry-all-errors = $enabled',
-      () async {
-        var hits = 0;
-        final a = await upstream((request) async {
-          hits++;
-          request.response.headers.contentType = ContentType(
-            'text',
-            'event-stream',
-          );
-          request.response.bufferOutput = false;
-          request.response.write(': ${'x' * 8192}\n\n');
-          await request.response.flush();
-          // Keep the response open until the mode switch cancels its socket.
-        });
-        await start([endpoint('a', a.port)], enabled: enabled);
-        final stream = await client().send(request(stream: true));
-        final gotChunk = Completer<void>();
-        final done = Completer<void>();
-        stream.stream.listen((_) {
-          if (!gotChunk.isCompleted) gotChunk.complete();
-        }, onDone: done.complete);
-        await gotChunk.future;
-        proxy!.setRetryAllErrorsEnabled(!enabled);
-        await done.future.timeout(const Duration(seconds: 2));
-        expect(hits, 1);
-        expect(unavailable, 0);
-        expect(logs, isEmpty);
-        expect(proxy!.getOpenCircuitBreakerEndpointIds(['a']), isEmpty);
-      },
-    );
-  }
-
-  test('health checks honor existing breakers in either setting', () async {
+  test('health checks honor existing breakers', () async {
     final a = await upstream((request) async {
       request.response.statusCode = 500;
       await request.response.close();
     });
-    await start([endpoint('a', a.port)], enabled: false, threshold: 1);
+    await start([endpoint('a', a.port)], threshold: 1);
     expect((await send()).statusCode, 500);
-    expect((await client().head(url())).statusCode, 503);
-    proxy!.setRetryAllErrorsEnabled(true);
-    expect((await client().head(url())).statusCode, 503);
-    proxy!.setRetryAllErrorsEnabled(false);
     expect((await client().head(url())).statusCode, 503);
   });
 
@@ -516,32 +377,6 @@ void main() {
     },
   );
 
-  test('switch cancels normal retries without resurrecting old work', () async {
-    var hits = 0;
-    final first = Completer<void>();
-    final a = await upstream((request) async {
-      hits++;
-      // A zero jitter delay may already start the second attempt. Keep it
-      // pending so switching exercises cancellation in either state.
-      if (hits > 1) return;
-      request.response.statusCode = 500;
-      await request.response.close();
-      if (!first.isCompleted) first.complete();
-    });
-    await start([endpoint('a', a.port)], enabled: false, threshold: 5);
-    final old = send();
-    await first.future;
-    await Future<void>.delayed(const Duration(milliseconds: 30));
-    proxy!.setRetryAllErrorsEnabled(true);
-    proxy!.setRetryAllErrorsEnabled(false);
-    proxy!.setRetryAllErrorsEnabled(true);
-    expect((await old).statusCode, 503);
-    final hitsAtCancellation = hits;
-    await Future<void>.delayed(const Duration(milliseconds: 1100));
-    expect(hits, hitsAtCancellation);
-    expect(unavailable, 0);
-  });
-
   for (final format in [
     EndpointApiFormat.openai,
     EndpointApiFormat.openaiResponses,
@@ -550,7 +385,7 @@ void main() {
       var hits = 0;
       final a = await upstream((request) async {
         if (++hits == 1) {
-          request.response.statusCode = 403;
+          request.response.statusCode = 503;
           request.response.write('{"error":{"message":"temporary"}}');
         } else {
           request.response.headers.contentType = ContentType.json;
@@ -617,7 +452,6 @@ void main() {
       });
       await start(
         [endpoint('a', a.port), endpoint('b', b.port)],
-        enabled: false,
         threshold: 1,
       );
       final response = await send();
@@ -630,7 +464,7 @@ void main() {
     });
   }
 
-  for (final status in [429, 503]) {
+  for (final status in [500, 503]) {
     test(
       '$status reaches the shared failure threshold and fails over',
       () async {
@@ -661,23 +495,23 @@ void main() {
   }
 
   test(
-    'all endpoints returning 4xx eventually returns the final error',
+    'all endpoints failing eventually returns the final upstream error',
     () async {
       final a = await upstream((request) async {
-        request.response.statusCode = 429;
+        request.response.statusCode = 500;
         await request.response.close();
       });
       final b = await upstream((request) async {
-        request.response.statusCode = 403;
+        request.response.statusCode = 503;
         request.response.write('last upstream error');
         await request.response.close();
       });
       await start([endpoint('a', a.port), endpoint('b', b.port)], threshold: 1);
       final response = await send();
-      expect(response.statusCode, 403);
+      expect(response.statusCode, 503);
       expect(response.body, 'last upstream error');
       expect(unavailable, 2);
-      expect(logs.map((log) => log.statusCode), [429, 403]);
+      expect(logs.map((log) => log.statusCode), [500, 503]);
     },
   );
 
@@ -687,7 +521,7 @@ void main() {
       var hits = 0;
       final a = await upstream((request) async {
         if (++hits == 1) {
-          request.response.statusCode = 429;
+          request.response.statusCode = 500;
           request.response.headers.set('retry-after', '1');
         } else {
           request.response.write('ok');
@@ -699,7 +533,7 @@ void main() {
       expect((await send()).body, 'ok');
       expect(watch.elapsedMilliseconds, greaterThanOrEqualTo(950));
       expect(hits, 2);
-      expect(logs.map((log) => log.statusCode), [429, 200]);
+      expect(logs.map((log) => log.statusCode), [500, 200]);
     },
   );
 
@@ -707,7 +541,7 @@ void main() {
     'Retry-After from a failed endpoint does not delay the backup',
     () async {
       final a = await upstream((request) async {
-        request.response.statusCode = 429;
+        request.response.statusCode = 500;
         request.response.headers.set('retry-after', '60');
         await request.response.close();
       });
@@ -759,40 +593,35 @@ void main() {
     },
   );
 
-  for (final enabled in [false, true]) {
-    test(
-      'cancelling one request preserves an in-flight peer with setting = $enabled',
-      () async {
-        final firstReceived = Completer<void>();
-        final secondReceived = Completer<void>();
-        final finishSecond = Completer<void>();
-        var hits = 0;
-        final a = await upstream((request) async {
-          if (++hits == 1) {
-            firstReceived.complete();
-            return;
-          }
-          secondReceived.complete();
-          await finishSecond.future;
-          request.response.write('peer survived');
-          await request.response.close();
-        });
-        await start([endpoint('a', a.port)], enabled: enabled);
-        final firstClient = client();
-        final cancelled = expectLater(
-          firstClient.send(request()),
-          throwsA(isA<http.ClientException>()),
-        );
-        await firstReceived.future;
-        final second = send();
-        await secondReceived.future;
-        firstClient.close();
-        await cancelled;
-        finishSecond.complete();
-        expect((await second).body, 'peer survived');
-        expect(logs.map((log) => log.statusCode), [200]);
-        expect(unavailable, 0);
-      },
+  test('cancelling one request preserves an in-flight peer', () async {
+    final firstReceived = Completer<void>();
+    final secondReceived = Completer<void>();
+    final finishSecond = Completer<void>();
+    var hits = 0;
+    final a = await upstream((request) async {
+      if (++hits == 1) {
+        firstReceived.complete();
+        return;
+      }
+      secondReceived.complete();
+      await finishSecond.future;
+      request.response.write('peer survived');
+      await request.response.close();
+    });
+    await start([endpoint('a', a.port)]);
+    final firstClient = client();
+    final cancelled = expectLater(
+      firstClient.send(request()),
+      throwsA(isA<http.ClientException>()),
     );
-  }
+    await firstReceived.future;
+    final second = send();
+    await secondReceived.future;
+    firstClient.close();
+    await cancelled;
+    finishSecond.complete();
+    expect((await second).body, 'peer survived');
+    expect(logs.map((log) => log.statusCode), [200]);
+    expect(unavailable, 0);
+  });
 }

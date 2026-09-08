@@ -7,8 +7,6 @@ class MemoryPreferences extends Fake implements SharedPreferenceUtil {
   int threshold = 5;
   int recoveryMs = 60000;
   int auditDays = 14;
-  bool retry = false;
-  bool failRetrySave = false;
   @override
   Future<int> getPort() async => port;
   @override
@@ -46,11 +44,4 @@ class MemoryPreferences extends Fake implements SharedPreferenceUtil {
 
   @override
   Future<String> getOrCreateProxyAuthToken() async => 'local-test-token';
-  @override
-  Future<bool> getRetryAllErrorsEnabled() async => retry;
-  @override
-  Future<void> setRetryAllErrorsEnabled(bool value) async {
-    if (failRetrySave) throw StateError('save failed');
-    retry = value;
-  }
 }
