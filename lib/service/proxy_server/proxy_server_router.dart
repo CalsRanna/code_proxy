@@ -32,6 +32,8 @@ class ProxyServerRouter {
   /// 是否有至少一个端点可用（断路器未打开）。
   bool get hasAvailableEndpoints => _buildAvailableEndpoints().isNotEmpty;
 
+  bool get hasEnabledEndpoints => _allEndpoints.isNotEmpty;
+
   /// 为单个代理请求创建独立的路由会话，避免并发请求共享可变状态。
   ProxyServerRouteSession startRequest() {
     return ProxyServerRouteSession._(

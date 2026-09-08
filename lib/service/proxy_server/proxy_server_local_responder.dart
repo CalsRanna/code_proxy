@@ -1,10 +1,12 @@
 import 'dart:convert';
 
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/model_display_name_util.dart';
 import 'package:shelf/shelf.dart' as shelf;
+import 'package:uuid/uuid.dart';
 
 import 'proxy_server_router.dart';
 import 'proxy_server_token_estimator.dart';
@@ -16,6 +18,7 @@ import 'proxy_server_token_estimator.dart';
 ///   - `HEAD *`           → 存活性检查，直接返回 200
 ///   - `GET /v1/models`   → 返回本地模型列表，确保 ID 与 Profile inferenceModels 一致
 ///   - `POST /v1/messages/count_tokens` → 本地估算 token 数
+///   - `POST /v1/messages` 的默认 Haiku 单 token 句点探测 → 本地应答
 ///
 /// 不处理的请求返回 null，交由正常的代理转发逻辑处理。
 class ProxyServerLocalResponder {
@@ -60,7 +63,75 @@ class ProxyServerLocalResponder {
       );
     }
 
+    if (method == 'POST' && path == '/v1/messages') {
+      return _tryRespondDesktopProbe(rawBody);
+    }
+
     return null;
+  }
+
+  shelf.Response? _tryRespondDesktopProbe(List<int> rawBody) {
+    final dynamic body;
+    try {
+      body = jsonDecode(utf8.decode(rawBody));
+    } on FormatException {
+      return null;
+    }
+    if (body is! Map<String, dynamic> ||
+        body.length != 3 ||
+        body['max_tokens'] is! int ||
+        body['max_tokens'] != 1) {
+      return null;
+    }
+    final model = body['model'];
+    final messages = body['messages'];
+    if (model is! String ||
+        model.isEmpty ||
+        messages is! List ||
+        messages.length != 1) {
+      return null;
+    }
+    final message = messages.single;
+    if (message is! Map<String, dynamic> ||
+        message.length != 2 ||
+        message['role'] != 'user' ||
+        message['content'] != '.') {
+      return null;
+    }
+    try {
+      if (model != ClaudeCodeModelConfigService.instance.config.haikuModel) {
+        return null;
+      }
+    } on ModelConfigException {
+      return null;
+    }
+
+    // 探测只确认本地代理已配置端点，不读取或改变上游断路器状态。
+    if (!_router.hasEnabledEndpoints) {
+      return shelf.Response(
+        503,
+        body: jsonEncode({
+          'type': 'error',
+          'error': {'type': 'api_error', 'message': 'No enabled endpoints'},
+        }),
+        headers: {'content-type': 'application/json'},
+      );
+    }
+    return shelf.Response.ok(
+      jsonEncode({
+        'id': 'msg_${const Uuid().v4()}',
+        'type': 'message',
+        'role': 'assistant',
+        'model': model,
+        'content': [
+          {'type': 'text', 'text': '.'},
+        ],
+        'stop_reason': 'end_turn',
+        'stop_sequence': null,
+        'usage': {'input_tokens': 0, 'output_tokens': 0},
+      }),
+      headers: {'content-type': 'application/json'},
+    );
   }
 
   /// 从 [ClaudeCodeModelConfigService] 构建 /v1/models 响应。
