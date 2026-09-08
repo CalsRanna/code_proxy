@@ -1,5 +1,6 @@
 import 'package:code_proxy/page/dashboard/dashboard_tooltip.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
+import 'package:code_proxy/util/format_number_util.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
@@ -13,12 +14,6 @@ class DashboardRequestsChart extends StatelessWidget {
     required this.dailyStats,
     this.dailyCost = const {},
   });
-
-  static String _formatNumber(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
-    return n.toString();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +63,7 @@ class DashboardRequestsChart extends StatelessWidget {
               labelStyle: const TextStyle(fontSize: 10),
               axisLabelFormatter: (AxisLabelRenderDetails details) {
                 return ChartAxisLabel(
-                  _formatNumber(details.value.toInt()),
+                  formatCompactNumber(details.value.toInt()),
                   const TextStyle(fontSize: 10),
                 );
               },

@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:code_proxy/model/normalized_token_usage.dart';
 import 'package:code_proxy/service/proxy_server/converter/anthropic_sse_writer.dart';
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_response_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_chat_response_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_usage_extractor.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 import 'openai_sse_converter.dart';
@@ -27,14 +27,14 @@ import 'sse_line_splitter.dart';
 ///
 /// 典型用法：
 /// ```dart
-/// final converter = OpenAiSseStreamConverter(originalModel: 'claude-sonnet-4-5');
+/// final converter = OpenAiChatSseStreamConverter(originalModel: 'claude-sonnet-4-5');
 /// final head = converter.initialEvents();      // message_start + ping
 /// ...
 /// final out = converter.handleData(chunk);     // 逐块转换
 /// final tail = converter.handleDone();         // 收尾事件
 /// final usage = converter.finalUsage;          // 最终 token 用量
 /// ```
-class OpenAiSseStreamConverter implements OpenAiSseConverter {
+class OpenAiChatSseStreamConverter implements OpenAiSseConverter {
   /// 客户端请求的原始模型名，回填到 message_start 中
   final String? originalModel;
 
@@ -53,7 +53,7 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
   /// 此时仍应视为正常完成）
   bool _receivedFinishReason = false;
 
-  OpenAiSseStreamConverter({this.originalModel});
+  OpenAiChatSseStreamConverter({this.originalModel});
 
   /// 构造时立即产出的头部事件：message_start + ping。
   ///
@@ -130,7 +130,7 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
       if (c is! Map) continue;
       final fr = c['finish_reason'];
       if (fr != null) {
-        _stopReason = OpenAiCompatResponseConverter.mapStopReason(fr);
+        _stopReason = OpenAiChatResponseConverter.mapStopReason(fr);
         _receivedFinishReason = true;
         // 不 break 后续处理：后续 chunk 可能仍携带 usage
       }
@@ -201,15 +201,13 @@ class OpenAiSseStreamConverter implements OpenAiSseConverter {
 
   void _updateUsage(Map usage) {
     // 多个 chunk 携带 usage 时以最后一个为准（流式总量在末尾才完整）
-    final details = usage['prompt_tokens_details'];
-    final normalized = NormalizedTokenUsage.fromOpenAi(
-      totalInputTokens: usage['prompt_tokens'],
-      outputTokens: usage['completion_tokens'],
-      cacheReadInputTokens: details is Map ? details['cached_tokens'] : null,
-      cacheCreationInputTokens: details is Map
-          ? details['cache_write_tokens']
-          : null,
+    _writer.updateUsage(
+      extractOpenAiUsage(
+        usage,
+        totalInputKey: 'prompt_tokens',
+        outputKey: 'completion_tokens',
+        detailsKey: 'prompt_tokens_details',
+      ),
     );
-    _writer.updateUsage(normalized);
   }
 }

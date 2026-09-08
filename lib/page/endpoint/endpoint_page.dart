@@ -2,6 +2,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/page/endpoint/endpoint_card.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/endpoint_view_model.dart';
+import 'package:code_proxy/widget/empty_state.dart';
 import 'package:code_proxy/widget/page_header.dart';
 import 'package:code_proxy/page/endpoint/endpoint_form_dialog.dart';
 import 'package:flutter/material.dart';
@@ -50,7 +51,7 @@ class _EndpointPageState extends State<EndpointPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(child: Text('暂无数据'));
+    return const EmptyState();
   }
 
   Widget _buildEndpointsList(List<EndpointEntity> endpoints) {

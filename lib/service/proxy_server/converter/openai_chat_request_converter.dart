@@ -10,8 +10,8 @@ import 'package:code_proxy/service/proxy_server/converter/anthropic_request_util
 ///
 /// 转换在模型映射之后执行，body 中的 model 字段已是端点配置的目标
 /// 模型名，直接透传。
-class OpenAiCompatRequestConverter {
-  const OpenAiCompatRequestConverter();
+class OpenAiChatRequestConverter {
+  const OpenAiChatRequestConverter();
 
   /// 转换请求体。输入应为合法的 Anthropic /v1/messages 请求 JSON。
   Map<String, dynamic> convert(Map<String, dynamic> body) {

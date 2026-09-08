@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:code_proxy/service/proxy_server/sse_text_line_buffer.dart';
+
 /// Anthropic SSE 流的扫描器 —— 完成信号与 usage 的**唯一**解析实现。
 ///
 /// 按行喂入，边流边维护「是否见过完成信号」与累积的 usage。此前这两件事
@@ -14,7 +16,7 @@ import 'dart:convert';
 /// 非流式与压缩流拿不到逐 chunk 的可读文本，但同样走这里：一次 [add] 整段
 /// 文本再 [flush] 即可。协议解析只此一份，新增 usage 字段不会漏改路径。
 class AnthropicSseScanner {
-  final StringBuffer _pending = StringBuffer();
+  final SseTextLineBuffer _lineBuffer = SseTextLineBuffer();
   bool _sawCompletionSignal = false;
 
   int? _inputTokens;
@@ -52,26 +54,14 @@ class AnthropicSseScanner {
 
   /// 喂入一段已解码文本。不完整的尾行会留在内部缓冲。
   void add(String text) {
-    if (text.isEmpty) return;
-    _pending.write(text);
-
-    final buffered = _pending.toString();
-    final lastNewline = buffered.lastIndexOf('\n');
-    if (lastNewline < 0) return;
-
-    _pending
-      ..clear()
-      ..write(buffered.substring(lastNewline + 1));
-
-    for (final line in buffered.substring(0, lastNewline).split('\n')) {
+    for (final line in _lineBuffer.add(text)) {
       _processLine(line);
     }
   }
 
   /// 流结束时处理最后一行没有换行结尾的残留。
   void flush() {
-    final remainder = _pending.toString();
-    _pending.clear();
+    final remainder = _lineBuffer.flush();
     if (remainder.isNotEmpty) _processLine(remainder);
   }
 

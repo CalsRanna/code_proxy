@@ -164,13 +164,7 @@ class AnthropicSseWriter {
   List<int> handleError(Object error) {
     if (finished) return const [];
     finished = true;
-    writeEvent('error', {
-      'type': 'error',
-      'error': {
-        'type': 'api_error',
-        'message': 'Upstream stream error: $error',
-      },
-    });
+    writeRaw(buildSseErrorEventText('Upstream stream error: $error'));
     return takeOutput();
   }
 
@@ -184,4 +178,20 @@ class AnthropicSseWriter {
     _output.clear();
     return bytes;
   }
+
+  /// 写入一段已格式化的 SSE 事件文本（如 [buildSseErrorEventText] 的输出）。
+  void writeRaw(String rawEventText) {
+    _output.write(rawEventText);
+  }
 }
+
+/// 生成 SSE error 事件文本（Anthropic 协议口径）。
+///
+/// 三个使用方保持一致格式：OpenAI 流转换器（writer 的
+/// [AnthropicSseWriter.handleError] 与 Responses 转换器的 response.failed
+/// 分支）与 Anthropic 透传管线（ResponseProcessor）。
+String buildSseErrorEventText(String message) =>
+    'event: error\ndata: ${jsonEncode({
+      'type': 'error',
+      'error': {'type': 'api_error', 'message': message},
+    })}\n\n';

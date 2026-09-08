@@ -375,6 +375,22 @@ void main() {
     expect(deltas, '你好世界');
   });
 
+  test('末行无换行结尾：handleDone 冲刷并处理最后一行（回归）', () {
+    final events = runStream([
+      utf8.encode(
+        'event: response.output_text.delta\n'
+        'data: {"type":"response.output_text.delta","delta":"tail"}',
+      ),
+    ]);
+
+    final deltas = events
+        .where((e) => e.$1 == 'content_block_delta')
+        .map((e) => e.$2['delta']['text'])
+        .toList();
+    expect(deltas, ['tail']);
+    expect(events.last.$1, 'message_stop');
+  });
+
   test('data: [DONE] 行被容错忽略', () {
     final bytes = utf8.encode(
       '${utf8.decode(sse([

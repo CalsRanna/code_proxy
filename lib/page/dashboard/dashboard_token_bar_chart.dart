@@ -1,4 +1,5 @@
 import 'package:code_proxy/theme/shadcn_colors.dart';
+import 'package:code_proxy/util/format_number_util.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
@@ -8,12 +9,6 @@ class DashboardTokenBarChart extends StatelessWidget {
   final Map<String, Map<String, Map<String, int>>> modelDateTokenStats;
 
   const DashboardTokenBarChart({super.key, required this.modelDateTokenStats});
-
-  static String _formatNumber(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
-    return n.toString();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +77,7 @@ class DashboardTokenBarChart extends StatelessWidget {
             labelStyle: const TextStyle(fontSize: 10),
             axisLabelFormatter: (AxisLabelRenderDetails details) {
               return ChartAxisLabel(
-                _formatNumber(details.value.toInt()),
+                formatCompactNumber(details.value.toInt()),
                 const TextStyle(fontSize: 10),
               );
             },
@@ -148,7 +143,7 @@ class DashboardTokenBarChart extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '总计: ${_formatNumber(total)}',
+                          '总计: ${formatCompactNumber(total)}',
                           style: const TextStyle(
                             fontSize: 10,
                             color: Color(0xFFAAAAAA),
@@ -156,7 +151,7 @@ class DashboardTokenBarChart extends StatelessWidget {
                         ),
                         if (input > 0)
                           Text(
-                            '未缓存输入: ${_formatNumber(input)}',
+                            '未缓存输入: ${formatCompactNumber(input)}',
                             style: const TextStyle(
                               fontSize: 10,
                               color: Color(0xFFAAAAAA),
@@ -164,7 +159,7 @@ class DashboardTokenBarChart extends StatelessWidget {
                           ),
                         if (cacheRead > 0)
                           Text(
-                            '缓存读取: ${_formatNumber(cacheRead)}',
+                            '缓存读取: ${formatCompactNumber(cacheRead)}',
                             style: TextStyle(
                               fontSize: 10,
                               color: ShadcnColors.emerald400,
@@ -172,7 +167,7 @@ class DashboardTokenBarChart extends StatelessWidget {
                           ),
                         if (cacheCreation > 0)
                           Text(
-                            '缓存创建: ${_formatNumber(cacheCreation)}',
+                            '缓存创建: ${formatCompactNumber(cacheCreation)}',
                             style: TextStyle(
                               fontSize: 10,
                               color: ShadcnColors.amber400,
@@ -180,7 +175,7 @@ class DashboardTokenBarChart extends StatelessWidget {
                           ),
                         if (output > 0)
                           Text(
-                            '输出: ${_formatNumber(output)}',
+                            '输出: ${formatCompactNumber(output)}',
                             style: const TextStyle(
                               fontSize: 10,
                               color: Color(0xFFAAAAAA),

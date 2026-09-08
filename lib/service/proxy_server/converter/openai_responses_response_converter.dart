@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:code_proxy/model/normalized_token_usage.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_usage_extractor.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 /// OpenAI Responses API（POST /v1/responses）→ Anthropic Messages API
@@ -184,18 +185,12 @@ class OpenAiResponsesResponseConverter {
   static Map<String, dynamic> convertUsage(dynamic rawUsage) {
     if (rawUsage is! Map) return NormalizedTokenUsage.zero.toAnthropicUsage();
 
-    final details = rawUsage['input_tokens_details'];
-    return (NormalizedTokenUsage.fromOpenAi(
-              totalInputTokens: rawUsage['input_tokens'],
-              outputTokens: rawUsage['output_tokens'],
-              cacheReadInputTokens: details is Map
-                  ? details['cached_tokens']
-                  : null,
-              cacheCreationInputTokens: details is Map
-                  ? details['cache_write_tokens']
-                  : null,
-            ) ??
-            NormalizedTokenUsage.zero)
-        .toAnthropicUsage();
+    final normalized = extractOpenAiUsage(
+      rawUsage,
+      totalInputKey: 'input_tokens',
+      outputKey: 'output_tokens',
+      detailsKey: 'input_tokens_details',
+    );
+    return (normalized ?? NormalizedTokenUsage.zero).toAnthropicUsage();
   }
 }

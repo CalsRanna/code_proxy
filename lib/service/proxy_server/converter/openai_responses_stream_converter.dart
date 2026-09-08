@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:code_proxy/model/normalized_token_usage.dart';
 import 'package:code_proxy/service/proxy_server/converter/anthropic_sse_writer.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_usage_extractor.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 import 'openai_sse_converter.dart';
@@ -75,6 +75,9 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   /// 上游流正常结束：冲刷解码缓冲、关闭未闭合的 block、输出收尾事件。
   @override
   List<int> handleDone() {
+    for (final line in _lineSplitter.flush()) {
+      _processLine(line);
+    }
     _finishSequence();
     return takeOutput();
   }
@@ -159,13 +162,9 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
         final err = response is Map ? response['error'] : null;
         LoggerUtil.instance.w('Responses stream failed: $err');
         _receivedCompletionEvent = true;
-        _writer.writeEvent('error', {
-          'type': 'error',
-          'error': {
-            'type': 'api_error',
-            'message': 'Upstream response failed: ${err ?? 'unknown'}',
-          },
-        });
+        _writer.writeRaw(
+          buildSseErrorEventText('Upstream response failed: ${err ?? 'unknown'}'),
+        );
         _writer.finished = true;
       default:
         // response.created / in_progress / content_part.* /
@@ -236,15 +235,13 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   void _updateUsage(dynamic rawUsage) {
     if (rawUsage is! Map) return;
     // usage 可能随 completed/incomplete 多次到达，以最后一个为准
-    final details = rawUsage['input_tokens_details'];
-    final normalized = NormalizedTokenUsage.fromOpenAi(
-      totalInputTokens: rawUsage['input_tokens'],
-      outputTokens: rawUsage['output_tokens'],
-      cacheReadInputTokens: details is Map ? details['cached_tokens'] : null,
-      cacheCreationInputTokens: details is Map
-          ? details['cache_write_tokens']
-          : null,
+    _writer.updateUsage(
+      extractOpenAiUsage(
+        rawUsage,
+        totalInputKey: 'input_tokens',
+        outputKey: 'output_tokens',
+        detailsKey: 'input_tokens_details',
+      ),
     );
-    _writer.updateUsage(normalized);
   }
 }

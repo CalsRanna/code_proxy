@@ -65,9 +65,6 @@ class OpenAiResponsesRequestConverter {
     return converted;
   }
 
-  /// 转换顶层 system 字段为 instructions 文本：string 或 content blocks
-  /// 数组，多个 text block 以空行连接。缺失或全空白时返回 null。
-
   /// 转换单条 Anthropic 消息为若干个 Responses input item。
   ///
   /// - user 消息中的 tool_result 块转为独立的 function_call_output item，

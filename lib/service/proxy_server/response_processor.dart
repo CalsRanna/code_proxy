@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/service/proxy_server/anthropic_sse_scanner.dart';
+import 'package:code_proxy/service/proxy_server/converter/anthropic_sse_writer.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
@@ -179,13 +180,7 @@ class ResponseProcessor {
 
     List<int> buildSseError(Object error) {
       if (!canEmitSseError) return const [];
-      return utf8.encode(
-        'event: error\n'
-        'data: ${jsonEncode({
-          'type': 'error',
-          'error': {'type': 'api_error', 'message': error.toString()},
-        })}\n\n',
-      );
+      return utf8.encode(buildSseErrorEventText(error.toString()));
     }
 
     final transformedStream = upstreamStream.transform(

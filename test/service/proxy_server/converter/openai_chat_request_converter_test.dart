@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_request_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_chat_request_converter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const converter = OpenAiCompatRequestConverter();
+  const converter = OpenAiChatRequestConverter();
 
   Map<String, dynamic> convert(Map<String, dynamic> body) {
     return converter.convert(body);

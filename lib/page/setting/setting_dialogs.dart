@@ -38,7 +38,8 @@ class SettingDialogs {
     onSave: viewModel.updateApiTimeout,
   );
 
-  Future<void> editDisableDuration(BuildContext context) => _editNumber(
+  Future<void> editCircuitBreakerFailureThreshold(BuildContext context) =>
+      _editNumber(
     context,
     title: '端点熔断阈值',
     description: '连续失败达到此次数后禁用端点并故障转移 (1-20)',

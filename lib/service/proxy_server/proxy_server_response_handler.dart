@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_response_converter.dart';
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_stream_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_chat_response_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_chat_stream_converter.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_responses_response_converter.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_responses_stream_converter.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_sse_converter.dart';
@@ -25,8 +25,8 @@ class ProxyServerResponseHandler {
   final TokenExtractor _tokenExtractor;
 
   /// Chat Completions 格式的响应体/错误体转换器
-  final OpenAiCompatResponseConverter _openAiResponseConverter =
-      const OpenAiCompatResponseConverter();
+  final OpenAiChatResponseConverter _openAiResponseConverter =
+      const OpenAiChatResponseConverter();
 
   /// Responses API 格式的响应体转换器
   final OpenAiResponsesResponseConverter _openAiResponsesResponseConverter =
@@ -293,7 +293,7 @@ class ProxyServerResponseHandler {
     }
   }
 
-  /// OpenAI 兼容端点的错误响应：转换错误体并记录日志后返回。
+  /// OpenAI Chat Completions 端点的错误响应：转换错误体并记录日志后返回。
   ///
   /// 返回给客户端的是 Anthropic 错误格式；审计中 responseBody/errorBody
   /// 均记录客户端实际收到的转换后文本。
@@ -338,7 +338,7 @@ class ProxyServerResponseHandler {
     );
   }
 
-  /// OpenAI 兼容端点：非流式响应转换（chat.completion → Anthropic message）。
+  /// OpenAI Chat Completions 端点：非流式响应转换（chat.completion → Anthropic message）。
   Future<shelf.Response> _processOpenAiNormalResponse(
     http.StreamedResponse response,
     EndpointEntity endpoint,
@@ -411,7 +411,7 @@ class ProxyServerResponseHandler {
     );
   }
 
-  /// OpenAI 兼容端点：流式响应转换（OpenAI SSE chunk 流 → Anthropic 事件流）。
+  /// OpenAI Chat Completions 端点：流式响应转换（OpenAI SSE chunk 流 → Anthropic 事件流）。
   ///
   /// message_start/ping 在上游首字节到达前先行产出，保证客户端尽快收到响应。
   shelf.Response _buildOpenAiStreamResponse(
@@ -428,7 +428,7 @@ class ProxyServerResponseHandler {
     final OpenAiSseConverter converter =
         endpoint.apiFormat == EndpointApiFormat.openaiResponses
         ? OpenAiResponsesSseStreamConverter(originalModel: originalModel)
-        : OpenAiSseStreamConverter(originalModel: originalModel);
+        : OpenAiChatSseStreamConverter(originalModel: originalModel);
     // 转换后的完整事件文本（供审计记录）
     final outputChunks = <String>[];
     // 上游原始字节（协议转换前，供审计对照）。accept-encoding 已强制
@@ -524,7 +524,7 @@ class ProxyServerResponseHandler {
     );
   }
 
-  /// OpenAI 兼容端点非流式响应的转发头。
+  /// OpenAI Chat Completions 端点非流式响应的转发头。
   ///
   /// 响应体已整体重写（解压 + 格式转换），content-encoding/content-length
   /// 均不再适用。
@@ -532,7 +532,7 @@ class ProxyServerResponseHandler {
     'content-type': 'application/json',
   };
 
-  /// OpenAI 兼容端点流式响应的转发头
+  /// OpenAI Chat Completions 端点流式响应的转发头
   Map<String, String> _openAiStreamHeaders() => const {
     'content-type': 'text/event-stream; charset=utf-8',
     'cache-control': 'no-cache',

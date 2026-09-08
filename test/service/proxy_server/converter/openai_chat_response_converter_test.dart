@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_response_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_chat_response_converter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const converter = OpenAiCompatResponseConverter();
+  const converter = OpenAiChatResponseConverter();
 
   Map<String, dynamic> convertResponse(Map<String, dynamic> body) {
     return converter.convertResponse(body, originalModel: 'claude-sonnet-4-5');

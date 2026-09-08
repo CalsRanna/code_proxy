@@ -1,17 +1,18 @@
 import 'dart:convert';
 
 import 'package:code_proxy/model/normalized_token_usage.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_usage_extractor.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 /// OpenAI Chat Completions API → Anthropic Messages API 响应体转换器
 /// （非流式 JSON 与错误体）。
 ///
-/// 流式 SSE 转换见 [OpenAiSseStreamConverter]。
+/// 流式 SSE 转换见 [OpenAiChatSseStreamConverter]。
 ///
 /// 转换输出为标准 Anthropic 格式，因此下游的 TokenExtractor、审计日志、
 /// 断路器等组件无需感知上游协议差异。
-class OpenAiCompatResponseConverter {
-  const OpenAiCompatResponseConverter();
+class OpenAiChatResponseConverter {
+  const OpenAiChatResponseConverter();
 
   /// 非流式响应转换。
   ///
@@ -165,19 +166,13 @@ class OpenAiCompatResponseConverter {
   static Map<String, dynamic> convertUsage(dynamic rawUsage) {
     if (rawUsage is! Map) return NormalizedTokenUsage.zero.toAnthropicUsage();
 
-    final details = rawUsage['prompt_tokens_details'];
-    return (NormalizedTokenUsage.fromOpenAi(
-              totalInputTokens: rawUsage['prompt_tokens'],
-              outputTokens: rawUsage['completion_tokens'],
-              cacheReadInputTokens: details is Map
-                  ? details['cached_tokens']
-                  : null,
-              cacheCreationInputTokens: details is Map
-                  ? details['cache_write_tokens']
-                  : null,
-            ) ??
-            NormalizedTokenUsage.zero)
-        .toAnthropicUsage();
+    final normalized = extractOpenAiUsage(
+      rawUsage,
+      totalInputKey: 'prompt_tokens',
+      outputKey: 'completion_tokens',
+      detailsKey: 'prompt_tokens_details',
+    );
+    return (normalized ?? NormalizedTokenUsage.zero).toAnthropicUsage();
   }
 
   /// OpenAI tool_call → tool_use block。

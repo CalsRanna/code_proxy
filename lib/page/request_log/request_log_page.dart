@@ -3,6 +3,7 @@ import 'package:code_proxy/page/request_log/request_log_pagination.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
+import 'package:code_proxy/widget/empty_state.dart';
 import 'package:code_proxy/widget/page_header.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -67,7 +68,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
   }
 
   Widget _buildEmpty() {
-    return Center(child: Text('暂无数据'));
+    return const EmptyState();
   }
 
   Widget _buildPagination() {

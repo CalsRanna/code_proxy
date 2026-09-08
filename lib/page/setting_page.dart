@@ -30,7 +30,7 @@ class _SettingPageState extends State<SettingPage> {
           '连续失败 ${viewModel.circuitBreakerFailureThreshold.value} 次后禁用端点并故障转移',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => dialogs.editDisableDuration(context),
+        onTap: () => dialogs.editCircuitBreakerFailureThreshold(context),
       );
     });
     var circuitBreakerRecoveryTile = Watch((context) {

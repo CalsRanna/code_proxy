@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:code_proxy/service/proxy_server/anthropic_sse_scanner.dart';
+import 'package:code_proxy/service/proxy_server/sse_text_line_buffer.dart';
 
 /// Anthropic SSE 流中的模型名改写器 —— 响应模型伪装。
 ///
@@ -17,39 +18,26 @@ class AnthropicSseModelRewriter {
   /// 伪装目标模型名（客户端请求的原始模型名）
   final String _targetModel;
 
-  final StringBuffer _pending = StringBuffer();
+  final SseTextLineBuffer _lineBuffer = SseTextLineBuffer();
 
   /// 喂入一段已解码文本，返回改写后的增量文本。
   ///
   /// 不完整的尾行（没有换行结尾）会留在内部缓冲，与 [AnthropicSseScanner]
   /// 的语义一致。
   String add(String text) {
-    if (text.isEmpty) return '';
-    _pending.write(text);
-
-    final buffered = _pending.toString();
-    final lastNewline = buffered.lastIndexOf('\n');
-    if (lastNewline < 0) return '';
-
-    // 处理到最后一个换行（含），其后的内容才可能是未完成的行。
-    // 以 \n 结尾（如事件分隔的空行）时整个缓冲都已是完整行。
-    _pending
-      ..clear()
-      ..write(buffered.substring(lastNewline + 1));
-
-    return _rewriteBlock(buffered.substring(0, lastNewline + 1));
+    final lines = _lineBuffer.add(text);
+    return lines.isEmpty ? '' : _rewriteBlock(lines);
   }
 
   /// 流结束时处理最后一行没有换行结尾的残留。
   String flush() {
-    final remainder = _pending.toString();
-    _pending.clear();
-    return remainder.isEmpty ? '' : _rewriteBlock(remainder);
+    final remainder = _lineBuffer.flush();
+    return remainder.isEmpty ? '' : _rewriteLine(remainder);
   }
 
-  /// 逐行改写，保留原有的换行结构（`split.join` 不增删换行）。
-  String _rewriteBlock(String text) {
-    return text.split('\n').map(_rewriteLine).join('\n');
+  /// 逐行改写并补回换行，保留原有的行结构。
+  String _rewriteBlock(List<String> lines) {
+    return '${lines.map(_rewriteLine).join('\n')}\n';
   }
 
   /// 改写单行：仅重写 message_start 的 data 行，其余原样返回。

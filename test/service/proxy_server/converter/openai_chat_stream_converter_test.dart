@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_stream_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_chat_stream_converter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 解析 SSE 输出为 (event, data) 记录列表
@@ -27,7 +27,7 @@ void main() {
     List<List<int>> chunks, {
     bool callHandleDone = true,
   }) {
-    final converter = OpenAiSseStreamConverter(
+    final converter = OpenAiChatSseStreamConverter(
       originalModel: 'claude-sonnet-4-5',
     );
     final out = <int>[...converter.initialEvents()];
@@ -45,7 +45,7 @@ void main() {
   }
 
   test('头部事件：message_start + ping 立即产出', () {
-    final converter = OpenAiSseStreamConverter(
+    final converter = OpenAiChatSseStreamConverter(
       originalModel: 'claude-sonnet-4-5',
     );
     final events = parseEvents(converter.initialEvents());
@@ -116,7 +116,7 @@ void main() {
     });
 
     test('usage 在末尾独立 chunk 时正确捕获', () {
-      final converter = OpenAiSseStreamConverter(originalModel: 'm');
+      final converter = OpenAiChatSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
       converter.handleData(
         sse([
@@ -179,7 +179,7 @@ void main() {
 
   group('完成信号检测（isComplete）', () {
     test('仅内容分片时 isComplete 为 false（上游静默截断）', () {
-      final converter = OpenAiSseStreamConverter(
+      final converter = OpenAiChatSseStreamConverter(
         originalModel: 'claude-sonnet-4-5',
       );
       converter.initialEvents();
@@ -209,7 +209,7 @@ void main() {
     });
 
     test('收到 [DONE] 时 isComplete 为 true（即使没有 finish_reason）', () {
-      final converter = OpenAiSseStreamConverter(
+      final converter = OpenAiChatSseStreamConverter(
         originalModel: 'claude-sonnet-4-5',
       );
       converter.initialEvents();
@@ -231,7 +231,7 @@ void main() {
     });
 
     test('收到 finish_reason 但没有 [DONE] 时 isComplete 为 true', () {
-      final converter = OpenAiSseStreamConverter(
+      final converter = OpenAiChatSseStreamConverter(
         originalModel: 'claude-sonnet-4-5',
       );
       converter.initialEvents();
@@ -253,7 +253,7 @@ void main() {
     });
 
     test('空流直接结束（无任何信号）时 isComplete 为 false', () {
-      final converter = OpenAiSseStreamConverter(
+      final converter = OpenAiChatSseStreamConverter(
         originalModel: 'claude-sonnet-4-5',
       );
       converter.initialEvents();
@@ -680,7 +680,7 @@ void main() {
     });
 
     test('handleError 输出 error 事件', () {
-      final converter = OpenAiSseStreamConverter(originalModel: 'm');
+      final converter = OpenAiChatSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
       final errorBytes = converter.handleError(Exception('boom'));
       final events = parseEvents(errorBytes);
@@ -690,7 +690,7 @@ void main() {
     });
 
     test('handleDone 重复调用幂等', () {
-      final converter = OpenAiSseStreamConverter(originalModel: 'm');
+      final converter = OpenAiChatSseStreamConverter(originalModel: 'm');
       converter.initialEvents();
       final first = converter.handleDone();
       final second = converter.handleDone();

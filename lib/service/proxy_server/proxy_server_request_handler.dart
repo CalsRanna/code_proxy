@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/proxy_server/converter/openai_compat_request_converter.dart';
+import 'package:code_proxy/service/proxy_server/converter/openai_chat_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_responses_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
@@ -16,8 +16,8 @@ import 'package:shelf/shelf.dart' as shelf;
 class ProxyServerRequestHandler {
   final ProxyServerTransport _transport;
   final ProxyServerConfig config;
-  final OpenAiCompatRequestConverter _openAiRequestConverter =
-      const OpenAiCompatRequestConverter();
+  final OpenAiChatRequestConverter _openAiRequestConverter =
+      const OpenAiChatRequestConverter();
   final OpenAiResponsesRequestConverter _openAiResponsesRequestConverter =
       const OpenAiResponsesRequestConverter();
 
@@ -261,7 +261,7 @@ class ProxyServerRequestHandler {
     }
   }
 
-  /// OpenAI 兼容端点的请求头处理。
+  /// OpenAI Chat Completions 端点的请求头处理。
   ///
   /// - 认证统一为 Authorization: Bearer（authMode 配置对 openai 端点
   ///   不生效，OpenAI 生态标准认证方式即 Bearer）
