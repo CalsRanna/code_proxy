@@ -6,6 +6,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_compat_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_responses_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_cancellation.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,9 @@ import 'package:shelf/shelf.dart' as shelf;
 
 /// 请求处理器 - 负责请求准备和转发
 class ProxyServerRequestHandler {
+  // Only connection establishment needs a zone: the factory is called by
+  // HttpClient without a request argument, and the client is shared.
+  static final _connectionCancellationKey = Object();
   final HttpClient _httpClient;
   final ProxyServerConfig config;
   final OpenAiCompatRequestConverter _openAiRequestConverter =
@@ -95,6 +99,10 @@ class ProxyServerRequestHandler {
     String? proxyHost,
     int? proxyPort,
   ) async {
+    final cancellation =
+        Zone.current[_connectionCancellationKey]
+            as ProxyServerRequestCancellation?;
+    cancellation?.throwIfCancelled();
     final host = proxyHost ?? uri.host;
     final port = proxyPort ?? uri.port;
     final isSecure = uri.isScheme('https');
@@ -108,7 +116,17 @@ class ProxyServerRequestHandler {
 
     // socket 真正建立后再设置 keepalive 选项。
     // SecureSocket 底层仍是 TCP socket，setRawOption 对其同样有效。
-    unawaited(task.socket.then(_enableTcpKeepalive).catchError((_) {}));
+    final remove = cancellation?.onCancel(task.cancel);
+    unawaited(
+      task.socket.then<void>((socket) {
+        remove?.call();
+        if (cancellation?.isCancelled ?? false) {
+          socket.destroy();
+        } else {
+          _enableTcpKeepalive(socket);
+        }
+      }, onError: (Object _) => remove?.call()),
+    );
     return task;
   }
 
@@ -191,94 +209,151 @@ class ProxyServerRequestHandler {
   /// 转发 HTTP 请求。
   ///
   /// 同一个配置值分别限制：
+  /// - 建立连接的最长时间；
   /// - 等待响应头的最长时间；
   /// - 响应体相邻数据块之间的最长空闲时间。
   ///
   /// 后者是 idle timeout 而非流的总时长，因此持续有数据的长 SSE 不会
   /// 因总运行时间较长而被误杀，但响应头后永久停顿会可靠终止。
   ///
-  /// 两处超时都调用 [HttpClientRequest.abort] 真正切断请求。此前用
-  /// `Future.timeout` 包 IOClient 只能让等待的 Future 提前完成，底层请求
-  /// 仍在跑，超时的连接会一直占着连接池直到自然回收 —— 在 SSE 长 TTFB
-  /// （200-300s）场景下这会累积成大量僵死连接。
+  /// [cancellation] 取消当前请求的连接任务、响应头等待或响应体订阅，
+  /// 不关闭共享客户端中的其他并发请求。等待响应头时调用
+  /// [HttpClientRequest.abort]；当前 Dart SDK 的 TLS 握手取消可能延迟释放
+  /// 底层连接，迟到的结果会被清理，不恢复请求或重试。
   ///
   /// 末尾的异常转换复刻 IOClient 的行为：dart:io 抛的是 HttpException /
-  /// SocketException，而 [ProxyServerErrorClassifier] 只认
+  /// SocketException，而透明重试判定使用
   /// [http.ClientException]（"Connection closed before full header was
   /// received"）。少了这层转换，透明重试会静默退化为不再触发。
-  Future<http.StreamedResponse> forwardRequest(http.Request request) async {
+  Future<http.StreamedResponse> forwardRequest(
+    http.Request request, {
+    ProxyServerRequestCancellation? cancellation,
+  }) async {
     final timeout = Duration(milliseconds: config.apiTimeoutMs);
 
     try {
-      // 连接阶段单独计时：此时还没有 HttpClientRequest，无法 abort，
-      // 但 TCP/TLS 握手远快于响应头等待，实际超时几乎只发生在下一步。
-      final ioRequest = await _httpClient
-          .openUrl(request.method, request.url)
-          .timeout(timeout);
-      ioRequest
-        ..followRedirects = request.followRedirects
-        ..maxRedirects = request.maxRedirects
-        ..contentLength = request.bodyBytes.length
-        ..persistentConnection = request.persistentConnection;
-      request.headers.forEach((name, value) {
-        ioRequest.headers.set(name, value);
-      });
-      ioRequest.add(request.bodyBytes);
-
-      final HttpClientResponse ioResponse;
+      final ioRequest = await _openRequest(request, timeout, cancellation);
+      // Observe abort errors even if cancellation happens before close().
+      unawaited(ioRequest.done.then<void>((_) {}, onError: (Object _) {}));
+      final remove = cancellation?.onCancel(ioRequest.abort);
       try {
-        ioResponse = await ioRequest.close().timeout(timeout);
-      } on TimeoutException {
-        // 切断请求本身。abort 会让上面那个 Future 以错误完成，但
-        // Future.timeout 内部已注册 onError，不会变成 unhandled async error。
-        ioRequest.abort();
-        rethrow;
-      }
+        cancellation?.throwIfCancelled();
+        ioRequest
+          ..followRedirects = request.followRedirects
+          ..maxRedirects = request.maxRedirects
+          ..contentLength = request.bodyBytes.length
+          ..persistentConnection = request.persistentConnection;
+        request.headers.forEach((name, value) {
+          ioRequest.headers.set(name, value);
+        });
+        ioRequest.add(request.bodyBytes);
 
-      final headers = <String, String>{};
-      ioResponse.headers.forEach((name, values) {
-        headers[name] = values.join(',');
-      });
+        final HttpClientResponse ioResponse;
+        try {
+          ioResponse = await ioRequest.close().timeout(timeout);
+        } on TimeoutException {
+          // 切断请求本身。abort 会让上面那个 Future 以错误完成，但
+          // Future.timeout 内部已注册 onError，不会变成 unhandled async error。
+          ioRequest.abort();
+          rethrow;
+        }
 
-      final timedBody = ioResponse
-          .timeout(
-            timeout,
-            onTimeout: (sink) {
-              ioRequest.abort();
-              sink.addError(
-                TimeoutException(
-                  'Upstream response body was idle for '
-                  '${timeout.inMilliseconds}ms',
-                  timeout,
-                ),
+        // Once headers arrive, abort() no longer closes the socket. Cancelling
+        // the response subscription terminates only this request's connection.
+        final responseBody = cancellation == null
+            ? ioResponse
+            : cancellation.bindStream<List<int>>(ioResponse);
+
+        final headers = <String, String>{};
+        ioResponse.headers.forEach((name, values) {
+          headers[name] = values.join(',');
+        });
+
+        final timedBody = responseBody
+            .timeout(
+              timeout,
+              onTimeout: (sink) {
+                ioRequest.abort();
+                sink.addError(
+                  TimeoutException(
+                    'Upstream response body was idle for '
+                    '${timeout.inMilliseconds}ms',
+                    timeout,
+                  ),
+                );
+                sink.close();
+              },
+            )
+            .handleError((Object error) {
+              final httpException = error as HttpException;
+              throw http.ClientException(
+                httpException.message,
+                httpException.uri,
               );
-              sink.close();
-            },
-          )
-          .handleError((Object error) {
-            final httpException = error as HttpException;
-            throw http.ClientException(
-              httpException.message,
-              httpException.uri,
-            );
-          }, test: (error) => error is HttpException);
+            }, test: (error) => error is HttpException);
 
-      return http.StreamedResponse(
-        timedBody,
-        ioResponse.statusCode,
-        contentLength: ioResponse.contentLength == -1
-            ? null
-            : ioResponse.contentLength,
-        request: request,
-        headers: headers,
-        isRedirect: ioResponse.isRedirect,
-        persistentConnection: ioResponse.persistentConnection,
-        reasonPhrase: ioResponse.reasonPhrase,
-      );
+        return http.StreamedResponse(
+          timedBody,
+          ioResponse.statusCode,
+          contentLength: ioResponse.contentLength == -1
+              ? null
+              : ioResponse.contentLength,
+          request: request,
+          headers: headers,
+          isRedirect: ioResponse.isRedirect,
+          persistentConnection: ioResponse.persistentConnection,
+          reasonPhrase: ioResponse.reasonPhrase,
+        );
+      } finally {
+        remove?.call();
+      }
     } on SocketException catch (error) {
       throw http.ClientException(error.message, request.url);
     } on HttpException catch (error) {
       throw http.ClientException(error.message, error.uri);
+    }
+  }
+
+  Future<HttpClientRequest> _openRequest(
+    http.Request request,
+    Duration timeout,
+    ProxyServerRequestCancellation? cancellation,
+  ) async {
+    final connecting = ProxyServerRequestCancellation();
+    final remove = cancellation?.onCancel(
+      () => connecting.cancel(cancellation.reason!),
+    );
+    try {
+      connecting.throwIfCancelled();
+      final pending =
+          runZoned(
+            () => _httpClient.openUrl(request.method, request.url),
+            zoneValues: {_connectionCancellationKey: connecting},
+          ).then((ioRequest) {
+            if (connecting.isCancelled) {
+              unawaited(
+                ioRequest.done.then<void>((_) {}, onError: (Object _) {}),
+              );
+              ioRequest.abort();
+              connecting.throwIfCancelled();
+            }
+            return ioRequest;
+          });
+      return await connecting
+          .run(pending)
+          .timeout(
+            timeout,
+            onTimeout: () {
+              final error = TimeoutException(
+                'Upstream connection timed out',
+                timeout,
+              );
+              connecting.cancel(error);
+              throw error;
+            },
+          );
+    } finally {
+      remove?.call();
     }
   }
 

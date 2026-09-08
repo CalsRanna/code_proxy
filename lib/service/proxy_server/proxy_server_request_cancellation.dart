@@ -94,6 +94,9 @@ class ProxyServerRequestCancellation {
 
     void cancelled() {
       if (finished) return;
+      // Cancellation can arrive between receiving headers and subscribing to
+      // the body. Still subscribe and cancel so the upstream socket is closed.
+      subscription ??= source.listen(null, onError: (Object _) {});
       if (cancelWithError) controller.addError(_reason!);
       unawaited(subscription?.cancel());
       unawaited(controller.close());
@@ -102,11 +105,7 @@ class ProxyServerRequestCancellation {
 
     controller = StreamController<T>(
       onListen: () {
-        if (isCancelled) {
-          cancelled();
-          return;
-        }
-        remove = onCancel(cancelled);
+        if (finished) return;
         subscription = source.listen(
           (data) {
             if (!finished) controller.add(data);
@@ -127,6 +126,7 @@ class ProxyServerRequestCancellation {
         await subscription?.cancel();
       },
     );
+    remove = onCancel(cancelled);
     return controller.stream;
   }
 }

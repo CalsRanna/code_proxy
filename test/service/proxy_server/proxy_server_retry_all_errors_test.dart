@@ -1,13 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/proxy_server/brute_force/proxy_server_brute_force_executor.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_retry_delay.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -60,14 +57,14 @@ void main() {
     List<EndpointEntity> endpoints, {
     bool enabled = true,
     int timeout = 3000,
-    int threshold = 1,
+    int threshold = 5,
   }) async {
     proxy = ProxyServerService(
       config: ProxyServerConfig(
         port: 0,
         apiTimeoutMs: timeout,
         circuitBreakerFailureThreshold: threshold,
-        bruteForceModeEnabled: enabled,
+        retryAllErrorsEnabled: enabled,
       ),
       authToken: testProxyAuthToken,
       onEndpointUnavailable: (_) => unavailable++,
@@ -126,7 +123,7 @@ void main() {
 
   for (final status in [400, 401, 403, 404, 408, 429, 500, 503]) {
     test(
-      'retries upstream $status on the pinned endpoint without breaking',
+      'retries upstream $status before reaching the circuit breaker threshold',
       () async {
         var hits = 0;
         var backupHits = 0;
@@ -146,50 +143,13 @@ void main() {
         expect(response.statusCode, 200);
         expect(hits, 2);
         expect(backupHits, 0);
-        expect(logs.map((log) => log.statusCode), [200]);
+        expect(logs.map((log) => log.statusCode), [status, 200]);
         expect(proxy!.getOpenCircuitBreakerEndpointIds(['a', 'b']), isEmpty);
         expect(unavailable, 0);
         expect(restored, 0);
       },
     );
   }
-
-  test('shares one deadline across retries and Retry-After waits', () async {
-    var hits = 0;
-    final a = await upstream((request) async {
-      hits++;
-      request.response.statusCode = 429;
-      request.response.headers.set('retry-after', '120');
-      await request.response.close();
-    });
-    await start([endpoint('a', a.port)], timeout: 250);
-    final watch = Stopwatch()..start();
-    final response = await send();
-    expect(response.statusCode, 504);
-    expect(response.body, contains('after 1 attempts'));
-    expect(hits, 1);
-    expect(watch.elapsedMilliseconds, inInclusiveRange(200, 1200));
-    expect(logs, isEmpty);
-  });
-
-  test('deadline closes a socket which never sends response headers', () async {
-    final raw = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-    rawServers.add(raw);
-    final disconnected = Completer<void>();
-    raw.listen((socket) {
-      socket.listen(
-        (_) {},
-        onDone: () {
-          socket.destroy();
-          if (!disconnected.isCompleted) disconnected.complete();
-        },
-      );
-    });
-    await start([endpoint('a', raw.port)], timeout: 150);
-    expect((await send()).statusCode, 504);
-    await disconnected.future.timeout(const Duration(seconds: 2));
-    expect(logs, isEmpty);
-  });
 
   test('client disconnect cancels the pending upstream header wait', () async {
     final raw = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -248,7 +208,7 @@ void main() {
       expect((await send()).statusCode, 200);
       await Future<void>.delayed(const Duration(milliseconds: 1200));
       expect(hits, 2);
-      expect(logs.map((log) => log.statusCode), [200]);
+      expect(logs.map((log) => log.statusCode), [429, 200]);
       expect(unavailable, 0);
     },
   );
@@ -298,7 +258,7 @@ void main() {
     addTearDown(() => downstream.close(force: true));
     final localPorts = <int?>[];
     for (final enabled in [true, false, true]) {
-      proxy!.setBruteForceModeEnabled(enabled);
+      proxy!.setRetryAllErrorsEnabled(enabled);
       final outgoing = await downstream.postUrl(url());
       outgoing.headers.set('x-api-key', testProxyAuthToken);
       outgoing.headers.contentType = ContentType.json;
@@ -335,48 +295,7 @@ void main() {
     },
   );
 
-  for (final status in [200, 500]) {
-    test(
-      'total budget bounds a continuously arriving $status non-stream body',
-      () async {
-        final raw = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-        rawServers.add(raw);
-        final disconnected = Completer<void>();
-        raw.listen((socket) {
-          Timer? timer;
-          var started = false;
-          socket.listen(
-            (_) {
-              if (started) return;
-              started = true;
-              socket.write(
-                'HTTP/1.1 $status Test\r\n'
-                'Content-Type: text/plain\r\n'
-                'Transfer-Encoding: chunked\r\n\r\n',
-              );
-              socket.write('1\r\nx\r\n');
-              timer = Timer.periodic(const Duration(milliseconds: 30), (_) {
-                socket.write('1\r\nx\r\n');
-              });
-            },
-            onDone: () {
-              timer?.cancel();
-              socket.destroy();
-              if (!disconnected.isCompleted) disconnected.complete();
-            },
-          );
-        });
-        await start([endpoint('a', raw.port)], timeout: 180);
-        final watch = Stopwatch()..start();
-        expect((await send()).statusCode, 504);
-        expect(watch.elapsedMilliseconds, lessThan(1000));
-        await disconnected.future.timeout(const Duration(seconds: 2));
-        expect(logs, isEmpty);
-      },
-    );
-  }
-
-  test('successful SSE continues past the retry deadline', () async {
+  test('active SSE continues beyond the API idle timeout', () async {
     final a = await upstream((request) async {
       request.response.headers.contentType = ContentType(
         'text',
@@ -407,7 +326,7 @@ void main() {
   });
 
   test(
-    'truncated SSE still reports an error without persisting a failure',
+    'truncated SSE records a failure without resending partial output',
     () async {
       var hits = 0;
       final a = await upstream((request) async {
@@ -430,7 +349,7 @@ void main() {
       expect(body, contains('partial'));
       expect(body, contains('event: error'));
       expect(hits, 1);
-      expect(logs, isEmpty);
+      expect(logs.map((log) => log.statusCode), [502]);
     },
   );
 
@@ -456,7 +375,7 @@ void main() {
       final port = proxy!.boundPort;
       final oldRequest = send();
       await connected.future;
-      proxy!.setBruteForceModeEnabled(true);
+      proxy!.setRetryAllErrorsEnabled(true);
       expect((await oldRequest).statusCode, 503);
       await disconnected.future.timeout(const Duration(seconds: 2));
       expect(proxy!.boundPort, port);
@@ -493,11 +412,11 @@ void main() {
       final oldRequest = send();
       await failed.future;
       await Future<void>.delayed(const Duration(milliseconds: 30));
-      proxy!.setBruteForceModeEnabled(false);
+      proxy!.setRetryAllErrorsEnabled(false);
       expect((await oldRequest).statusCode, 503);
-      expect(logs, isEmpty);
-      expect((await send()).statusCode, 401);
       expect(logs.map((log) => log.statusCode), [401]);
+      expect((await send()).statusCode, 401);
+      expect(logs.map((log) => log.statusCode), [401, 401]);
       await Future<void>.delayed(const Duration(milliseconds: 1100));
       expect(hits, 2);
       expect(proxy!.boundPort, port);
@@ -507,7 +426,7 @@ void main() {
 
   for (final enabled in [false, true]) {
     test(
-      'switch cancels active SSE from ${enabled ? 'brute force' : 'normal'} mode',
+      'switch cancels active SSE from retry-all-errors = $enabled',
       () async {
         var hits = 0;
         final a = await upstream((request) async {
@@ -529,7 +448,7 @@ void main() {
           if (!gotChunk.isCompleted) gotChunk.complete();
         }, onDone: done.complete);
         await gotChunk.future;
-        proxy!.setBruteForceModeEnabled(!enabled);
+        proxy!.setRetryAllErrorsEnabled(!enabled);
         await done.future.timeout(const Duration(seconds: 2));
         expect(hits, 1);
         expect(unavailable, 0);
@@ -539,26 +458,23 @@ void main() {
     );
   }
 
-  test(
-    'health checks ignore existing breakers only while brute force is on',
-    () async {
-      final a = await upstream((request) async {
-        request.response.statusCode = 500;
-        await request.response.close();
-      });
-      await start([endpoint('a', a.port)], enabled: false);
-      expect((await send()).statusCode, 500);
-      expect((await client().head(url())).statusCode, 503);
-      proxy!.setBruteForceModeEnabled(true);
-      expect((await client().head(url())).statusCode, 200);
-      proxy!.setBruteForceModeEnabled(false);
-      expect((await client().head(url())).statusCode, 503);
-    },
-  );
+  test('health checks honor existing breakers in either setting', () async {
+    final a = await upstream((request) async {
+      request.response.statusCode = 500;
+      await request.response.close();
+    });
+    await start([endpoint('a', a.port)], enabled: false, threshold: 1);
+    expect((await send()).statusCode, 500);
+    expect((await client().head(url())).statusCode, 503);
+    proxy!.setRetryAllErrorsEnabled(true);
+    expect((await client().head(url())).statusCode, 503);
+    proxy!.setRetryAllErrorsEnabled(false);
+    expect((await client().head(url())).statusCode, 503);
+  });
 
-  test('no endpoint returns 503 while local responses still work', () async {
+  test('no endpoint returns 500 while local responses still work', () async {
     await start([]);
-    expect((await send()).statusCode, 503);
+    expect((await send()).statusCode, 500);
     expect((await client().head(url())).statusCode, 503);
     expect(
       (await client().post(
@@ -567,81 +483,6 @@ void main() {
       )).statusCode,
       200,
     );
-  });
-
-  test('brute force and normal mode use the same full jitter calculation', () {
-    final normalRandom = Random(42);
-    final bruteForceRandom = Random(42);
-    for (final attempt in [1, 2, 3, 4, 5, 6, 7, 8, 1000000]) {
-      expect(
-        ProxyServerBruteForceExecutor.retryDelay(
-          attempt,
-          random: bruteForceRandom,
-        ).inMilliseconds,
-        calculateProxyRetryDelayMs(attempt + 1, random: normalRandom),
-      );
-    }
-  });
-
-  test('Retry-After uses the longer of server delay and sampled jitter', () {
-    final now = DateTime.utc(2026, 9, 8);
-    final jitter = ProxyServerBruteForceExecutor.retryDelay(
-      4,
-      random: Random(42),
-    );
-    for (final retryAfter in ['0', 'bad', '-1']) {
-      expect(
-        ProxyServerBruteForceExecutor.retryDelay(
-          4,
-          retryAfter: retryAfter,
-          random: Random(42),
-        ),
-        jitter,
-      );
-    }
-    expect(
-      ProxyServerBruteForceExecutor.retryDelay(2, retryAfter: '3'),
-      const Duration(seconds: 3),
-    );
-    expect(
-      ProxyServerBruteForceExecutor.retryDelay(
-        2,
-        retryAfter: HttpDate.format(now.add(const Duration(seconds: 5))),
-        now: now,
-      ),
-      const Duration(seconds: 5),
-    );
-    expect(
-      ProxyServerBruteForceExecutor.retryDelay(8, retryAfter: '60'),
-      const Duration(seconds: 60),
-    );
-    expect(
-      ProxyServerBruteForceExecutor.retryDelay(
-        4,
-        retryAfter: '3',
-        random: Random(42),
-      ),
-      jitter > const Duration(seconds: 3) ? jitter : const Duration(seconds: 3),
-    );
-  });
-
-  test('HTTP jitter retries remain bounded by the total deadline', () async {
-    var hits = 0;
-    final a = await upstream((request) async {
-      hits++;
-      request.response.statusCode = 500;
-      await request.response.close();
-    });
-    await start([endpoint('a', a.port)], timeout: 2500);
-    final watch = Stopwatch()..start();
-    final response = await send();
-    expect(response.statusCode, 504);
-    expect(hits, greaterThanOrEqualTo(2));
-    expect(watch.elapsedMilliseconds, inInclusiveRange(2400, 3500));
-    final hitsAtDeadline = hits;
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    expect(hits, hitsAtDeadline);
-    expect(unavailable, 0);
   });
 
   test(
@@ -671,7 +512,7 @@ void main() {
       expect((await send()).statusCode, 200);
       expect(hits, 4);
       expect(unavailable, 0);
-      expect(logs.map((log) => log.statusCode), [200]);
+      expect(logs.map((log) => log.statusCode), [502, 200]);
     },
   );
 
@@ -691,60 +532,14 @@ void main() {
     final old = send();
     await first.future;
     await Future<void>.delayed(const Duration(milliseconds: 30));
-    proxy!.setBruteForceModeEnabled(true);
-    proxy!.setBruteForceModeEnabled(false);
-    proxy!.setBruteForceModeEnabled(true);
+    proxy!.setRetryAllErrorsEnabled(true);
+    proxy!.setRetryAllErrorsEnabled(false);
+    proxy!.setRetryAllErrorsEnabled(true);
     expect((await old).statusCode, 503);
     final hitsAtCancellation = hits;
     await Future<void>.delayed(const Duration(milliseconds: 1100));
     expect(hits, hitsAtCancellation);
     expect(unavailable, 0);
-  });
-
-  test(
-    'disabling a pinned endpoint cancels its request without failover',
-    () async {
-      final first = Completer<void>();
-      final a = await upstream((request) async {
-        if (!first.isCompleted) first.complete();
-      });
-      var backupHits = 0;
-      final b = await upstream((request) async {
-        backupHits++;
-        await request.response.close();
-      });
-      await start([endpoint('a', a.port), endpoint('b', b.port)]);
-      final old = send();
-      await first.future;
-      proxy!.endpoints = [
-        endpoint('a', a.port).copyWith(enabled: false),
-        endpoint('b', b.port),
-      ];
-      expect((await old).statusCode, 503);
-      expect(backupHits, 0);
-      expect(unavailable, 0);
-    },
-  );
-
-  test('each concurrent request has its own deadline and connection', () async {
-    var hits = 0;
-    final first = Completer<void>();
-    final a = await upstream((request) async {
-      if (++hits == 1) {
-        first.complete();
-        return;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 110));
-      request.response.write('{}');
-      await request.response.close();
-    });
-    await start([endpoint('a', a.port)], timeout: 300);
-    final old = send();
-    await first.future;
-    await Future<void>.delayed(const Duration(milliseconds: 220));
-    final next = send();
-    expect((await old).statusCode, 504);
-    expect((await next).statusCode, 200);
   });
 
   for (final format in [
@@ -805,5 +600,199 @@ void main() {
       expect(body['content'][0]['text'], 'Hello');
       expect(hits, 2);
     });
+  }
+  for (final status in [400, 401, 403, 404, 408, 429]) {
+    test('default returns $status without retrying or failing over', () async {
+      var hits = 0;
+      var backupHits = 0;
+      final a = await upstream((request) async {
+        hits++;
+        request.response.statusCode = status;
+        request.response.write('upstream error');
+        await request.response.close();
+      });
+      final b = await upstream((request) async {
+        backupHits++;
+        await request.response.close();
+      });
+      await start(
+        [endpoint('a', a.port), endpoint('b', b.port)],
+        enabled: false,
+        threshold: 1,
+      );
+      final response = await send();
+      expect(response.statusCode, status);
+      expect(response.body, 'upstream error');
+      expect(hits, 1);
+      expect(backupHits, 0);
+      expect(unavailable, 0);
+      expect(logs.map((log) => log.statusCode), [status]);
+    });
+  }
+
+  for (final status in [429, 503]) {
+    test(
+      '$status reaches the shared failure threshold and fails over',
+      () async {
+        var hits = 0;
+        var backupHits = 0;
+        final a = await upstream((request) async {
+          hits++;
+          request.response.statusCode = status;
+          await request.response.close();
+        });
+        final b = await upstream((request) async {
+          backupHits++;
+          request.response.write('backup response');
+          await request.response.close();
+        });
+        await start([
+          endpoint('a', a.port),
+          endpoint('b', b.port),
+        ], threshold: 2);
+        expect((await send()).body, 'backup response');
+        expect(hits, 2);
+        expect(backupHits, 1);
+        expect(unavailable, 1);
+        expect(proxy!.getOpenCircuitBreakerEndpointIds(['a', 'b']), {'a'});
+        expect(logs.map((log) => log.statusCode), [status, status, 200]);
+      },
+    );
+  }
+
+  test(
+    'all endpoints returning 4xx eventually returns the final error',
+    () async {
+      final a = await upstream((request) async {
+        request.response.statusCode = 429;
+        await request.response.close();
+      });
+      final b = await upstream((request) async {
+        request.response.statusCode = 403;
+        request.response.write('last upstream error');
+        await request.response.close();
+      });
+      await start([endpoint('a', a.port), endpoint('b', b.port)], threshold: 1);
+      final response = await send();
+      expect(response.statusCode, 403);
+      expect(response.body, 'last upstream error');
+      expect(unavailable, 2);
+      expect(logs.map((log) => log.statusCode), [429, 403]);
+    },
+  );
+
+  test(
+    'Retry-After waits on the same endpoint beyond the per-attempt timeout',
+    () async {
+      var hits = 0;
+      final a = await upstream((request) async {
+        if (++hits == 1) {
+          request.response.statusCode = 429;
+          request.response.headers.set('retry-after', '1');
+        } else {
+          request.response.write('ok');
+        }
+        await request.response.close();
+      });
+      await start([endpoint('a', a.port)], timeout: 500);
+      final watch = Stopwatch()..start();
+      expect((await send()).body, 'ok');
+      expect(watch.elapsedMilliseconds, greaterThanOrEqualTo(950));
+      expect(hits, 2);
+      expect(logs.map((log) => log.statusCode), [429, 200]);
+    },
+  );
+
+  test(
+    'Retry-After from a failed endpoint does not delay the backup',
+    () async {
+      final a = await upstream((request) async {
+        request.response.statusCode = 429;
+        request.response.headers.set('retry-after', '60');
+        await request.response.close();
+      });
+      final b = await upstream((request) async {
+        request.response.write('backup');
+        await request.response.close();
+      });
+      await start([endpoint('a', a.port), endpoint('b', b.port)], threshold: 1);
+      expect((await send().timeout(const Duration(seconds: 2))).body, 'backup');
+    },
+  );
+
+  test(
+    'client disconnect suppresses retries after a late TLS handshake failure',
+    () async {
+      final raw = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      rawServers.add(raw);
+      final received = Completer<Socket>();
+      var connections = 0;
+      raw.listen((socket) {
+        connections++;
+        addTearDown(socket.destroy);
+        socket.listen((_) {
+          if (!received.isCompleted) received.complete(socket);
+        });
+      });
+      await start([
+        endpoint(
+          'a',
+          raw.port,
+        ).copyWith(anthropicBaseUrl: 'https://127.0.0.1:${raw.port}'),
+      ], timeout: 10000);
+      final downstream = client();
+      final cancelled = expectLater(
+        downstream.send(request()),
+        throwsA(isA<http.ClientException>()),
+      );
+      final socket = await received.future.timeout(const Duration(seconds: 2));
+      downstream.close();
+      await cancelled;
+      // SecureSocket.startConnect.cancel() only cancels the TCP establishment
+      // in this Dart SDK. End the handshake later to exercise late-I/O cleanup.
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      socket.destroy();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(connections, 1);
+      expect(logs, isEmpty);
+      expect(unavailable, 0);
+    },
+  );
+
+  for (final enabled in [false, true]) {
+    test(
+      'cancelling one request preserves an in-flight peer with setting = $enabled',
+      () async {
+        final firstReceived = Completer<void>();
+        final secondReceived = Completer<void>();
+        final finishSecond = Completer<void>();
+        var hits = 0;
+        final a = await upstream((request) async {
+          if (++hits == 1) {
+            firstReceived.complete();
+            return;
+          }
+          secondReceived.complete();
+          await finishSecond.future;
+          request.response.write('peer survived');
+          await request.response.close();
+        });
+        await start([endpoint('a', a.port)], enabled: enabled);
+        final firstClient = client();
+        final cancelled = expectLater(
+          firstClient.send(request()),
+          throwsA(isA<http.ClientException>()),
+        );
+        await firstReceived.future;
+        final second = send();
+        await secondReceived.future;
+        firstClient.close();
+        await cancelled;
+        finishSecond.complete();
+        expect((await second).body, 'peer survived');
+        expect(logs.map((log) => log.statusCode), [200]);
+        expect(unavailable, 0);
+      },
+    );
   }
 }

@@ -9,7 +9,9 @@ import 'package:code_proxy/service/proxy_server/proxy_server_request_cancellatio
 import 'package:code_proxy/service/proxy_server/proxy_server_retry_delay.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
-/// 端点路由器 - 统一通过断路器管理失败重试与故障转移
+/// 通过共享断路器管理端点选择、失败重试与故障转移的路由器。
+///
+/// 调用方负责判定错误是否参与重试；路由器不按 HTTP 状态码分流。
 class ProxyServerRouter {
   final ProxyServerConfig _config;
   final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
@@ -34,7 +36,9 @@ class ProxyServerRouter {
 
   bool get hasEnabledEndpoints => _allEndpoints.isNotEmpty;
 
-  /// 为单个代理请求创建独立的路由会话，避免并发请求共享可变状态。
+  /// 为单个代理请求创建独立的路由会话。
+  ///
+  /// 当前端点和退避计数归属单个请求，断路器及失败计数仍按端点共享。
   ProxyServerRouteSession startRequest() {
     return ProxyServerRouteSession._(
       router: this,
@@ -85,13 +89,15 @@ class ProxyServerRouter {
 
 /// 单个请求的路由会话。
 ///
-/// 每个请求都维护自己的 currentEndpoint / attempt 状态，避免多个并发请求
-/// 互相覆盖“当前端点”，导致成功或失败被记到错误的断路器上。
+/// 每个请求独立维护 [currentEndpoint] 和退避计数，切换端点时重置退避。
+/// 同一端点的熔断计数跨会话共享，因此某个请求只尝试少数几次时，
+/// 端点就可能因其他并发请求的失败而熔断。
 class ProxyServerRouteSession {
   final ProxyServerRouter _router;
   final List<EndpointEntity> _endpoints;
 
   int _currentEndpointIndex = 0;
+  // 当前端点的普通尝试序号，从 1 开始；透明重试不递增。
   int _currentAttempt = 1;
 
   /// 每端点已用的透明重试次数(endpointId -> count)。
@@ -135,19 +141,23 @@ class ProxyServerRouteSession {
         (_transientRetriesUsed[endpoint.id] ?? 0) + 1;
   }
 
-  /// 读取某端点当前已用的透明重试次数(用于日志与审计标签)。
+  /// 读取本请求在 [endpoint] 已用的透明重试次数，用于运行日志。
   int transientRetriesUsedFor(EndpointEntity endpoint) =>
       _transientRetriesUsed[endpoint.id] ?? 0;
 
   /// 判断是否还有下一个端点或需要重试。
   ///
   /// [previousSucceeded] 表示上一次请求是否成功：
-  /// - null: 首次进入，为当前请求选择第一个可用端点
-  /// - true: 上一次成功，结束当前请求轮次
-  /// - false: 上一次失败，统一按断路器机制决定重试或故障转移
+  /// - `null`：首次进入或透明重试，直接使用当前端点，不计失败、不退避。
+  /// - `true`：记录成功，结束当前请求轮次。
+  /// - `false`：调用方已判定可重试，记录共享失败并决定重试或故障转移。
+  ///
+  /// 仅重试当前端点时采用全抖动退避及 [retryAfter]。
+  /// 熔断后立即切换备用端点，重置本请求的退避计数。
   Future<bool> hasNext(
     bool? previousSucceeded, {
     ProxyServerRequestCancellation? cancellation,
+    String? retryAfter,
   }) async {
     cancellation?.throwIfCancelled();
     if (previousSucceeded == null) {
@@ -164,7 +174,7 @@ class ProxyServerRouteSession {
       return false;
     }
 
-    // 失败：统一按断路器机制处理，不再按具体状态码分流
+    // 调用方已按开关筛选可重试错误，此处只累计端点共享的失败计数。
     final breaker = _router._circuitBreakerRegistry.getBreaker(endpoint.id);
     breaker.recordFailure();
     _currentAttempt++;
@@ -184,7 +194,10 @@ class ProxyServerRouteSession {
       return false;
     }
 
-    final delayMs = calculateProxyRetryDelayMs(_currentAttempt);
+    final delayMs = calculateProxyRetryDelayMs(
+      _currentAttempt,
+      retryAfter: retryAfter,
+    );
     LoggerUtil.instance.w(
       'Retrying endpoint ${endpoint.name} '
       '(attempt $_currentAttempt/${_router._config.circuitBreakerFailureThreshold})',
@@ -198,6 +211,8 @@ class ProxyServerRouteSession {
         await cancellation.wait(delay);
       }
     }
+    // 已知并发边界：等待后尚未复查断路器；其他请求在等待期间打开它时，
+    // 本次已排队的重试仍会发出。失败记录数因此可能超过共享熔断阈值。
     return true;
   }
 

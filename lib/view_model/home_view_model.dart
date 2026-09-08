@@ -34,7 +34,7 @@ class HomeViewModel {
   final selectedIndex = signal<int>(0);
 
   ProxyServerService? _proxyServer;
-  bool? _bruteForceModeOverride;
+  bool? _retryAllErrorsOverride;
   StreamSubscription<WindowEvent>? _subscription;
   final ProxyServerLogHandler _requestLogger = ProxyServerLogHandler.create();
   final RequestLogRepository _requestLogRepository = RequestLogRepository(
@@ -275,26 +275,26 @@ class HomeViewModel {
     );
   }
 
-  /// Switch forwarding mode without touching the listener or client settings.
-  Future<void> updateBruteForceMode(bool enabled) async {
+  /// Apply the retry setting without touching the listener or client settings.
+  Future<void> updateRetryAllErrors(bool enabled) async {
     final preferences = SharedPreferenceUtil.instance;
     final previous =
-        _proxyServer?.bruteForceModeEnabled ??
-        await preferences.getBruteForceModeEnabled();
-    _bruteForceModeOverride = enabled;
-    _proxyServer?.setBruteForceModeEnabled(enabled);
+        _proxyServer?.retryAllErrorsEnabled ??
+        await preferences.getRetryAllErrorsEnabled();
+    _retryAllErrorsOverride = enabled;
+    _proxyServer?.setRetryAllErrorsEnabled(enabled);
     try {
-      await preferences.setBruteForceModeEnabled(enabled);
+      await preferences.setRetryAllErrorsEnabled(enabled);
     } catch (_) {
-      _bruteForceModeOverride = previous;
-      _proxyServer?.setBruteForceModeEnabled(previous);
+      _retryAllErrorsOverride = previous;
+      _proxyServer?.setRetryAllErrorsEnabled(previous);
       rethrow;
     }
   }
 
-  void _applyCurrentMode(ProxyServerService server) {
-    final enabled = _bruteForceModeOverride;
-    if (enabled != null) server.setBruteForceModeEnabled(enabled);
+  void _applyCurrentRetrySetting(ProxyServerService server) {
+    final enabled = _retryAllErrorsOverride;
+    if (enabled != null) server.setRetryAllErrorsEnabled(enabled);
   }
 
   /// Restart the listener for configuration changes that require rebinding.
@@ -322,7 +322,7 @@ class HomeViewModel {
       // 把 Claude Code 指向正确端口。
       await instance.setPort(boundPort);
       _proxyServer = newServer;
-      _applyCurrentMode(newServer);
+      _applyCurrentRetrySetting(newServer);
     } catch (e, stackTrace) {
       // newServer 可能已经监听成功，也可能仅创建了出站 HttpClient。
       // 两种情况都必须关闭，才能安全地恢复旧服务。
@@ -336,7 +336,7 @@ class HomeViewModel {
         try {
           await oldServer.start();
           _proxyServer = oldServer;
-          _applyCurrentMode(oldServer);
+          _applyCurrentRetrySetting(oldServer);
         } catch (e2) {
           LoggerUtil.instance.e(
             'Failed to restore proxy server on old port: $e2',
@@ -356,7 +356,7 @@ class HomeViewModel {
     final instance = SharedPreferenceUtil.instance;
     final preferredPort = await instance.getPort();
     final apiTimeout = await instance.getApiTimeout();
-    final bruteForceMode = await instance.getBruteForceModeEnabled();
+    final retryAllErrors = await instance.getRetryAllErrorsEnabled();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
     final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
     final authToken = await instance.getOrCreateProxyAuthToken();
@@ -375,7 +375,7 @@ class HomeViewModel {
           address: '127.0.0.1',
           port: port,
           apiTimeoutMs: apiTimeout,
-          bruteForceModeEnabled: _bruteForceModeOverride ?? bruteForceMode,
+          retryAllErrorsEnabled: _retryAllErrorsOverride ?? retryAllErrors,
           circuitBreakerFailureThreshold: cbThreshold,
           circuitBreakerRecoveryTimeoutMs: cbRecovery,
         ),
@@ -505,7 +505,7 @@ class HomeViewModel {
       await _writeProxySettings(authToken: authToken, port: boundPort);
       await instance.setPort(boundPort);
       _proxyServer = server;
-      _applyCurrentMode(server);
+      _applyCurrentRetrySetting(server);
     } catch (e) {
       LoggerUtil.instance.e('Failed to start proxy server: $e');
       try {

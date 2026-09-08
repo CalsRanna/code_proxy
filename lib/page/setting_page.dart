@@ -21,53 +21,47 @@ class _SettingPageState extends State<SettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    var bruteForceModeTile = Watch((context) {
-      final changing = viewModel.bruteForceModeChanging.value;
+    var retryAllErrorsTile = Watch((context) {
+      final changing = viewModel.retryAllErrorsChanging.value;
       return ListTile(
-        title: const Text('持续重试模式'),
+        title: const Text('重试所有上游错误'),
         subtitle: const Text(
-          '在 API 超时时间内持续重试同一端点，不自动切换。'
-          '切换模式会中断当前请求，重复请求可能产生额外费用。',
+          '开启后，4xx 错误也会按代理重试策略处理。'
+          '切换会中断当前请求。',
         ),
         trailing: ShadSwitch(
-          value: viewModel.bruteForceModeEnabled.value,
+          value: viewModel.retryAllErrorsEnabled.value,
           enabled: !changing,
           onChanged: changing
               ? null
-              : (enabled) => _toggleBruteForceMode(context, enabled),
+              : (enabled) => _toggleRetryAllErrors(context, enabled),
         ),
         onTap: changing
             ? null
-            : () => _toggleBruteForceMode(
+            : () => _toggleRetryAllErrors(
                 context,
-                !viewModel.bruteForceModeEnabled.value,
+                !viewModel.retryAllErrorsEnabled.value,
               ),
       );
     });
     var circuitBreakerThresholdTile = Watch((context) {
-      final enabled = !viewModel.bruteForceModeEnabled.value;
       return ListTile(
-        enabled: enabled,
         title: const Text('端点熔断阈值'),
         subtitle: Text(
           '连续失败 ${viewModel.circuitBreakerFailureThreshold.value} 次后禁用端点并故障转移',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: enabled ? () => viewModel.editDisableDuration(context) : null,
+        onTap: () => viewModel.editDisableDuration(context),
       );
     });
     var circuitBreakerRecoveryTile = Watch((context) {
-      final enabled = !viewModel.bruteForceModeEnabled.value;
       return ListTile(
-        enabled: enabled,
         title: const Text('端点恢复超时'),
         subtitle: Text(
           '端点被禁用 ${viewModel.circuitBreakerRecoveryTimeout.value} 秒后尝试探测恢复',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: enabled
-            ? () => viewModel.editCircuitBreakerRecoveryTimeout(context)
-            : null,
+        onTap: () => viewModel.editCircuitBreakerRecoveryTimeout(context),
       );
     });
     var apiTimeoutTile = Watch((context) {
@@ -227,7 +221,7 @@ class _SettingPageState extends State<SettingPage> {
           content: ListView(
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
-              bruteForceModeTile,
+              retryAllErrorsTile,
               circuitBreakerThresholdTile,
               circuitBreakerRecoveryTile,
               launchAtStartupTile,
@@ -498,8 +492,8 @@ class _SettingPageState extends State<SettingPage> {
     ShadSonner.of(context).show(ShadToast(description: Text(message)));
   }
 
-  Future<void> _toggleBruteForceMode(BuildContext context, bool enabled) async {
-    final error = await viewModel.toggleBruteForceMode(enabled);
+  Future<void> _toggleRetryAllErrors(BuildContext context, bool enabled) async {
+    final error = await viewModel.toggleRetryAllErrors(enabled);
     if (!context.mounted || error == null) return;
     ShadSonner.of(context).show(ShadToast(description: Text(error)));
   }

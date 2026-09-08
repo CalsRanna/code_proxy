@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:code_proxy/service/proxy_server/proxy_server_retry_delay.dart';
@@ -63,5 +64,44 @@ void main() {
     expect(samples.toSet().length, greaterThan(1));
     expect(samples.any((value) => value < 16000), isTrue);
     expect(samples.any((value) => value > 16000), isTrue);
+  });
+  test('Retry-After uses the longer server delay or sampled jitter', () {
+    final now = DateTime.utc(2026, 9, 8);
+    final random = _SamplingRandom((_) => 500);
+    for (final retryAfter in ['0', '-1', 'invalid', HttpDate.format(now)]) {
+      expect(
+        calculateProxyRetryDelayMs(
+          2,
+          retryAfter: retryAfter,
+          random: random,
+          now: now,
+        ),
+        500,
+      );
+    }
+    expect(
+      calculateProxyRetryDelayMs(2, retryAfter: ' 3 ', random: random),
+      3000,
+    );
+    expect(
+      calculateProxyRetryDelayMs(
+        2,
+        retryAfter: HttpDate.format(now.add(const Duration(seconds: 5))),
+        now: now,
+        random: random,
+      ),
+      5000,
+    );
+    expect(
+      calculateProxyRetryDelayMs(
+        8,
+        retryAfter: '3',
+        random: _SamplingRandom((_) => 32000),
+      ),
+      32000,
+    );
+    expect(calculateProxyRetryDelayMs(8, retryAfter: '60'), 60000);
+    expect(calculateProxyRetryDelayMs(2, retryAfter: '999999'), 3600000);
+    expect(calculateProxyRetryDelayMs(1, retryAfter: '60'), 0);
   });
 }

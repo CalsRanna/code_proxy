@@ -26,8 +26,8 @@ class SettingViewModel {
   static const int maxCircuitBreakerRecoveryTimeoutSeconds = 3600;
 
   final apiTimeout = signal(600000);
-  final bruteForceModeEnabled = signal(false);
-  final bruteForceModeChanging = signal(false);
+  final retryAllErrorsEnabled = signal(false);
+  final retryAllErrorsChanging = signal(false);
   final circuitBreakerFailureThreshold = signal(5);
   final circuitBreakerRecoveryTimeout = signal(60);
   final backgroundDataCollection = signal(false);
@@ -95,8 +95,8 @@ class SettingViewModel {
   }
 
   Future<void> initSignals() async {
-    bruteForceModeEnabled.value = await SharedPreferenceUtil.instance
-        .getBruteForceModeEnabled();
+    retryAllErrorsEnabled.value = await SharedPreferenceUtil.instance
+        .getRetryAllErrorsEnabled();
     apiTimeout.value = await SharedPreferenceUtil.instance.getApiTimeout();
     apiTimeoutController.text = apiTimeout.value.toString();
 
@@ -371,21 +371,23 @@ class SettingViewModel {
     await SharedPreferenceUtil.instance.setNotificationEnabled(value);
   }
 
-  Future<String?> toggleBruteForceMode(bool enabled) async {
-    if (bruteForceModeChanging.value ||
-        enabled == bruteForceModeEnabled.value) {
+  Future<String?> toggleRetryAllErrors(bool enabled) async {
+    if (retryAllErrorsChanging.value ||
+        enabled == retryAllErrorsEnabled.value) {
       return null;
     }
-    bruteForceModeChanging.value = true;
+    retryAllErrorsChanging.value = true;
     try {
-      await GetIt.instance.get<HomeViewModel>().updateBruteForceMode(enabled);
-      bruteForceModeEnabled.value = enabled;
+      await GetIt.instance.get<HomeViewModel>().updateRetryAllErrors(enabled);
+      retryAllErrorsEnabled.value = enabled;
       return null;
     } catch (error) {
-      LoggerUtil.instance.e('Failed to switch brute force mode: $error');
-      return '切换持续重试模式失败：$error';
+      LoggerUtil.instance.e(
+        'Failed to switch retry-all-errors setting: $error',
+      );
+      return '切换重试所有上游错误失败：$error';
     } finally {
-      bruteForceModeChanging.value = false;
+      retryAllErrorsChanging.value = false;
     }
   }
 

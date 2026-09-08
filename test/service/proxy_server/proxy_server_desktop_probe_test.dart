@@ -163,9 +163,9 @@ void main() {
     });
   });
 
-  for (final bruteForce in [false, true]) {
+  for (final retryAllErrors in [false, true]) {
     test(
-      'local probe and real forwarding with brute force = $bruteForce',
+      'local probe and real forwarding with retry all errors = $retryAllErrors',
       () async {
         var upstreamHits = 0;
         final statuses = <int>[];
@@ -184,7 +184,7 @@ void main() {
           config: ProxyServerConfig(
             port: 0,
             apiTimeoutMs: 3000,
-            bruteForceModeEnabled: bruteForce,
+            retryAllErrorsEnabled: retryAllErrors,
             circuitBreakerFailureThreshold: 2,
           ),
           onRequestCompleted: (_, _, response) =>
@@ -241,7 +241,7 @@ void main() {
         expect(real.statusCode, 200);
         expect(jsonDecode(real.body)['upstream'], true);
         expect(upstreamHits, 2);
-        expect(statuses, bruteForce ? [200] : [503, 200]);
+        expect(statuses, [503, 200]);
 
         for (final endpoints in [
           <EndpointEntity>[],
@@ -259,7 +259,7 @@ void main() {
             'No enabled endpoints',
           );
           expect(upstreamHits, 2);
-          expect(statuses, bruteForce ? [200] : [503, 200]);
+          expect(statuses, [503, 200]);
         }
       },
     );

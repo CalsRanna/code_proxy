@@ -1,6 +1,8 @@
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dart';
 
-/// 断路器注册表 - 管理所有端点的断路器
+/// 按端点 ID 管理共享断路器的注册表。
+///
+/// 同一 ID 复用已注册的实例，使并发请求及不同模型共享失败计数。
 class ProxyServerCircuitBreakerRegistry {
   final int failureThreshold;
   final int recoveryTimeoutMs;
@@ -11,6 +13,7 @@ class ProxyServerCircuitBreakerRegistry {
     this.recoveryTimeoutMs = 60000,
   });
 
+  /// 获取 [endpointId] 的共享断路器，首次访问时创建。
   ProxyServerCircuitBreaker getBreaker(String endpointId) {
     return _breakers.putIfAbsent(
       endpointId,

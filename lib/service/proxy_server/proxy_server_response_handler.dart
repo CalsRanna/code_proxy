@@ -60,7 +60,9 @@ class ProxyServerResponseHandler {
        _onRequestCompleted = onRequestCompleted,
        _onStreamError = onStreamError;
 
-  /// 处理HTTP响应并判断是否需要继续
+  /// 处理单次上游 HTTP 响应并通过回调记录结果。
+  ///
+  /// 是否重试由调用方根据状态码和重试开关决定。
   Future<shelf.Response?> handleResponse(
     http.StreamedResponse response,
     EndpointEntity endpoint,
@@ -74,7 +76,7 @@ class ProxyServerResponseHandler {
     final requestBodyToLog = mappedRequestBodyBytes ?? requestBodyBytes;
 
     // 4xx 与 5xx 走同一条错误路径：读取错误体、记录日志、把原始字节回传。
-    // 是否重试 / 熔断 / 故障转移由 ProxyServerService 按状态码决定。
+    // 是否重试 / 熔断 / 故障转移由 ProxyServerService 按状态码和开关决定。
     if (statusCode >= 400) {
       final responseBodyBytes = await response.stream.toBytes();
       final responseTime = DateTime.now().millisecondsSinceEpoch - startTime;

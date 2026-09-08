@@ -6,8 +6,9 @@ import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:uuid/uuid.dart';
 
-/// 请求记录器 - 负责解析请求响应数据并组装 RequestLog 对象
-/// 不直接操作数据库，数据库操作由调用方负责
+/// 解析单次上游尝试的请求响应数据并组装 [RequestLogEntity] 的记录器。
+///
+/// 不直接操作数据库，持久化由调用方负责；成功和失败使用相同组装流程。
 class ProxyServerLogHandler {
   ProxyServerLogHandler._();
 
@@ -16,7 +17,10 @@ class ProxyServerLogHandler {
     return ProxyServerLogHandler._();
   }
 
-  /// 解析请求响应数据并组装 RequestLog 对象
+  /// 为本次上游尝试创建独立的日志记录。
+  ///
+  /// 每次调用生成新 ID，时间戳为记录创建时间，耗时取自 [response]，
+  /// 不包含此前退避等待。ID 不用于标识整条重试链路。
   RequestLogEntity buildRequestLog({
     required EndpointEntity endpoint,
     required ProxyServerRequest request,

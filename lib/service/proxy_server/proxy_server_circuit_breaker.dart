@@ -1,22 +1,21 @@
 /// 断路器状态
 enum ProxyServerCircuitBreakerState { closed, open, halfOpen }
 
-/// 断路器 - 标准连续失败计数实现
+/// 同一端点跨请求、跨模型共享的连续失败断路器。
 ///
-/// 连续失败 [failureThreshold] 次后打开断路器，成功时直接清零计数。
-/// 这是 Netflix Hystrix、Resilience4j 等主流断路器的经典实现方式，
-/// 不依赖滑动窗口，因此不受请求耗时长短的影响。
+/// 关闭时连续失败 [failureThreshold] 次后打开，记录成功则清零计数。
+/// 多个并发请求共同贡献失败，不为每个请求分配独立的重试配额。
+/// 打开后等待 [recoveryTimeoutMs] 毫秒才允许半开探测；探测成功则恢复，
+/// 失败则立即重新打开。
 ///
-/// 线程安全说明：此类依赖 Dart 的单线程事件循环模型。
-/// 所有公开方法均为同步方法，在单次事件循环迭代中完成执行，
-/// 因此不存在并发竞态条件。如需移植到多线程环境，需额外加锁。
+/// 状态更新在同一 isolate 内同步完成；调用方的异步等待不会锁定状态，
+/// 等待期间其他请求仍可改变断路器状态。
 class ProxyServerCircuitBreaker {
   final String endpointId;
   final int failureThreshold;
   final int recoveryTimeoutMs;
 
-  ProxyServerCircuitBreakerState _state =
-      ProxyServerCircuitBreakerState.closed;
+  ProxyServerCircuitBreakerState _state = ProxyServerCircuitBreakerState.closed;
   int _consecutiveFailures = 0;
   int? _openedAt;
 

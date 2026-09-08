@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-Code Proxy 是一个 Flutter 桌面应用，为 Claude Code 提供本地 Anthropic API 代理服务。支持配置多个 API 端点，采用主备故障转移策略（请求始终发往优先级最高的端点，仅在失败时切换），最大化 prompt cache 命中率。同时提供模型映射和请求审计等功能。
+Code Proxy 是一个 Flutter 桌面应用，为 Claude Code 提供本地 Anthropic API 代理服务。支持配置多个 API 端点，采用主备故障转移策略（优先使用断路器允许访问的最高优先级端点，熔断后切换备用端点），提高 prompt cache 命中率。同时提供模型映射和请求审计等功能。
 
 支持 macOS、Windows、Linux。
 
@@ -58,15 +58,25 @@ Database → DI → WindowUtil → TrayUtil → LaunchAtStartup → runApp
 接收请求 → Router 选择端点 → RequestHandler 构建并转发请求 → ResponseHandler 处理响应 → LogHandler 记录日志 → 返回响应或故障转移
 ```
 
-- **ProxyServerService** — 主编排器，基于 shelf HTTP 服务器，实现请求重试循环
-- **ProxyServerRouter** — 基于断路器的端点选择。所有失败响应和异常都按统一机制处理：指数退避重试当前端点，连续失败达到阈值后故障转移到下一个
+- **ProxyServerService** — 主编排器，基于 shelf HTTP 服务器，实现统一重试循环；默认直接返回上游 4xx，开启「重试所有上游错误」后将其交给同一重试链路
+- **ProxyServerRouter** — 接收已判定可重试的失败结果，管理端点选择、全抖动指数退避和共享断路器；端点熔断后立即故障转移
 - **ProxyServerRequestHandler** — 构建转发请求，处理认证方式保留（`x-api-key` vs `Authorization: Bearer`）和模型名称映射
 - **ProxyServerResponseHandler** — 处理流式/非流式响应，提取 Token 用量，处理响应解压（gzip/deflate）
-- **ProxyServerModelMapper** — 将环境变量模型名（`ANTHROPIC_DEFAULT_SONNET_MODEL` 等）映射到端点配置的实际模型
+- **ProxyServerModelMapper** — 将全局 `default_model.yaml` 中的模型 ID 精确映射到端点配置的实际模型
+
+### 重试与日志约定
+
+- 「重试所有上游错误」默认关闭。开启后上游 4xx（包括 429）也参与重试、熔断和故障转移；本地认证失败、主动取消和客户端断开不进入重试。此开关不是固定端点的无限重试模式。
+- 同一端点的断路器及连续失败计数跨请求、跨模型共享；路由会话的当前端点、尝试次数和退避各自独立。熔断阈值不是每个请求的重试配额；断路器关闭时记录成功会清零连续失败计数。恢复超时后半开探测，成功恢复、失败重新熔断。
+- 同一端点普通重试的全抖动上限依次为 1、2、4、8、16、32 秒，随后保持 32 秒；每次在零至上限间均匀抽样，实际等待无需递增。`Retry-After` 与抽样结果取较大值（整数秒最多 3600 秒，也支持 HTTP 日期）。故障转移立即进行，并重置退避计数、不继承前一端点的 `Retry-After`。
+- 特定响应头未收到错误在断路器关闭时，每个请求的每个端点最多透明重试两次：立即重试，不增加普通退避或熔断计数，仅写运行日志。普通重试等待结束后尚未复查断路器，其他并发请求在等待期间触发熔断时，已排队的尝试仍可能发出。
+- API 超时分别作用于连接、等待响应头和响应体空闲阶段，不是整条重试链路的总预算；SSE 中途失败不会从头重发。切换开关会取消全部在途请求（包括 SSE），保留监听地址、端口和认证令牌。当前 Dart SDK 的 TLS 握手取消可能延迟释放底层连接，迟到结果不能恢复请求或重试。
+- 开关不改变日志策略：每次成功或失败的上游尝试正常写数据库，使用独立 ID；记录时间是日志创建时间，耗时不含此前退避。有可记录响应体时才写关联审计文件。主动取消不新增失败记录，既有失败记录保留；两次透明重试仅写运行日志。
+- 偏好设置版本 2 将旧 `brute_force_mode_enabled` 一次性迁移到 `retry_all_errors_enabled`，已有新键优先；旧键仅用于迁移。
 
 ### Claude Code 集成服务
 
-- **ClaudeCodeSettingService** — 启动代理时自动写入 `~/.claude/settings.json`，生成 `cp-<uuid>` 格式的会话 Token
+- **ClaudeCodeSettingService** — 启动代理时自动写入 `~/.claude/settings.json`，复用持久化的本地代理认证 Token
 - **ClaudeCodeAuditService** — 审计日志记录到 `~/.code_proxy/audit/`，按天分目录，支持自动过期清理
 - **ClaudeCodeModelConfigService** — 管理全局默认模型映射（`~/.code_proxy/default_model.yaml`）
 

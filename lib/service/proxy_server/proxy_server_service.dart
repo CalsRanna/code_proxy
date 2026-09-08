@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/proxy_server/brute_force/proxy_server_brute_force_executor.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_client_connections.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
@@ -37,8 +36,7 @@ class ProxyServerService {
   /// 若重启失败后回滚复用同一实例，后续所有转发都会抛
   /// "Client is already closed"。见 [_proxyHandler] 中的空值兜底。
   ProxyServerRequestHandler? _requestHandler;
-  late final ProxyServerBruteForceExecutor _bruteForceExecutor;
-  bool _bruteForceModeEnabled;
+  bool _retryAllErrorsEnabled;
   final _activeRequests = <ProxyServerRequestCancellation>{};
   late final ProxyServerLocalResponder _localResponder;
   late final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
@@ -52,7 +50,7 @@ class ProxyServerService {
     this.onEndpointUnavailable,
     this.onEndpointRestored,
   }) : _authToken = authToken,
-       _bruteForceModeEnabled = config.bruteForceModeEnabled {
+       _retryAllErrorsEnabled = config.retryAllErrorsEnabled {
     if (authToken.trim().isEmpty) {
       throw ArgumentError.value(authToken, 'authToken', 'must not be empty');
     }
@@ -66,31 +64,27 @@ class ProxyServerService {
       onEndpointUnavailable: onEndpointUnavailable,
       onEndpointRestored: onEndpointRestored,
     );
-    _bruteForceExecutor = ProxyServerBruteForceExecutor(config);
-    _localResponder = ProxyServerLocalResponder(
-      _router,
-      hasAvailableEndpoints: () => _bruteForceModeEnabled
-          ? _bruteForceExecutor.hasEnabledEndpoints
-          : _router.hasAvailableEndpoints,
-    );
+    _localResponder = ProxyServerLocalResponder(_router);
   }
 
   set endpoints(List<EndpointEntity> endpoints) {
     _router.setEndpoints(endpoints);
-    _bruteForceExecutor.setEndpoints(endpoints);
   }
 
-  bool get bruteForceModeEnabled => _bruteForceModeEnabled;
+  bool get retryAllErrorsEnabled => _retryAllErrorsEnabled;
 
-  /// Cancel old work and switch synchronously, retaining the listening server.
-  void setBruteForceModeEnabled(bool enabled) {
-    if (_bruteForceModeEnabled == enabled) return;
-    _cancelActiveRequests('Proxy mode switched');
+  /// Cancels active requests and applies the retry setting when it changes.
+  ///
+  /// Includes SSE streams and pending retries. Retains the listener and auth
+  /// token; completed attempt logs are unaffected.
+  void setRetryAllErrorsEnabled(bool enabled) {
+    if (_retryAllErrorsEnabled == enabled) return;
+    _cancelActiveRequests('Proxy retry setting changed');
     _requestHandler?.close();
     _requestHandler = _server == null
         ? null
         : ProxyServerRequestHandler(config);
-    _bruteForceModeEnabled = enabled;
+    _retryAllErrorsEnabled = enabled;
   }
 
   void _cancelActiveRequests(String reason) {
@@ -233,31 +227,17 @@ class ProxyServerService {
     final localResponse = _localResponder.tryRespond(request, rawBody);
     if (localResponse != null) return localResponse;
 
-    if (_bruteForceModeEnabled) {
-      return _bruteForceExecutor.execute(
-        request,
-        rawBody,
-        cancellation,
-        onRequestCompleted: (endpoint, request, response) {
-          // 持续重试模式仅持久化成功响应，失败不写请求数据库及关联审计文件。
-          if (!cancellation.isCancelled &&
-              response.statusCode < HttpStatus.badRequest) {
-            onRequestCompleted?.call(endpoint, request, response);
-          }
-        },
-      );
-    }
-
-    return _handleNormalRequest(request, rawBody, cancellation);
+    return _handleForwardedRequest(request, rawBody, cancellation);
   }
 
-  Future<shelf.Response> _handleNormalRequest(
+  Future<shelf.Response> _handleForwardedRequest(
     shelf.Request request,
     Uint8List rawBody,
     ProxyServerRequestCancellation cancellation,
   ) async {
-    // Request-scoped callbacks keep deliberate cancellation out of the breaker,
-    // including errors delivered asynchronously after a mode switch.
+    // Do not filter completed attempts by status when forwarding them for logging.
+    // Cancellation suppresses its own log and breaker failure, including late
+    // errors after a setting change; previously recorded attempts remain intact.
     final responseHandler = ProxyServerResponseHandler(
       onRequestCompleted: (endpoint, request, response) {
         if (!cancellation.isCancelled) {
@@ -276,13 +256,16 @@ class ProxyServerService {
     bool? previousSucceeded;
     shelf.Response? finalResponse;
     Object? lastException;
+    String? retryAfter;
 
     // 循环尝试端点
     while (await routeSession.hasNext(
       previousSucceeded,
       cancellation: cancellation,
+      retryAfter: retryAfter,
     )) {
       cancellation.throwIfCancelled();
+      retryAfter = null;
       final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
@@ -303,10 +286,13 @@ class ProxyServerService {
           rawBody,
           bodyCache: bodyCache,
         );
-        // 2. 发送请求（在此处开始计时，确保 responseTime 是真实的服务器响应时间）
+        // 2. 从本次发送开始计时，responseTime 不包含此前的退避等待。
         startTime = DateTime.now().millisecondsSinceEpoch;
         final response = await cancellation.run(
-          requestHandler.forwardRequest(preparedRequest),
+          requestHandler.forwardRequest(
+            preparedRequest,
+            cancellation: cancellation,
+          ),
         );
         // 3. 处理响应并判断是否需要继续
         finalResponse = await cancellation.run(
@@ -333,32 +319,13 @@ class ProxyServerService {
           previousSucceeded = true;
           continue;
         }
-        // 4xx：原样返回客户端，不重试、不熔断、不故障转移。
-        //
-        // 这不是"4xx 都是客户端的错所以端点没问题"那种教科书判断 ——
-        // 部分第三方网关的状态码不规范，一个 4xx 很可能只是**限流**
-        // （有的网关限流返回 429，有的返回 400/403），并不代表端点故障。
-        // 之所以仍然一律短路，是因为在这里做任何处理都比交给客户端更差：
-        //
-        // 1. 故障转移会牺牲 prompt cache。本项目的主备策略就是为了让请求
-        //    始终落在同一端点以最大化 cache 命中（见 CLAUDE.md）。为一次
-        //    可能几百毫秒就恢复的限流而切走，等于把整个长上下文的
-        //    cache_read 变成全额未缓存输入，代价远高于等一下再试。
-        // 2. 熔断会放大伤害。限流是瞬时的，断路器一开就是整整
-        //    recoveryTimeout，把一个本来还能用的端点直接摘掉。
-        // 3. 客户端本来就会重试。Claude Code / Anthropic SDK 自带对 429 的
-        //    退避重试并遵守 retry-after，且重试仍打向同一端点 —— 既保住了
-        //    cache 亲和性，退避策略也比代理层的盲猜更准确。
-        //
-        // 换言之：4xx 不进断路器，不是因为它无害，而是因为**代理层缺少
-        // 分辨"限流"与"真错"的可靠信号**，而客户端那一层两者都能处理得
-        // 更好。若将来要细化，正确方向是按 retry-after / 端点级配置识别
-        // 限流，而不是把 4xx 并入 5xx 的熔断路径。
-        if (response.statusCode >= 400 && response.statusCode < 500) {
-          previousSucceeded = false;
+        // 默认直接返回上游 4xx；开启后与 5xx 共用重试和熔断流程。
+        if (!_retryAllErrorsEnabled &&
+            response.statusCode >= 400 &&
+            response.statusCode < 500) {
           break;
         }
-        // 5xx 及以上：端点故障，统一通过断路器机制决定重试或故障转移
+        retryAfter = response.headers['retry-after'];
         previousSucceeded = false;
       } catch (e) {
         cancellation.throwIfCancelled();
@@ -377,7 +344,7 @@ class ProxyServerService {
             'upstream may have executed — possible duplicate billing',
           );
           startTime = null;
-          previousSucceeded = null; // 跳过 hasNext 的断路器逻辑,直接重进循环体
+          previousSucceeded = null; // 跳过熔断计数和退避，立即重进循环体。
           continue;
         }
 

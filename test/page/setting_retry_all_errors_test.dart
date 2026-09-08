@@ -13,7 +13,7 @@ class _HomeViewModel implements HomeViewModel {
   late Completer<void> pending;
 
   @override
-  Future<void> updateBruteForceMode(bool enabled) {
+  Future<void> updateRetryAllErrors(bool enabled) {
     changes.add(enabled);
     pending = Completer<void>();
     return pending.future;
@@ -49,7 +49,10 @@ void main() {
   }
 
   Finder modeSwitch() => find.descendant(
-    of: find.ancestor(of: find.text('持续重试模式'), matching: find.byType(ListTile)),
+    of: find.ancestor(
+      of: find.text('重试所有上游错误'),
+      matching: find.byType(ListTile),
+    ),
     matching: find.byType(ShadSwitch),
   );
 
@@ -58,16 +61,16 @@ void main() {
     (tester) async {
       await showSettings(tester);
       expect(tester.widget<ShadSwitch>(modeSwitch()).value, isFalse);
-      expect(find.textContaining('切换模式会中断当前请求'), findsOneWidget);
+      expect(find.textContaining('切换会中断当前请求'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.tap(modeSwitch());
       await tester.pump();
       expect(home.changes, [true]);
       expect(find.text('正在切换…'), findsNothing);
-      expect(find.textContaining('切换模式会中断当前请求'), findsOneWidget);
+      expect(find.textContaining('切换会中断当前请求'), findsOneWidget);
       expect(tester.widget<ShadSwitch>(modeSwitch()).onChanged, isNull);
-      await tester.tap(find.text('持续重试模式'));
+      await tester.tap(find.text('重试所有上游错误'));
       expect(home.changes, [true]);
 
       home.pending.complete();
@@ -82,24 +85,17 @@ void main() {
           of: find.text(entry.key),
           matching: find.byType(ListTile),
         );
-        expect(tester.widget<ListTile>(tile).enabled, isFalse);
-        expect(tester.widget<ListTile>(tile).onTap, isNull);
+        expect(tester.widget<ListTile>(tile).enabled, isTrue);
+        expect(tester.widget<ListTile>(tile).onTap, isNotNull);
         expect(find.text(entry.value), findsOneWidget);
-        final disabledColor = Theme.of(tester.element(tile)).disabledColor;
-        for (final text in [entry.key, entry.value]) {
-          expect(
-            DefaultTextStyle.of(tester.element(find.text(text))).style.color,
-            disabledColor,
-          );
-        }
-        final icon = find.descendant(of: tile, matching: find.byType(Icon));
-        expect(IconTheme.of(tester.element(icon)).color, disabledColor);
         await tester.tap(find.text(entry.key));
         await tester.pumpAndSettle();
-        expect(find.byType(ShadDialog), findsNothing);
+        expect(find.byType(ShadDialog), findsOneWidget);
+        await tester.tap(find.text('取消'));
+        await tester.pumpAndSettle();
       }
 
-      await tester.tap(find.text('持续重试模式'));
+      await tester.tap(find.text('重试所有上游错误'));
       home.pending.complete();
       await tester.pumpAndSettle();
       expect(home.changes, [true, false]);
@@ -131,7 +127,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<ShadSwitch>(modeSwitch()).value, isFalse);
     expect(tester.widget<ShadSwitch>(modeSwitch()).onChanged, isNotNull);
-    expect(find.textContaining('切换持续重试模式失败'), findsOneWidget);
+    expect(find.textContaining('切换重试所有上游错误失败'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

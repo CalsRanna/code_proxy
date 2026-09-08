@@ -12,7 +12,7 @@ class SharedPreferenceUtil {
   final String _keyWindowWidth = 'window_width';
   final String _keyPort = 'port';
   final String _keyApiTimeout = 'api_timeout';
-  final String _keyBruteForceModeEnabled = 'brute_force_mode_enabled';
+  final String _keyRetryAllErrorsEnabled = 'retry_all_errors_enabled';
   final String _keyCircuitBreakerFailureThreshold =
       'circuit_breaker_failure_threshold';
   final String _keyCircuitBreakerRecoveryTimeout =
@@ -40,7 +40,7 @@ class SharedPreferenceUtil {
   };
 
   static const _prefVersionKey = 'pref_version';
-  static const _currentPrefVersion = 1;
+  static const _currentPrefVersion = 2;
 
   SharedPreferenceUtil._();
 
@@ -51,7 +51,7 @@ class SharedPreferenceUtil {
 
     // 检测旧 key 是否存在
     final hasOld = _deprecatedKeys.any((k) => prefs.containsKey(k));
-    if (hasOld) {
+    if (version < 1 && hasOld) {
       // 读取旧值
       final oldAttributionHeader = prefs.getBool('attribution_header') ?? true;
       final oldDisableBetas =
@@ -75,6 +75,16 @@ class SharedPreferenceUtil {
       }
     }
 
+    // 版本 2：只迁移旧开关值，不保留固定端点持续重试的旧执行语义。
+    // 已有新键优先，迁移后删除旧键。
+    const oldRetryKey = 'brute_force_mode_enabled';
+    if (prefs.containsKey(oldRetryKey)) {
+      if (!prefs.containsKey(_keyRetryAllErrorsEnabled)) {
+        await setRetryAllErrorsEnabled(prefs.getBool(oldRetryKey) ?? false);
+      }
+      await prefs.remove(oldRetryKey);
+    }
+
     await prefs.setInt(_prefVersionKey, _currentPrefVersion);
   }
 
@@ -82,16 +92,16 @@ class SharedPreferenceUtil {
     return (await _preferences).getInt(_keyApiTimeout) ?? 10 * 60 * 1000;
   }
 
-  Future<bool> getBruteForceModeEnabled() async {
-    return (await _preferences).getBool(_keyBruteForceModeEnabled) ?? false;
+  Future<bool> getRetryAllErrorsEnabled() async {
+    return (await _preferences).getBool(_keyRetryAllErrorsEnabled) ?? false;
   }
 
-  Future<void> setBruteForceModeEnabled(bool enabled) async {
+  Future<void> setRetryAllErrorsEnabled(bool enabled) async {
     final saved = await (await _preferences).setBool(
-      _keyBruteForceModeEnabled,
+      _keyRetryAllErrorsEnabled,
       enabled,
     );
-    if (!saved) throw StateError('Failed to save brute force mode');
+    if (!saved) throw StateError('Failed to save retry-all-errors setting');
   }
 
   Future<int> getAuditRetainDays() async {

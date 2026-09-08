@@ -64,4 +64,30 @@ void main() {
     expect(cleaned, 1);
     await source.close();
   });
+
+  for (final cancelBeforeBinding in [false, true]) {
+    test(
+      'cancellation releases an unconsumed body; before binding = $cancelBeforeBinding',
+      () async {
+        final cancellation = ProxyServerRequestCancellation();
+        var sourceCancelled = false;
+        var cleaned = 0;
+        final source = StreamController<int>(
+          onCancel: () => sourceCancelled = true,
+        );
+        if (cancelBeforeBinding) cancellation.cancel(cancelled);
+        final body = cancellation.bindStream(
+          source.stream,
+          cancelWithError: false,
+          onDone: () => cleaned++,
+        );
+        cancellation.cancel(cancelled);
+        await Future<void>.delayed(Duration.zero);
+        expect(sourceCancelled, isTrue);
+        expect(await body.toList(), isEmpty);
+        expect(cleaned, 1);
+        await source.close();
+      },
+    );
+  }
 }
