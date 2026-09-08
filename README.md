@@ -32,15 +32,16 @@ Code Proxy 是一个面向 Claude Code 的桌面代理控制台，用于管理�
 
 ### 模型映射
 
-代理支持将 Claude Code 使用的环境变量模型名映射到各端点配置的实际模型：
+代理将全局配置 `~/.code_proxy/default_model.yaml` 中的模型 ID 作为入口，通过 `GET /v1/models` 提供给客户端，并精确映射到当前端点配置的实际模型：
 
-| 环境变量 | 用途 |
+| 全局配置字段 | 端点映射 |
 |---------|------|
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | Haiku 模型 |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | Sonnet 模型 |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | Opus 模型 |
+| `fable_model` | Fable 模型 |
+| `opus_model` | Opus 模型 |
+| `sonnet_model` | Sonnet 模型 |
+| `haiku_model` | Haiku 模型 |
 
-每个端点可以独立配置模型映射，也可以使用全局默认值（配置文件 `~/.code_proxy/default_model.yaml`）。
+每个端点可以独立配置模型映射。请求的模型 ID 与全局配置完全一致时，使用端点对应的映射值；端点未配置或请求 ID 未命中时，原样转发。不会根据 `claude-` 前缀或模型家族名进行模糊匹配。
 
 ### 监控与日志
 

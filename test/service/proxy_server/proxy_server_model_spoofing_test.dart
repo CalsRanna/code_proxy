@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/model/default_model_mapper_entity.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
@@ -21,6 +23,18 @@ void main() {
     ProxyServerService? service;
     final upstreamServers = <HttpServer>[];
     http.Client? client;
+
+    setUp(() {
+      // 请求模型须精确命中全局入口,才能映射到端点实际模型。
+      ClaudeCodeModelConfigService.instance.replaceConfigForTesting(
+        const DefaultModelMapperEntity(
+          haikuModel: 'claude-haiku-4-5-20251001',
+          sonnetModel: 'claude-sonnet-4-5-20250929',
+          opusModel: 'claude-opus-5',
+          fableModel: 'claude-fable-5-1',
+        ),
+      );
+    });
 
     tearDown(() async {
       client?.close();

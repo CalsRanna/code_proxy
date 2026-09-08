@@ -20,7 +20,7 @@ class DefaultModelMapperEntity {
 
   /// 字段元数据表 —— 单一事实源。
   ///
-  /// 设置页对话框、/v1/models 发现列表、mapper 入口表与家族兜底、
+  /// 设置页对话框、/v1/models 发现列表、mapper 入口表、
   /// yaml 序列化全部遍历此表。新增家族只需追加一行(模型 ID 的升级
   /// 则由用户更新 yaml/设置页完成,无需发版)。
   ///
@@ -148,7 +148,7 @@ class DefaultModelMapperEntity {
 /// - yaml 键的后缀(与 [key] 保持一致)
 /// - /v1/models 的 `anthropic_family_tier` —— Claude Desktop/CLI 自动
 ///   发现用它把模型标记为 Claude 族,通过"非 Claude 模型过滤"
-/// - mapper 家族兜底的族词匹配
+/// - mapper 精确匹配入口后选择端点的同族映射字段
 class ModelFamilyField {
   final String key;
   final String family;

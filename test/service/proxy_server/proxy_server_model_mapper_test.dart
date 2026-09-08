@@ -29,111 +29,146 @@ void main() {
   group('入口精确表（default_model 真实 ID,模型发现统一入口）', () {
     test('入口 ID → 端点同族映射优先', () {
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.opusModel,
-            endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          globalConfig.opusModel,
+          endpoint: configuredEndpoint,
+        ),
         'ep-opus',
       );
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.sonnetModel,
-            endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          globalConfig.sonnetModel,
+          endpoint: configuredEndpoint,
+        ),
         'ep-sonnet',
       );
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.haikuModel,
-            endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          globalConfig.haikuModel,
+          endpoint: configuredEndpoint,
+        ),
         'ep-haiku',
       );
     });
 
     test('入口 ID 且端点未配置映射 → 原样透传（即全局默认自身）', () {
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.opusModel,
-            endpoint: bareEndpoint),
+        ProxyServerModelMapper.mapModel(
+          globalConfig.opusModel,
+          endpoint: bareEndpoint,
+        ),
         globalConfig.opusModel,
       );
     });
 
     test('fable 入口且端点已配置映射 → 端点覆盖优先', () {
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.fableModel,
-            endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          globalConfig.fableModel,
+          endpoint: configuredEndpoint,
+        ),
         'ep-fable',
       );
     });
 
     test('fable 入口且端点未配置映射 → 透传', () {
       expect(
-        ProxyServerModelMapper.mapModel(globalConfig.fableModel,
-            endpoint: bareEndpoint),
+        ProxyServerModelMapper.mapModel(
+          globalConfig.fableModel,
+          endpoint: bareEndpoint,
+        ),
         globalConfig.fableModel,
       );
     });
   });
 
-  group('家族兜底（claude- 前缀的真实模型名）', () {
-    test('claude 真实 ID 按族词映射到端点配置', () {
-      // 使用不在全局默认中的 ID,确保走家族兜底而非入口精确表
+  group('未命中全局入口的 Claude 模型', () {
+    test('端点已配置映射也保留显式模型 ID', () {
+      // 四个家族均使用不在全局配置中的 ID。
       expect(
-        ProxyServerModelMapper.mapModel('claude-sonnet-4-6',
-            endpoint: configuredEndpoint),
-        'ep-sonnet',
+        ProxyServerModelMapper.mapModel(
+          'claude-sonnet-4-6',
+          endpoint: configuredEndpoint,
+        ),
+        'claude-sonnet-4-6',
       );
       expect(
-        ProxyServerModelMapper.mapModel('claude-haiku-4-5-20260401',
-            endpoint: configuredEndpoint),
-        'ep-haiku',
+        ProxyServerModelMapper.mapModel(
+          'claude-haiku-4-5-20260401',
+          endpoint: configuredEndpoint,
+        ),
+        'claude-haiku-4-5-20260401',
       );
       expect(
-        ProxyServerModelMapper.mapModel('claude-opus-5',
-            endpoint: configuredEndpoint),
-        'ep-opus',
+        ProxyServerModelMapper.mapModel(
+          'claude-opus-5',
+          endpoint: configuredEndpoint,
+        ),
+        'claude-opus-5',
       );
-      // fable 族端点已配置映射:兜底命中后取 ep-fable(与入口表一致)
       expect(
-        ProxyServerModelMapper.mapModel('claude-fable-5-1',
-            endpoint: configuredEndpoint),
-        'ep-fable',
+        ProxyServerModelMapper.mapModel(
+          'claude-fable-5-2',
+          endpoint: configuredEndpoint,
+        ),
+        'claude-fable-5-2',
+      );
+    });
+
+    test('入口 ID 大小写不同也原样透传', () {
+      final model = globalConfig.opusModel.toUpperCase();
+      expect(
+        ProxyServerModelMapper.mapModel(model, endpoint: configuredEndpoint),
+        model,
       );
     });
 
     test('端点未配置映射 → 原样透传（显式真实 ID 不猜改）', () {
       expect(
-        ProxyServerModelMapper.mapModel('claude-sonnet-4-6',
-            endpoint: bareEndpoint),
+        ProxyServerModelMapper.mapModel(
+          'claude-sonnet-4-6',
+          endpoint: bareEndpoint,
+        ),
         'claude-sonnet-4-6',
       );
     });
   });
 
   group('不识别/非 claude 模型名', () {
-    test('非 claude 名不触发家族匹配,原样透传', () {
+    test('未命中全局入口的非 Claude 模型原样透传', () {
       expect(
-        ProxyServerModelMapper.mapModel('deepseek-chat',
-            endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          'deepseek-chat',
+          endpoint: configuredEndpoint,
+        ),
         'deepseek-chat',
       );
     });
 
     test('碰巧含族词的非 claude 名不被改写', () {
       expect(
-        ProxyServerModelMapper.mapModel('opus-something',
-            endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          'opus-something',
+          endpoint: configuredEndpoint,
+        ),
         'opus-something',
       );
     });
 
-    test('已退役哨兵字符串不再有精确 case，仅按普通规则处理', () {
-      // claude-opus-proxy:claude- 前缀 + 含 OPUS → 家族兜底接住
-      // (良性:旧 profile 残留哨兵不会 404,而是按族映射)
+    test('已退役哨兵字符串原样透传', () {
       expect(
-        ProxyServerModelMapper.mapModel('claude-opus-proxy',
-            endpoint: configuredEndpoint),
-        'ep-opus',
+        ProxyServerModelMapper.mapModel(
+          'claude-opus-proxy',
+          endpoint: configuredEndpoint,
+        ),
+        'claude-opus-proxy',
       );
-      // ANTHROPIC_* 形态:非 claude- 前缀 → 透传
+      // 环境变量占位符未命中全局入口,也原样透传。
       expect(
-        ProxyServerModelMapper.mapModel('ANTHROPIC_DEFAULT_OPUS_MODEL',
-            endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          'ANTHROPIC_DEFAULT_OPUS_MODEL',
+          endpoint: configuredEndpoint,
+        ),
         'ANTHROPIC_DEFAULT_OPUS_MODEL',
       );
     });
