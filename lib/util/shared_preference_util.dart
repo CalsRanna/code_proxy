@@ -12,6 +12,7 @@ class SharedPreferenceUtil {
   final String _keyWindowWidth = 'window_width';
   final String _keyPort = 'port';
   final String _keyApiTimeout = 'api_timeout';
+  final String _keyBruteForceModeEnabled = 'brute_force_mode_enabled';
   final String _keyCircuitBreakerFailureThreshold =
       'circuit_breaker_failure_threshold';
   final String _keyCircuitBreakerRecoveryTimeout =
@@ -79,6 +80,18 @@ class SharedPreferenceUtil {
 
   Future<int> getApiTimeout() async {
     return (await _preferences).getInt(_keyApiTimeout) ?? 10 * 60 * 1000;
+  }
+
+  Future<bool> getBruteForceModeEnabled() async {
+    return (await _preferences).getBool(_keyBruteForceModeEnabled) ?? false;
+  }
+
+  Future<void> setBruteForceModeEnabled(bool enabled) async {
+    final saved = await (await _preferences).setBool(
+      _keyBruteForceModeEnabled,
+      enabled,
+    );
+    if (!saved) throw StateError('Failed to save brute force mode');
   }
 
   Future<int> getAuditRetainDays() async {

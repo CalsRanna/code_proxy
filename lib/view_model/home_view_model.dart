@@ -34,6 +34,7 @@ class HomeViewModel {
   final selectedIndex = signal<int>(0);
 
   ProxyServerService? _proxyServer;
+  bool? _bruteForceModeOverride;
   StreamSubscription<WindowEvent>? _subscription;
   final ProxyServerLogHandler _requestLogger = ProxyServerLogHandler.create();
   final RequestLogRepository _requestLogRepository = RequestLogRepository(
@@ -274,11 +275,30 @@ class HomeViewModel {
     );
   }
 
-  /// 重启代理服务器（用于 API 超时、熔断阈值等配置修改）
-  ///
-  /// 顺序：先在新端口监听成功，再改写 Claude Code 配置。
-  /// 启动失败时恢复旧服务并抛出异常，保证 Claude Code 不会指向
-  /// 一个不存在的服务；调用方负责向用户展示错误。
+  /// Switch forwarding mode without touching the listener or client settings.
+  Future<void> updateBruteForceMode(bool enabled) async {
+    final preferences = SharedPreferenceUtil.instance;
+    final previous =
+        _proxyServer?.bruteForceModeEnabled ??
+        await preferences.getBruteForceModeEnabled();
+    _bruteForceModeOverride = enabled;
+    _proxyServer?.setBruteForceModeEnabled(enabled);
+    try {
+      await preferences.setBruteForceModeEnabled(enabled);
+    } catch (_) {
+      _bruteForceModeOverride = previous;
+      _proxyServer?.setBruteForceModeEnabled(previous);
+      rethrow;
+    }
+  }
+
+  void _applyCurrentMode(ProxyServerService server) {
+    final enabled = _bruteForceModeOverride;
+    if (enabled != null) server.setBruteForceModeEnabled(enabled);
+  }
+
+  /// Restart the listener for configuration changes that require rebinding.
+  /// Restores the previous service and client settings when startup fails.
   Future<void> restartProxyServer() async {
     final oldServer = _proxyServer;
     await oldServer?.stop();
@@ -302,6 +322,7 @@ class HomeViewModel {
       // 把 Claude Code 指向正确端口。
       await instance.setPort(boundPort);
       _proxyServer = newServer;
+      _applyCurrentMode(newServer);
     } catch (e, stackTrace) {
       // newServer 可能已经监听成功，也可能仅创建了出站 HttpClient。
       // 两种情况都必须关闭，才能安全地恢复旧服务。
@@ -315,6 +336,7 @@ class HomeViewModel {
         try {
           await oldServer.start();
           _proxyServer = oldServer;
+          _applyCurrentMode(oldServer);
         } catch (e2) {
           LoggerUtil.instance.e(
             'Failed to restore proxy server on old port: $e2',
@@ -334,6 +356,7 @@ class HomeViewModel {
     final instance = SharedPreferenceUtil.instance;
     final preferredPort = await instance.getPort();
     final apiTimeout = await instance.getApiTimeout();
+    final bruteForceMode = await instance.getBruteForceModeEnabled();
     final cbThreshold = await instance.getCircuitBreakerFailureThreshold();
     final cbRecovery = await instance.getCircuitBreakerRecoveryTimeout();
     final authToken = await instance.getOrCreateProxyAuthToken();
@@ -352,6 +375,7 @@ class HomeViewModel {
           address: '127.0.0.1',
           port: port,
           apiTimeoutMs: apiTimeout,
+          bruteForceModeEnabled: _bruteForceModeOverride ?? bruteForceMode,
           circuitBreakerFailureThreshold: cbThreshold,
           circuitBreakerRecoveryTimeoutMs: cbRecovery,
         ),
@@ -481,6 +505,7 @@ class HomeViewModel {
       await _writeProxySettings(authToken: authToken, port: boundPort);
       await instance.setPort(boundPort);
       _proxyServer = server;
+      _applyCurrentMode(server);
     } catch (e) {
       LoggerUtil.instance.e('Failed to start proxy server: $e');
       try {

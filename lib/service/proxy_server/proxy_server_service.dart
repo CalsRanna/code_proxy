@@ -4,8 +4,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/proxy_server/brute_force/proxy_server_brute_force_executor.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_cancellation.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
@@ -34,7 +36,9 @@ class ProxyServerService {
   /// 若重启失败后回滚复用同一实例，后续所有转发都会抛
   /// "Client is already closed"。见 [_proxyHandler] 中的空值兜底。
   ProxyServerRequestHandler? _requestHandler;
-  late final ProxyServerResponseHandler _responseHandler;
+  late final ProxyServerBruteForceExecutor _bruteForceExecutor;
+  bool _bruteForceModeEnabled;
+  final _activeRequests = <ProxyServerRequestCancellation>{};
   late final ProxyServerLocalResponder _localResponder;
   late final ProxyServerCircuitBreakerRegistry _circuitBreakerRegistry;
   HttpServer? _server;
@@ -45,7 +49,8 @@ class ProxyServerService {
     this.onRequestCompleted,
     this.onEndpointUnavailable,
     this.onEndpointRestored,
-  }) : _authToken = authToken {
+  }) : _authToken = authToken,
+       _bruteForceModeEnabled = config.bruteForceModeEnabled {
     if (authToken.trim().isEmpty) {
       throw ArgumentError.value(authToken, 'authToken', 'must not be empty');
     }
@@ -59,16 +64,38 @@ class ProxyServerService {
       onEndpointUnavailable: onEndpointUnavailable,
       onEndpointRestored: onEndpointRestored,
     );
-    _responseHandler = ProxyServerResponseHandler(
-      onRequestCompleted: onRequestCompleted,
-      // 流式响应中途中断时补记一次失败，避免断路器把损坏的流记为成功
-      onStreamError: (endpoint) => _router.recordFailure(endpoint),
+    _bruteForceExecutor = ProxyServerBruteForceExecutor(config);
+    _localResponder = ProxyServerLocalResponder(
+      _router,
+      hasAvailableEndpoints: () => _bruteForceModeEnabled
+          ? _bruteForceExecutor.hasEnabledEndpoints
+          : _router.hasAvailableEndpoints,
     );
-    _localResponder = ProxyServerLocalResponder(_router);
   }
 
   set endpoints(List<EndpointEntity> endpoints) {
     _router.setEndpoints(endpoints);
+    _bruteForceExecutor.setEndpoints(endpoints);
+  }
+
+  bool get bruteForceModeEnabled => _bruteForceModeEnabled;
+
+  /// Cancel old work and switch synchronously, retaining the listening server.
+  void setBruteForceModeEnabled(bool enabled) {
+    if (_bruteForceModeEnabled == enabled) return;
+    _cancelActiveRequests('Proxy mode switched');
+    _requestHandler?.close();
+    _requestHandler = _server == null
+        ? null
+        : ProxyServerRequestHandler(config);
+    _bruteForceModeEnabled = enabled;
+  }
+
+  void _cancelActiveRequests(String reason) {
+    for (final cancellation in _activeRequests.toList()) {
+      cancellation.cancel(ProxyServerRequestCancelled(reason));
+    }
+    _activeRequests.clear();
   }
 
   Future<void> start() async {
@@ -102,6 +129,7 @@ class ProxyServerService {
   }
 
   Future<void> stop() async {
+    _cancelActiveRequests('Proxy server stopped');
     final server = _server;
     _server = null;
     final handler = _requestHandler;
@@ -142,18 +170,85 @@ class ProxyServerService {
     // 在读取完整请求体和接触上游密钥前验证本地代理令牌。
     if (!_isAuthorized(request)) return _unauthorizedResponse();
 
+    final cancellation = ProxyServerRequestCancellation();
+    _activeRequests.add(cancellation);
+    try {
+      final response = await _handleAuthorizedRequest(request, cancellation);
+      cancellation.throwIfCancelled();
+      return response.change(
+        body: cancellation.bindStream(
+          response.read(),
+          cancelWithError: false,
+          onDone: () => _activeRequests.remove(cancellation),
+        ),
+      );
+    } on ProxyServerRequestCancelled catch (error) {
+      _activeRequests.remove(cancellation);
+      return shelf.Response(
+        HttpStatus.serviceUnavailable,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+        body: jsonEncode({
+          'type': 'error',
+          'error': {'type': 'api_error', 'message': error.reason},
+        }),
+      );
+    } catch (_) {
+      _activeRequests.remove(cancellation);
+      rethrow;
+    }
+  }
+
+  Future<shelf.Response> _handleAuthorizedRequest(
+    shelf.Request request,
+    ProxyServerRequestCancellation cancellation,
+  ) async {
     // 用 BytesBuilder 收集为 Uint8List，而不是 .expand((x) => x).toList()：
     // 后者得到的 List<int> 在 Dart VM 里每个元素占一个字长，一个 10 MB 的
     // 长上下文请求会膨胀成约 80 MB（实测 2 MiB 载荷造成约 56 MiB RSS
     // 增量）。Uint8List 是 1:1 存储，且是 List<int> 的子类，下游签名无需改动。
     final bodyBuilder = BytesBuilder(copy: false);
-    await request.read().forEach(bodyBuilder.add);
+    await cancellation.bindStream(request.read()).forEach(bodyBuilder.add);
+    cancellation.throwIfCancelled();
     final Uint8List rawBody = bodyBuilder.takeBytes();
 
     // 本地应答: 对健康检查、count_tokens 等请求直接返回，
     // 避免不必要的上游网络往返。
     final localResponse = _localResponder.tryRespond(request, rawBody);
     if (localResponse != null) return localResponse;
+
+    if (_bruteForceModeEnabled) {
+      return _bruteForceExecutor.execute(
+        request,
+        rawBody,
+        cancellation,
+        onRequestCompleted: (endpoint, request, response) {
+          if (!cancellation.isCancelled) {
+            onRequestCompleted?.call(endpoint, request, response);
+          }
+        },
+      );
+    }
+
+    return _handleNormalRequest(request, rawBody, cancellation);
+  }
+
+  Future<shelf.Response> _handleNormalRequest(
+    shelf.Request request,
+    Uint8List rawBody,
+    ProxyServerRequestCancellation cancellation,
+  ) async {
+    // Request-scoped callbacks keep deliberate cancellation out of the breaker,
+    // including errors delivered asynchronously after a mode switch.
+    final responseHandler = ProxyServerResponseHandler(
+      onRequestCompleted: (endpoint, request, response) {
+        if (!cancellation.isCancelled) {
+          onRequestCompleted?.call(endpoint, request, response);
+        }
+      },
+      onStreamError: (endpoint) {
+        if (!cancellation.isCancelled) _router.recordFailure(endpoint);
+      },
+    );
 
     final routeSession = _router.startRequest();
     // 同一请求内的请求体处理缓存：同端点重试时复用已处理好的字节，
@@ -164,7 +259,11 @@ class ProxyServerService {
     Object? lastException;
 
     // 循环尝试端点
-    while (await routeSession.hasNext(previousSucceeded)) {
+    while (await routeSession.hasNext(
+      previousSucceeded,
+      cancellation: cancellation,
+    )) {
+      cancellation.throwIfCancelled();
       final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
@@ -187,17 +286,22 @@ class ProxyServerService {
         );
         // 2. 发送请求（在此处开始计时，确保 responseTime 是真实的服务器响应时间）
         startTime = DateTime.now().millisecondsSinceEpoch;
-        final response = await requestHandler.forwardRequest(preparedRequest);
-        // 3. 处理响应并判断是否需要继续
-        finalResponse = await _responseHandler.handleResponse(
-          response,
-          endpoint,
-          request,
-          rawBody,
-          startTime,
-          mappedRequestBodyBytes: preparedRequest.bodyBytes,
-          forwardedHeaders: preparedRequest.headers,
+        final response = await cancellation.run(
+          requestHandler.forwardRequest(preparedRequest),
         );
+        // 3. 处理响应并判断是否需要继续
+        finalResponse = await cancellation.run(
+          responseHandler.handleResponse(
+            response,
+            endpoint,
+            request,
+            rawBody,
+            startTime,
+            mappedRequestBodyBytes: preparedRequest.bodyBytes,
+            forwardedHeaders: preparedRequest.headers,
+          ),
+        );
+        cancellation.throwIfCancelled();
 
         // 2xx/3xx 均为成功透传：3xx（重定向/缓存语义）不视为端点故障，
         // 不重试、不进断路器。
@@ -238,6 +342,7 @@ class ProxyServerService {
         // 5xx 及以上：端点故障，统一通过断路器机制决定重试或故障转移
         previousSucceeded = false;
       } catch (e) {
+        cancellation.throwIfCancelled();
         // header 未达瞬时错误:原端点透明重试,不污染断路器/不重建 client。
         //
         // 安全性说明:此时代理虽未向客户端写入任何字节,但**无法确定上游是否
@@ -263,7 +368,7 @@ class ProxyServerService {
         LoggerUtil.instance.e('Exception during request: $e');
 
         // 记录异常请求到数据库
-        _responseHandler.recordException(
+        responseHandler.recordException(
           endpoint: endpoint,
           request: request,
           requestBodyBytes: rawBody,

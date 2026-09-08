@@ -21,24 +21,53 @@ class _SettingPageState extends State<SettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    var circuitBreakerThresholdTile = Watch((context) {
+    var bruteForceModeTile = Watch((context) {
+      final changing = viewModel.bruteForceModeChanging.value;
       return ListTile(
+        title: const Text('持续重试模式'),
+        subtitle: const Text(
+          '在 API 超时时间内持续重试同一端点，不自动切换。'
+          '切换模式会中断当前请求，重复请求可能产生额外费用。',
+        ),
+        trailing: ShadSwitch(
+          value: viewModel.bruteForceModeEnabled.value,
+          enabled: !changing,
+          onChanged: changing
+              ? null
+              : (enabled) => _toggleBruteForceMode(context, enabled),
+        ),
+        onTap: changing
+            ? null
+            : () => _toggleBruteForceMode(
+                context,
+                !viewModel.bruteForceModeEnabled.value,
+              ),
+      );
+    });
+    var circuitBreakerThresholdTile = Watch((context) {
+      final enabled = !viewModel.bruteForceModeEnabled.value;
+      return ListTile(
+        enabled: enabled,
         title: const Text('端点熔断阈值'),
         subtitle: Text(
           '连续失败 ${viewModel.circuitBreakerFailureThreshold.value} 次后禁用端点并故障转移',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editDisableDuration(context),
+        onTap: enabled ? () => viewModel.editDisableDuration(context) : null,
       );
     });
     var circuitBreakerRecoveryTile = Watch((context) {
+      final enabled = !viewModel.bruteForceModeEnabled.value;
       return ListTile(
+        enabled: enabled,
         title: const Text('端点恢复超时'),
         subtitle: Text(
           '端点被禁用 ${viewModel.circuitBreakerRecoveryTimeout.value} 秒后尝试探测恢复',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
-        onTap: () => viewModel.editCircuitBreakerRecoveryTimeout(context),
+        onTap: enabled
+            ? () => viewModel.editCircuitBreakerRecoveryTimeout(context)
+            : null,
       );
     });
     var apiTimeoutTile = Watch((context) {
@@ -129,9 +158,7 @@ class _SettingPageState extends State<SettingPage> {
     var backgroundDataCollectionTile = Watch((context) {
       return ListTile(
         title: const Text('后台数据收集'),
-        subtitle: const Text(
-          '允许自动更新检查、反馈收集、错误上报及遥测数据。',
-        ),
+        subtitle: const Text('允许反馈收集、错误上报及遥测数据。'),
         trailing: ShadSwitch(
           value: viewModel.backgroundDataCollection.value,
           onChanged: (value) => viewModel.toggleBackgroundDataCollection(value),
@@ -200,6 +227,7 @@ class _SettingPageState extends State<SettingPage> {
           content: ListView(
             padding: const EdgeInsets.only(top: ShadcnSpacing.spacing8),
             children: [
+              bruteForceModeTile,
               circuitBreakerThresholdTile,
               circuitBreakerRecoveryTile,
               launchAtStartupTile,
@@ -468,6 +496,12 @@ class _SettingPageState extends State<SettingPage> {
       return;
     }
     ShadSonner.of(context).show(ShadToast(description: Text(message)));
+  }
+
+  Future<void> _toggleBruteForceMode(BuildContext context, bool enabled) async {
+    final error = await viewModel.toggleBruteForceMode(enabled);
+    if (!context.mounted || error == null) return;
+    ShadSonner.of(context).show(ShadToast(description: Text(error)));
   }
 
   String _formatPrice(double price) {

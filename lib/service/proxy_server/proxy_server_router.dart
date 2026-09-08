@@ -5,6 +5,8 @@ import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dar
 import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_error_classifier.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_cancellation.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_retry_delay.dart';
 import 'package:code_proxy/util/logger_util.dart';
 
 /// 端点路由器 - 统一通过断路器管理失败重试与故障转移
@@ -29,25 +31,6 @@ class ProxyServerRouter {
 
   /// 是否有至少一个端点可用（断路器未打开）。
   bool get hasAvailableEndpoints => _buildAvailableEndpoints().isNotEmpty;
-
-  /// 计算重试延迟时间（支持指数退避）
-  /// attempt: 当前尝试次数（从1开始）
-  int _calculateRetryDelay(int attempt) {
-    if (attempt <= 1) return 0;
-    var base = 1000;
-    var max = 10 * 1000;
-    // 指数退避：base * 2^(attempt-2)
-    // attempt=2: 第一次重试，使用 base
-    // attempt=3: 第二次重试，使用 base * 2
-    // attempt=4: 第三次重试，使用 base * 4
-    //
-    // 钳制移位位数而非只钳制结果：熔断阈值配得极大时，1 << 63 会溢出成
-    // 负数、1 << 64 归零，随后的 clamp 只会把它压成 0 —— 等于静默退化成
-    // 没有退避的即时重试。20 位（约 17 分钟）已远超 max。
-    final shift = (attempt - 2).clamp(0, 20);
-    final delay = base * (1 << shift);
-    return delay.clamp(0, max);
-  }
 
   /// 为单个代理请求创建独立的路由会话，避免并发请求共享可变状态。
   ProxyServerRouteSession startRequest() {
@@ -160,7 +143,11 @@ class ProxyServerRouteSession {
   /// - null: 首次进入，为当前请求选择第一个可用端点
   /// - true: 上一次成功，结束当前请求轮次
   /// - false: 上一次失败，统一按断路器机制决定重试或故障转移
-  Future<bool> hasNext(bool? previousSucceeded) async {
+  Future<bool> hasNext(
+    bool? previousSucceeded, {
+    ProxyServerRequestCancellation? cancellation,
+  }) async {
+    cancellation?.throwIfCancelled();
     if (previousSucceeded == null) {
       return _endpoints.isNotEmpty;
     }
@@ -195,14 +182,19 @@ class ProxyServerRouteSession {
       return false;
     }
 
-    final delayMs = _router._calculateRetryDelay(_currentAttempt);
+    final delayMs = calculateProxyRetryDelayMs(_currentAttempt);
     LoggerUtil.instance.w(
       'Retrying endpoint ${endpoint.name} '
       '(attempt $_currentAttempt/${_router._config.circuitBreakerFailureThreshold})',
     );
     if (delayMs > 0) {
       LoggerUtil.instance.d('Waiting ${delayMs}ms before retry');
-      await Future.delayed(Duration(milliseconds: delayMs));
+      final delay = Duration(milliseconds: delayMs);
+      if (cancellation == null) {
+        await Future.delayed(delay);
+      } else {
+        await cancellation.wait(delay);
+      }
     }
     return true;
   }

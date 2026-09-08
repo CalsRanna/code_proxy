@@ -26,6 +26,8 @@ class SettingViewModel {
   static const int maxCircuitBreakerRecoveryTimeoutSeconds = 3600;
 
   final apiTimeout = signal(600000);
+  final bruteForceModeEnabled = signal(false);
+  final bruteForceModeChanging = signal(false);
   final circuitBreakerFailureThreshold = signal(5);
   final circuitBreakerRecoveryTimeout = signal(60);
   final backgroundDataCollection = signal(false);
@@ -93,6 +95,8 @@ class SettingViewModel {
   }
 
   Future<void> initSignals() async {
+    bruteForceModeEnabled.value = await SharedPreferenceUtil.instance
+        .getBruteForceModeEnabled();
     apiTimeout.value = await SharedPreferenceUtil.instance.getApiTimeout();
     apiTimeoutController.text = apiTimeout.value.toString();
 
@@ -158,7 +162,8 @@ class SettingViewModel {
     }
 
     // 加载通知配置
-    notificationEnabled.value = await SharedPreferenceUtil.instance.getNotificationEnabled();
+    notificationEnabled.value = await SharedPreferenceUtil.instance
+        .getNotificationEnabled();
   }
 
   Future<void> updateApiTimeout(BuildContext context) async {
@@ -364,6 +369,24 @@ class SettingViewModel {
   Future<void> toggleNotificationEnabled(bool value) async {
     notificationEnabled.value = value;
     await SharedPreferenceUtil.instance.setNotificationEnabled(value);
+  }
+
+  Future<String?> toggleBruteForceMode(bool enabled) async {
+    if (bruteForceModeChanging.value ||
+        enabled == bruteForceModeEnabled.value) {
+      return null;
+    }
+    bruteForceModeChanging.value = true;
+    try {
+      await GetIt.instance.get<HomeViewModel>().updateBruteForceMode(enabled);
+      bruteForceModeEnabled.value = enabled;
+      return null;
+    } catch (error) {
+      LoggerUtil.instance.e('Failed to switch brute force mode: $error');
+      return '切换持续重试模式失败：$error';
+    } finally {
+      bruteForceModeChanging.value = false;
+    }
   }
 
   void _loadPricingInfo() {
@@ -623,10 +646,7 @@ class SettingViewModel {
     final rows = <List<ModelFamilyField>>[];
     for (var i = 0; i < fields.length; i += 2) {
       rows.add(
-        fields.sublist(
-          i,
-          i + 2 > fields.length ? fields.length : i + 2,
-        ),
+        fields.sublist(i, i + 2 > fields.length ? fields.length : i + 2),
       );
     }
 

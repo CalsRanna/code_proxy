@@ -20,8 +20,12 @@ import 'proxy_server_token_estimator.dart';
 /// 不处理的请求返回 null，交由正常的代理转发逻辑处理。
 class ProxyServerLocalResponder {
   final ProxyServerRouter _router;
+  final bool Function()? _hasAvailableEndpoints;
 
-  const ProxyServerLocalResponder(this._router);
+  const ProxyServerLocalResponder(
+    this._router, {
+    bool Function()? hasAvailableEndpoints,
+  }) : _hasAvailableEndpoints = hasAvailableEndpoints;
 
   /// 尝试本地处理此请求；无法处理时返回 null。
   shelf.Response? tryRespond(shelf.Request request, List<int> rawBody) {
@@ -30,7 +34,8 @@ class ProxyServerLocalResponder {
 
     // 1) HEAD 请求 → 存活性检查，根据端点可用性返回 200 或 503
     if (method == 'HEAD') {
-      final hasEndpoints = _router.hasAvailableEndpoints;
+      final hasEndpoints =
+          _hasAvailableEndpoints?.call() ?? _router.hasAvailableEndpoints;
       return shelf.Response(
         hasEndpoints ? 200 : 503,
         headers: {'content-length': '0'},

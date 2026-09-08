@@ -9,6 +9,9 @@ class ProxyServerConfig {
   /// API 超时时间(毫秒)
   final int apiTimeoutMs;
 
+  /// Initial mode; the running service can switch modes without rebinding.
+  final bool bruteForceModeEnabled;
+
   /// 断路器失败阈值（连续失败次数达到此值后打开断路器）
   final int circuitBreakerFailureThreshold;
 
@@ -19,6 +22,7 @@ class ProxyServerConfig {
     this.address = '127.0.0.1',
     this.port = 9000,
     this.apiTimeoutMs = 10 * 60 * 1000,
+    this.bruteForceModeEnabled = false,
     this.circuitBreakerFailureThreshold = 5,
     this.circuitBreakerRecoveryTimeoutMs = 60 * 1000,
   });
