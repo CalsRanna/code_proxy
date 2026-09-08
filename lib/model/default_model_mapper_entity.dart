@@ -51,6 +51,25 @@ class DefaultModelMapperEntity {
     };
   }
 
+  /// 保存时四个入口模型均必填且不能重复。
+  /// 旧配置仍可加载，编辑保存时统一按此规则校验。
+  void validateForSave() {
+    final modelFields = <String, ModelFamilyField>{};
+    for (final field in familyFields) {
+      final modelId = valueFor(field).trim();
+      if (modelId.isEmpty) {
+        throw ModelConfigException('${field.label} 模型不能为空');
+      }
+      final existingField = modelFields[modelId];
+      if (existingField != null) {
+        throw ModelConfigException(
+          '${existingField.label} 与 ${field.label} 的入口模型不能重复',
+        );
+      }
+      modelFields[modelId] = field;
+    }
+  }
+
   /// 非空条目列表(entry: 字段元数据 + 模型 ID)。
   ///
   /// 发现列表据此构建;field 为空(slot 未配置)时不产生条目。

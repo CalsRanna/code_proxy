@@ -121,6 +121,7 @@ class ClaudeCodeModelConfigService {
 
   /// 保存配置到文件并更新内存
   Future<void> save(DefaultModelMapperEntity config) async {
+    config.validateForSave();
     final path = getConfigPath();
     final file = File(path);
     await file.parent.create(recursive: true);

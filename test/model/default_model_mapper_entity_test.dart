@@ -4,6 +4,77 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
+  group('保存校验', () {
+    final validValues = {
+      'haiku': 'claude-haiku-4-5-20251001',
+      'sonnet': 'claude-sonnet-4-5-20250929',
+      'opus': 'claude-opus-4-5-20251101',
+      'fable': 'claude-fable-5-1',
+    };
+
+    test('四个入口非空且互不重复时允许保存', () {
+      final config = DefaultModelMapperEntity.fromFamilyValues(validValues);
+      expect(config.validateForSave, returnsNormally);
+      final reloaded = DefaultModelMapperEntity.fromYaml(
+        loadYaml(config.toYamlString()) as Map,
+      );
+      expect(reloaded.validateForSave, returnsNormally);
+    });
+
+    for (final field in DefaultModelMapperEntity.familyFields) {
+      for (final value in ['', ' \t\n ']) {
+        test('${field.label} 为${value.isEmpty ? '空字符串' : '纯空白'}时拒绝保存', () {
+          final config = DefaultModelMapperEntity.fromFamilyValues({
+            ...validValues,
+            field.family: value,
+          });
+          expect(
+            config.validateForSave,
+            throwsA(
+              isA<ModelConfigException>().having(
+                (error) => error.message,
+                'message',
+                '${field.label} 模型不能为空',
+              ),
+            ),
+          );
+        });
+      }
+    }
+
+    final fields = DefaultModelMapperEntity.familyFields;
+    for (var i = 0; i < fields.length; i++) {
+      for (var j = i + 1; j < fields.length; j++) {
+        final first = fields[i];
+        final second = fields[j];
+        test('${first.label} 与 ${second.label} 的入口重复时指出冲突字段', () {
+          final config = DefaultModelMapperEntity.fromFamilyValues({
+            ...validValues,
+            second.family: validValues[first.family]!,
+          });
+          expect(
+            config.validateForSave,
+            throwsA(
+              isA<ModelConfigException>().having(
+                (error) => error.message,
+                'message',
+                '${first.label} 与 ${second.label} 的入口模型不能重复',
+              ),
+            ),
+          );
+        });
+      }
+    }
+
+    test('去除首尾空白后相同的入口也不能重复', () {
+      final config = DefaultModelMapperEntity.fromFamilyValues({
+        ...validValues,
+        'sonnet': ' ${validValues['opus']} ',
+      });
+      expect(config.validateForSave, throwsA(isA<ModelConfigException>()));
+    });
+  });
+
   group('DefaultModelMapperEntity.fromYaml', () {
     test('新配置(含 fable)完整解析', () {
       final entity = DefaultModelMapperEntity.fromYaml(loadYaml('''
