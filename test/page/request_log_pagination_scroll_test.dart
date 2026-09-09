@@ -261,7 +261,7 @@ void main() {
 
   testWidgets('响应时间列同时展示总用时与首字用时', (tester) async {
     final repo = RequestLogRepository(Database.instance);
-    // 最新一条带首字用时；setUp 写入的历史记录没有首字用时，显示占位符
+    // 最新一条带首字用时；setUp 写入的历史记录没有首字用时，只显示总用时
     await repo.insert(
       RequestLogEntity(
         id: 'log-ttft',
@@ -288,8 +288,8 @@ void main() {
     await tester.pumpWidget(ShadApp(home: Scaffold(body: RequestLogPage())));
     await tester.pumpAndSettle();
 
-    expect(find.text('响应时间 / 首字用时'), findsOneWidget);
+    expect(find.text('响应 / 首字用时'), findsOneWidget);
     expect(find.text('7.39s / 548ms'), findsOneWidget);
-    expect(find.text('0.50s / -'), findsWidgets);
+    expect(find.text('0.50s'), findsWidgets);
   });
 }

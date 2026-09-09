@@ -1,4 +1,5 @@
 import 'package:code_proxy/theme/shadcn_spacing.dart';
+import 'package:code_proxy/util/format_number_util.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -29,7 +30,7 @@ class ProxySettingsTab extends StatelessWidget {
       return ListTile(
         title: const Text('端点恢复超时'),
         subtitle: Text(
-          '端点被禁用 ${viewModel.circuitBreakerRecoveryTimeout.value} 秒后尝试探测恢复',
+          '端点被禁用 ${formatWithThousandsSeparator(viewModel.circuitBreakerRecoveryTimeout.value)} 秒后尝试探测恢复',
         ),
         trailing: const Icon(LucideIcons.chevronRight),
         onTap: () => dialogs.editCircuitBreakerRecoveryTimeout(context),

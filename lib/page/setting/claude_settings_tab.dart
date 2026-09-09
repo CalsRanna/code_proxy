@@ -1,4 +1,5 @@
 import 'package:code_proxy/theme/shadcn_spacing.dart';
+import 'package:code_proxy/util/format_number_util.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -26,7 +27,9 @@ class ClaudeSettingsTab extends StatelessWidget {
     var apiTimeoutTile = Watch((context) {
       return ListTile(
         title: const Text('API 超时时间'),
-        subtitle: Text('${viewModel.apiTimeout.value} 毫秒'),
+        subtitle: Text(
+          '${formatWithThousandsSeparator(viewModel.apiTimeout.value)} 毫秒',
+        ),
         trailing: const Icon(LucideIcons.chevronRight),
         onTap: () => dialogs.editApiTimeout(context),
       );

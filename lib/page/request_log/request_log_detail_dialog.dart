@@ -1,5 +1,6 @@
 import 'package:code_proxy/model/request_log_entity.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
+import 'package:code_proxy/util/format_number_util.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -41,13 +42,8 @@ class RequestLogDetailDialog extends StatelessWidget {
             ),
             _buildListItem(
               icon: LucideIcons.timer,
-              label: '响应时间',
-              value: '${log.responseTime ?? 0}ms',
-            ),
-            _buildListItem(
-              icon: LucideIcons.zap,
-              label: '首字用时',
-              value: log.ttftMs == null ? '-' : '${log.ttftMs}ms',
+              label: '响应 / 首字用时',
+              value: formatResponseTiming(log.responseTime, log.ttftMs),
             ),
             if (log.originalModel != null && log.originalModel!.isNotEmpty)
               _buildListItem(
@@ -65,7 +61,7 @@ class RequestLogDetailDialog extends StatelessWidget {
               _buildListItem(
                 icon: LucideIcons.cloudDownload,
                 label: '输出Token',
-                value: '${log.outputTokens}',
+                value: formatWithThousandsSeparator(log.outputTokens ?? 0),
               ),
             ],
             if (log.statusCode != 200)
@@ -112,7 +108,7 @@ class RequestLogDetailDialog extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Text('$total'),
+                Text(formatWithThousandsSeparator(total)),
                 if (hasCache) ...[
                   const SizedBox(width: 4),
                   ShadTooltip(
@@ -126,15 +122,15 @@ class RequestLogDetailDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '未缓存: $input',
+                          '未缓存: ${formatWithThousandsSeparator(input)}',
                           style: const TextStyle(color: Colors.white),
                         ),
                         Text(
-                          '缓存创建: $cacheCreate',
+                          '缓存创建: ${formatWithThousandsSeparator(cacheCreate)}',
                           style: const TextStyle(color: Colors.white),
                         ),
                         Text(
-                          '缓存读取: $cacheRead',
+                          '缓存读取: ${formatWithThousandsSeparator(cacheRead)}',
                           style: const TextStyle(color: Colors.white),
                         ),
                       ],

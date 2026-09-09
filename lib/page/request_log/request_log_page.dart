@@ -59,7 +59,10 @@ class _RequestLogPageState extends State<RequestLogPage> {
     });
     var pageHeader = Watch((context) {
       final total = viewModel.total.value;
-      return PageHeader(title: '请求', subtitle: '$total 条请求记录');
+      return PageHeader(
+        title: '请求',
+        subtitle: '${formatWithThousandsSeparator(total)} 条请求记录',
+      );
     });
     var children = [pageHeader, Expanded(child: body)];
     return Column(
@@ -186,8 +189,14 @@ class _RequestLogPageState extends State<RequestLogPage> {
             var log = logs[index.row];
             var time = DateTime.fromMillisecondsSinceEpoch(log.timestamp);
             var statusCode = log.statusCode;
+            var inputTokens = formatWithThousandsSeparator(
+              log.inputTokens ?? 0,
+            );
+            var outputTokens = formatWithThousandsSeparator(
+              log.outputTokens ?? 0,
+            );
             var tokenText =
-                '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}';
+                '$inputTokens / $outputTokens';
             Widget child;
             switch (index.column) {
               case 0:
@@ -217,7 +226,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
                     : ShadBadge.destructive(child: Text(statusCode.toString()));
                 break;
               case 4:
-                // 总用时 / 首字用时，如 7.39s / 548ms；无首字用时显示 -
+                // 总用时 / 首字用时，如 7.39s / 548ms；无首字用时不显示
                 child = Text(
                   formatResponseTiming(log.responseTime, log.ttftMs),
                   maxLines: 1,
@@ -263,7 +272,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
               0 => '请求时间',
               1 => '端点',
               2 => '模型',
-              4 => '响应时间 / 首字用时',
+              4 => '响应 / 首字用时',
               5 => 'Token',
               _ => '',
             };
