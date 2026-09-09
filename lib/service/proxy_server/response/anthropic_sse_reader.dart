@@ -14,13 +14,20 @@ import 'package:code_proxy/service/proxy_server/response/sse_text_line_buffer.da
 /// - 非 null 表示应转发该文本，可能是空串（整段被行缓冲扣住，等下一段补全）。
 ///
 /// 调用方必须按 null 判断，不能用引用相等：行缓冲会扣住不完整的尾行，此时
-/// 即使没有改写也不能把原始字节放过去，否则该行会在补全后被重发一次。
+/// 即使没有改写也不能把原始字节放过去，否则该行会在补全后被重发一次。同理，
+/// 上一次扣住的尾行由本段补全时也必须走返回值——原始字节不含它的前缀。
 class AnthropicSseReader {
   /// [spoofedModel] 非空时启用响应模型伪装：message_start 的 model 换成它。
   AnthropicSseReader({String? spoofedModel}) : _spoofedModel = spoofedModel;
 
   final String? _spoofedModel;
   final SseTextLineBuffer _lineBuffer = SseTextLineBuffer();
+
+  /// 上一次 [add] 是否把没有换行结尾的尾行留在了行缓冲里。
+  ///
+  /// 补全该尾行的那次调用必须走返回值：原始字节不含被扣住的前缀，
+  /// 若按 null 让调用方原样转发，那一行的前半截就丢了。
+  bool _heldPartialLine = false;
 
   bool _sawCompletionSignal = false;
   bool _sawContentDelta = false;
@@ -86,14 +93,18 @@ class AnthropicSseReader {
         ..write('\n');
     }
     // 有改写要发改写后的文本；扣住了不完整尾行则只能发完整行的部分，
-    // 否则该尾行会在下一段补全后重复出现。
-    if (rewritten || _lineBuffer.hasPending) return output.toString();
+    // 否则该尾行会在下一段补全后重复出现。上一次扣住的尾行由本段补全时
+    // 同理：该行只存在于 output 里，按 null 转发原始字节会丢掉它的前缀。
+    final heldBefore = _heldPartialLine;
+    _heldPartialLine = _lineBuffer.hasPending;
+    if (rewritten || heldBefore || _heldPartialLine) return output.toString();
     return null;
   }
 
   /// 流结束时处理没有换行结尾的残留行，返回应转发的文本（可能为空）。
   String flush() {
     final remainder = _lineBuffer.flush();
+    _heldPartialLine = false;
     if (remainder.isEmpty) return '';
     final parsed = _parseLine(remainder);
     if (_spoofedModel == null) return '';

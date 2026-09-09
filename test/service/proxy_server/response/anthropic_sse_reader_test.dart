@@ -309,6 +309,63 @@ void main() {
       );
     });
 
+    test('分块边界落在 data 行中间时不得丢字节', () {
+      const stream =
+          'event: message_start\n'
+          'data: {"type":"message_start","message":{"id":"msg_1","model":"deepseek-real-model","usage":{"input_tokens":1}}}\n\n'
+          'event: content_block_delta\n'
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello 世界"}}\n\n'
+          'event: message_stop\n'
+          'data: {"type":"message_stop"}\n\n';
+
+      String replay(List<String> chunks) {
+        final reader = AnthropicSseReader(spoofedModel: 'claude-opus-5');
+        final out = StringBuffer();
+        for (final chunk in chunks) {
+          out.write(reader.add(chunk) ?? chunk);
+        }
+        out.write(reader.flush());
+        return out.toString();
+      }
+
+      final baseline = replay([stream]);
+      // 切点落在 content_block_delta 的 data 行中间
+      final split = stream.indexOf('"text":"hello') + 8;
+      final got = replay([stream.substring(0, split), stream.substring(split)]);
+
+      expect(got, baseline);
+      expect(got, contains('"text":"hello 世界"'));
+    });
+
+    test('任意切分点的转发结果都与整段喂入一致', () {
+      const stream =
+          'event: message_start\n'
+          'data: {"type":"message_start","message":{"id":"msg_1","model":"deepseek-real-model","usage":{"input_tokens":1}}}\n\n'
+          'event: content_block_delta\n'
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello 世界"}}\n\n'
+          'event: message_stop\n'
+          'data: {"type":"message_stop"}\n\n';
+
+      String replay(List<String> chunks) {
+        final reader = AnthropicSseReader(spoofedModel: 'claude-opus-5');
+        final out = StringBuffer();
+        for (final chunk in chunks) {
+          out.write(reader.add(chunk) ?? chunk);
+        }
+        out.write(reader.flush());
+        return out.toString();
+      }
+
+      final baseline = replay([stream]);
+      for (var split = 1; split < stream.length; split++) {
+        final got = replay([
+          stream.substring(0, split),
+          stream.substring(split),
+        ]);
+        expect(got, baseline, reason: '切分点 $split 的输出与整段喂入不一致');
+      }
+    });
+
     test('CRLF 行尾：改写命中且行尾 CR 保留', () {
       final reader = AnthropicSseReader(spoofedModel: 'claude-opus-5');
       final out = reader.add(
