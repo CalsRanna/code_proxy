@@ -4,16 +4,18 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_client_connections.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_request_cancellation.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_response_handler.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
+import 'package:code_proxy/service/proxy_server/response/proxy_server_response_handler.dart';
+import 'package:code_proxy/service/proxy_server/response/request_attempt_context.dart';
+import 'package:code_proxy/service/proxy_server/response/request_attempt_recorder.dart';
+import 'package:code_proxy/service/proxy_server/routing/proxy_server_circuit_breaker_registry.dart';
+import 'package:code_proxy/service/proxy_server/routing/proxy_server_router.dart';
+import 'package:code_proxy/service/proxy_server/transport/proxy_server_client_connections.dart';
+import 'package:code_proxy/service/proxy_server/transport/proxy_server_request_cancellation.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
@@ -221,12 +223,15 @@ class ProxyServerService {
     // Do not filter completed attempts by status when forwarding them for logging.
     // Cancellation suppresses its own log and breaker failure, including late
     // errors after a setting change; previously recorded attempts remain intact.
-    final responseHandler = ProxyServerResponseHandler(
+    final recorder = RequestAttemptRecorder(
       onRequestCompleted: (endpoint, request, response) {
         if (!cancellation.isCancelled) {
           onRequestCompleted?.call(endpoint, request, response);
         }
       },
+    );
+    final responseHandler = ProxyServerResponseHandler(
+      recorder: recorder,
       onStreamError: (endpoint) {
         if (!cancellation.isCancelled) _router.recordFailure(endpoint);
       },
@@ -236,23 +241,26 @@ class ProxyServerService {
     // 同一请求内的请求体处理缓存：同端点重试时复用已处理好的字节，
     // 避免对大请求体重复 decode + encode。随请求创建、随请求丢弃。
     final bodyCache = ProxyServerBodyCache();
-    bool? previousSucceeded;
     shelf.Response? finalResponse;
     Object? lastException;
-    String? retryAfter;
 
     // 循环尝试端点
-    while (await routeSession.hasNext(
-      previousSucceeded,
-      cancellation: cancellation,
-      retryAfter: retryAfter,
-    )) {
+    while (true) {
       cancellation.throwIfCancelled();
-      retryAfter = null;
+      String? retryAfter;
+      var succeeded = false;
       final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
       http.Request? preparedRequest;
+      RequestAttemptContext attemptContext() => RequestAttemptContext(
+        endpoint: endpoint,
+        request: request,
+        originalRequestBodyBytes: rawBody,
+        startTime: startTime,
+        mappedRequestBodyBytes: preparedRequest?.bodyBytes,
+        forwardedHeaders: preparedRequest?.headers,
+      );
       final requestHandler = _requestHandler!;
       try {
         // 1. 构建请求
@@ -272,35 +280,18 @@ class ProxyServerService {
         );
         // 3. 处理响应并判断是否需要继续
         finalResponse = await cancellation.run(
-          responseHandler.handleResponse(
-            response,
-            endpoint,
-            request,
-            rawBody,
-            startTime,
-            mappedRequestBodyBytes: preparedRequest.bodyBytes,
-            forwardedHeaders: preparedRequest.headers,
-          ),
+          responseHandler.handleResponse(response, attemptContext()),
         );
         cancellation.throwIfCancelled();
 
         // 2xx/3xx 均为成功透传：3xx（重定向/缓存语义）不视为端点故障，
         // 不重试、不进断路器。
-        //
-        // 用 continue 让循环条件处的 hasNext(true) 向断路器记录本次成功
-        // （连续失败计数清零 / halfOpen 探测成功恢复 closed）后再结束轮次，
-        // 它固定返回 false，不会产生额外迭代。此处若直接 break，
-        // recordSuccess 将永远不会被主链路调用。
-        if (response.statusCode >= 200 && response.statusCode < 400) {
-          previousSucceeded = true;
-          continue;
-        }
+        succeeded = response.statusCode >= 200 && response.statusCode < 400;
         // 上游 4xx 直接返回客户端，不重试、不计入熔断。
         if (response.statusCode >= 400 && response.statusCode < 500) {
           break;
         }
         retryAfter = response.headers['retry-after'];
-        previousSucceeded = false;
       } catch (e) {
         cancellation.throwIfCancelled();
         // header 未达瞬时错误:原端点透明重试,不污染断路器/不重建 client。
@@ -318,26 +309,27 @@ class ProxyServerService {
             'upstream may have executed — possible duplicate billing',
           );
           startTime = null;
-          previousSucceeded = null; // 跳过熔断计数和退避，立即重进循环体。
           continue;
         }
 
         // 异常走统一失败处理
-        previousSucceeded = false;
         lastException = e;
         LoggerUtil.instance.e('Exception during request: $e');
 
         // 记录异常请求到数据库
-        responseHandler.recordException(
-          endpoint: endpoint,
-          request: request,
-          requestBodyBytes: rawBody,
-          startTime: startTime,
-          error: e,
-          statusCode: HttpStatus.badGateway,
-          mappedRequestBodyBytes: preparedRequest?.bodyBytes,
-          forwardedHeaders: preparedRequest?.headers,
-        );
+        recorder.recordException(attemptContext(), e);
+      }
+      cancellation.throwIfCancelled();
+      if (succeeded) {
+        routeSession.recordSuccess();
+        break;
+      }
+      routeSession.recordFailure();
+      if (!await routeSession.advanceAfterAttempt(
+        cancellation: cancellation,
+        retryAfter: retryAfter,
+      )) {
+        break;
       }
     }
 

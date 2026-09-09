@@ -1,6 +1,5 @@
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
 
 class ProxyServerModelMapper {
   /// 入口集合 → 端点出口 的精确映射。
@@ -17,17 +16,13 @@ class ProxyServerModelMapper {
   static String? mapModel(
     String? originalModel, {
     required EndpointEntity endpoint,
+    required DefaultModelConfig defaultConfig,
   }) {
     if (originalModel == null) return null;
 
-    // 配置加载失败（ModelConfigException）向上传播，由调用方
-    // ProxyServerRequestHandler._processRequestBody 的 catch-all 兜住，
-    // 整体按「解析失败」处理并原样透传请求体。
-    final defaultConfig = ClaudeCodeModelConfigService.instance.config;
-
     // —— 入口精确表:请求 ID 是否等于全局默认某族 ——
     // 遍历元数据表(而非硬编码),新增家族自动生效。
-    for (final field in DefaultModelMapperEntity.familyFields) {
+    for (final field in DefaultModelConfig.familyFields) {
       if (originalModel == defaultConfig.valueFor(field)) {
         return _endpointOverrideFor(endpoint, field.family) ?? originalModel;
       }

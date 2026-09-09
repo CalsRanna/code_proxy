@@ -40,12 +40,12 @@ class SettingDialogs {
 
   Future<void> editCircuitBreakerFailureThreshold(BuildContext context) =>
       _editNumber(
-    context,
-    title: '端点熔断阈值',
-    description: '连续失败达到此次数后禁用端点并故障转移 (1-20)',
-    value: viewModel.circuitBreakerFailureThreshold.value,
-    onSave: viewModel.updateCircuitBreakerFailureThreshold,
-  );
+        context,
+        title: '端点熔断阈值',
+        description: '连续失败达到此次数后禁用端点并故障转移 (1-20)',
+        value: viewModel.circuitBreakerFailureThreshold.value,
+        onSave: viewModel.updateCircuitBreakerFailureThreshold,
+      );
 
   Future<void> editCircuitBreakerRecoveryTimeout(
     BuildContext context,
@@ -95,6 +95,56 @@ class SettingDialogs {
           ),
         ],
       ),
+    );
+  }
+
+  void confirmClearDatabase(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return ShadDialog(
+          title: const Text('清空数据库'),
+          description: const Text('确定要清空数据库中的所有数据吗？此操作不可撤销。'),
+          actions: [
+            ShadButton.outline(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            ShadButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                clearDatabase(context);
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void confirmResetToDefault(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return ShadDialog(
+          title: const Text('恢复默认设置'),
+          description: const Text('确定要清空所有数据和设置吗？此操作无法撤销。'),
+          actions: [
+            ShadButton.outline(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            ShadButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                viewModel.resetToDefault();
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

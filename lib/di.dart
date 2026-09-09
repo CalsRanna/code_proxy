@@ -2,16 +2,16 @@ import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/app_maintenance_service.dart';
-import 'package:code_proxy/service/claude_code_audit_service.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/dashboard_stats_loader.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_client_settings_service.dart';
 import 'package:code_proxy/service/proxy_request_log_service.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
 import 'package:code_proxy/service/proxy_server_controller.dart';
+import 'package:code_proxy/service/request_log_factory.dart';
 import 'package:code_proxy/util/notification_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
@@ -47,8 +47,8 @@ class DI {
     instance.registerLazySingleton(
       () => ProxyRequestLogService(
         repository: instance.get<RequestLogRepository>(),
-        audit: ClaudeCodeAuditService.instance,
-        logHandler: ProxyServerLogHandler.create(),
+        audit: ProxyAuditService.instance,
+        logFactory: RequestLogFactory.create(),
       ),
       dispose: (service) => service.dispose(),
     );
@@ -64,8 +64,8 @@ class DI {
     instance.registerLazySingleton(
       () => HomeViewModel(
         proxy: instance.get<ProxyServerController>(),
-        modelConfig: ClaudeCodeModelConfigService.instance,
-        audit: ClaudeCodeAuditService.instance,
+        modelConfig: DefaultModelConfigService.instance,
+        audit: ProxyAuditService.instance,
         pricing: ModelPricingService.instance,
       ),
     );
@@ -98,7 +98,7 @@ class DI {
         preferences: SharedPreferenceUtil.instance,
         codeSettings: instance.get<ClaudeCodeSettingService>(),
         desktopSettings: instance.get<ClaudeDesktopSettingService>(),
-        modelConfig: ClaudeCodeModelConfigService.instance,
+        modelConfig: DefaultModelConfigService.instance,
         pricing: ModelPricingService.instance,
         maintenance: instance.get<AppMaintenanceService>(),
       ),

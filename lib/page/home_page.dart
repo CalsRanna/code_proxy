@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/page/dashboard/dashboard_page.dart';
 import 'package:code_proxy/page/endpoint/endpoint_page.dart';
 import 'package:code_proxy/page/home_startup_dialogs.dart';
 import 'package:code_proxy/page/request_log/request_log_page.dart';
-import 'package:code_proxy/page/setting_page.dart';
+import 'package:code_proxy/page/setting/setting_page.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/util/window_util.dart';

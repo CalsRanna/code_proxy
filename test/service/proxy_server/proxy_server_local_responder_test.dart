@@ -1,12 +1,12 @@
 import 'dart:convert';
 
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
+import 'package:code_proxy/service/proxy_server/routing/proxy_server_circuit_breaker_registry.dart';
+import 'package:code_proxy/service/proxy_server/routing/proxy_server_router.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
@@ -15,10 +15,7 @@ void main() {
   late ProxyServerLocalResponder responder;
 
   setUp(() {
-    final config = ProxyServerConfig(
-      address: '127.0.0.1',
-      port: 9000,
-    );
+    final config = ProxyServerConfig(address: '127.0.0.1', port: 9000);
     final registry = ProxyServerCircuitBreakerRegistry();
     router = ProxyServerRouter(
       config: config,
@@ -126,8 +123,8 @@ void main() {
 
       test('GET /v1/models 返回本地模型列表（与 Profile 配置一致）', () async {
         // 注入确定性配置,避免断言依赖用户机器上的真实 yaml 内容
-        ClaudeCodeModelConfigService.instance.replaceConfigForTesting(
-          const DefaultModelMapperEntity(
+        DefaultModelConfigService.instance.replaceConfigForTesting(
+          const DefaultModelConfig(
             haikuModel: 'claude-haiku-4-5-20251001',
             sonnetModel: 'claude-sonnet-4-5-20250929',
             opusModel: 'claude-opus-4-5-20251101',
@@ -164,10 +161,7 @@ void main() {
           expect(model['anthropic_family_tier'], isNotNull);
           expect(model['display_name'], isNotEmpty);
           // 定价数据未加载(测试环境)时该字段可能缺席,存在则必须是 int
-          expect(
-            model['max_input_tokens'],
-            anyOf(isNull, isA<int>()),
-          );
+          expect(model['max_input_tokens'], anyOf(isNull, isA<int>()));
         }
       });
     });

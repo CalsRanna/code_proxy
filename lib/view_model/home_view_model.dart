@@ -1,7 +1,7 @@
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
-import 'package:code_proxy/service/claude_code_audit_service.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
+import 'package:code_proxy/model/default_model_config.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:signals/signals.dart';
@@ -9,8 +9,8 @@ import 'package:signals/signals.dart';
 class HomeViewModel {
   HomeViewModel({
     required ProxyServerController proxy,
-    required ClaudeCodeModelConfigService modelConfig,
-    required ClaudeCodeAuditService audit,
+    required DefaultModelConfigService modelConfig,
+    required ProxyAuditService audit,
     required ModelPricingService pricing,
   }) : _proxy = proxy,
        _modelConfig = modelConfig,
@@ -18,8 +18,8 @@ class HomeViewModel {
        _pricing = pricing;
 
   final ProxyServerController _proxy;
-  final ClaudeCodeModelConfigService _modelConfig;
-  final ClaudeCodeAuditService _audit;
+  final DefaultModelConfigService _modelConfig;
+  final ProxyAuditService _audit;
   final ModelPricingService _pricing;
   final selectedIndex = signal<int>(0);
 

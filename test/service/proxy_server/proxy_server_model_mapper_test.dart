@@ -1,6 +1,5 @@
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,16 +14,12 @@ void main() {
   );
   final bareEndpoint = EndpointEntity(id: 'ep-2', name: 'Bare');
 
-  const globalConfig = DefaultModelMapperEntity(
+  const globalConfig = DefaultModelConfig(
     haikuModel: 'claude-haiku-4-5-20251001',
     sonnetModel: 'claude-sonnet-4-5-20250929',
     opusModel: 'claude-opus-4-5-20251101',
     fableModel: 'claude-fable-5-1',
   );
-
-  setUp(() {
-    ClaudeCodeModelConfigService.instance.replaceConfigForTesting(globalConfig);
-  });
 
   group('入口精确表（default_model 真实 ID,模型发现统一入口）', () {
     test('入口 ID → 端点同族映射优先', () {
@@ -32,6 +27,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           globalConfig.opusModel,
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'ep-opus',
       );
@@ -39,6 +35,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           globalConfig.sonnetModel,
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'ep-sonnet',
       );
@@ -46,6 +43,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           globalConfig.haikuModel,
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'ep-haiku',
       );
@@ -56,6 +54,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           globalConfig.opusModel,
           endpoint: bareEndpoint,
+          defaultConfig: globalConfig,
         ),
         globalConfig.opusModel,
       );
@@ -66,6 +65,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           globalConfig.fableModel,
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'ep-fable',
       );
@@ -76,6 +76,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           globalConfig.fableModel,
           endpoint: bareEndpoint,
+          defaultConfig: globalConfig,
         ),
         globalConfig.fableModel,
       );
@@ -89,6 +90,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'claude-sonnet-4-6',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'claude-sonnet-4-6',
       );
@@ -96,6 +98,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'claude-haiku-4-5-20260401',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'claude-haiku-4-5-20260401',
       );
@@ -103,6 +106,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'claude-opus-5',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'claude-opus-5',
       );
@@ -110,6 +114,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'claude-fable-5-2',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'claude-fable-5-2',
       );
@@ -118,7 +123,11 @@ void main() {
     test('入口 ID 大小写不同也原样透传', () {
       final model = globalConfig.opusModel.toUpperCase();
       expect(
-        ProxyServerModelMapper.mapModel(model, endpoint: configuredEndpoint),
+        ProxyServerModelMapper.mapModel(
+          model,
+          endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
+        ),
         model,
       );
     });
@@ -128,6 +137,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'claude-sonnet-4-6',
           endpoint: bareEndpoint,
+          defaultConfig: globalConfig,
         ),
         'claude-sonnet-4-6',
       );
@@ -140,6 +150,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'deepseek-chat',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'deepseek-chat',
       );
@@ -150,6 +161,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'opus-something',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'opus-something',
       );
@@ -160,6 +172,7 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'claude-opus-proxy',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'claude-opus-proxy',
       );
@@ -168,15 +181,38 @@ void main() {
         ProxyServerModelMapper.mapModel(
           'ANTHROPIC_DEFAULT_OPUS_MODEL',
           endpoint: configuredEndpoint,
+          defaultConfig: globalConfig,
         ),
         'ANTHROPIC_DEFAULT_OPUS_MODEL',
       );
     });
   });
 
+  test('不同配置的映射调用互不影响，不依赖全局状态', () {
+    const otherConfig = DefaultModelConfig(
+      haikuModel: 'other-haiku',
+      sonnetModel: 'other-sonnet',
+      opusModel: 'other-opus',
+    );
+    for (final config in [globalConfig, otherConfig, globalConfig]) {
+      expect(
+        ProxyServerModelMapper.mapModel(
+          globalConfig.opusModel,
+          endpoint: configuredEndpoint,
+          defaultConfig: config,
+        ),
+        identical(config, globalConfig) ? 'ep-opus' : globalConfig.opusModel,
+      );
+    }
+  });
+
   test('null 输入返回 null', () {
     expect(
-      ProxyServerModelMapper.mapModel(null, endpoint: configuredEndpoint),
+      ProxyServerModelMapper.mapModel(
+        null,
+        endpoint: configuredEndpoint,
+        defaultConfig: globalConfig,
+      ),
       isNull,
     );
   });

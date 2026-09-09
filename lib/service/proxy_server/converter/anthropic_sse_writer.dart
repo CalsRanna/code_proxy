@@ -189,7 +189,7 @@ class AnthropicSseWriter {
 ///
 /// 三个使用方保持一致格式：OpenAI 流转换器（writer 的
 /// [AnthropicSseWriter.handleError] 与 Responses 转换器的 response.failed
-/// 分支）与 Anthropic 透传管线（ResponseProcessor）。
+/// 分支）与 Anthropic 透传管线（AnthropicResponseProcessor）。
 String buildSseErrorEventText(String message) =>
     'event: error\ndata: ${jsonEncode({
       'type': 'error',

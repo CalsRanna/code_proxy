@@ -1,15 +1,15 @@
 import 'dart:convert';
 
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
+import 'package:code_proxy/model/default_model_config.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/model_display_name_util.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:uuid/uuid.dart';
 
-import 'proxy_server_router.dart';
 import 'proxy_server_token_estimator.dart';
+import 'routing/proxy_server_router.dart';
 
 /// 本地应答层 —— 在请求进入路由/转发循环之前，对可本地应答的
 /// 请求类型直接返回响应，避免无效的网络往返。
@@ -99,7 +99,7 @@ class ProxyServerLocalResponder {
       return null;
     }
     try {
-      if (model != ClaudeCodeModelConfigService.instance.config.haikuModel) {
+      if (model != DefaultModelConfigService.instance.config.haikuModel) {
         return null;
       }
     } on ModelConfigException {
@@ -134,7 +134,7 @@ class ProxyServerLocalResponder {
     );
   }
 
-  /// 从 [ClaudeCodeModelConfigService] 构建 /v1/models 响应。
+  /// 从 [DefaultModelConfigService] 构建 /v1/models 响应。
   ///
   /// id 为 default_model 中的**真实模型 ID**(遍历元数据表):客户端
   /// (CLI 经模型发现、Desktop 发现列表)取到后原样回传,由
@@ -155,7 +155,7 @@ class ProxyServerLocalResponder {
     final pricing = ModelPricingService.instance;
 
     try {
-      final config = ClaudeCodeModelConfigService.instance.config;
+      final config = DefaultModelConfigService.instance.config;
       for (final (field, modelId) in config.familyEntries) {
         final model = <String, dynamic>{
           'id': modelId,

@@ -1,10 +1,10 @@
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/model/model_pricing_entity.dart';
 import 'package:code_proxy/model/setting_update_result.dart';
 import 'package:code_proxy/service/app_maintenance_service.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -19,7 +19,7 @@ class SettingViewModel {
     required SharedPreferenceUtil preferences,
     required ClaudeCodeSettingService codeSettings,
     required ClaudeDesktopSettingService desktopSettings,
-    required ClaudeCodeModelConfigService modelConfig,
+    required DefaultModelConfigService modelConfig,
     required ModelPricingService pricing,
     required AppMaintenanceService maintenance,
   }) : _proxy = proxy,
@@ -34,7 +34,7 @@ class SettingViewModel {
   final SharedPreferenceUtil _preferences;
   final ClaudeCodeSettingService _codeSettings;
   final ClaudeDesktopSettingService _desktopSettings;
-  final ClaudeCodeModelConfigService _modelConfig;
+  final DefaultModelConfigService _modelConfig;
   final ModelPricingService _pricing;
   final AppMaintenanceService _maintenance;
 
@@ -61,7 +61,7 @@ class SettingViewModel {
   final notificationEnabled = signal(true);
 
   final defaultModelValues = <String, Signal<String>>{
-    for (final field in DefaultModelMapperEntity.familyFields)
+    for (final field in DefaultModelConfig.familyFields)
       field.family: signal(''),
   };
 
@@ -108,7 +108,7 @@ class SettingViewModel {
     try {
       await configService.load();
       final modelConfig = configService.config;
-      for (final field in DefaultModelMapperEntity.familyFields) {
+      for (final field in DefaultModelConfig.familyFields) {
         defaultModelValues[field.family]!.value = modelConfig.valueFor(field);
       }
     } catch (e) {
@@ -275,12 +275,12 @@ class SettingViewModel {
   Future<void> resetToDefault() => _maintenance.resetToDefault();
 
   Future<String?> updateDefaultModelMapping(Map<String, String> values) async {
-    final config = DefaultModelMapperEntity.fromFamilyValues(
+    final config = DefaultModelConfig.fromFamilyValues(
       values.map((key, value) => MapEntry(key, value.trim())),
     );
     try {
       await _modelConfig.save(config);
-      for (final field in DefaultModelMapperEntity.familyFields) {
+      for (final field in DefaultModelConfig.familyFields) {
         defaultModelValues[field.family]!.value = config.valueFor(field);
       }
       return null;

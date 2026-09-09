@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_chat_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/converter/openai_responses_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_request_cancellation.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_transport.dart';
+import 'package:code_proxy/service/proxy_server/transport/proxy_server_request_cancellation.dart';
+import 'package:code_proxy/service/proxy_server/transport/proxy_server_transport.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
@@ -299,10 +300,13 @@ class ProxyServerRequestHandler {
       // 模型映射
       var model = bodyJson['model'] as String?;
       if (bodyJson.containsKey('model')) {
-        final mappedModel = ProxyServerModelMapper.mapModel(
-          model,
-          endpoint: endpoint,
-        );
+        final mappedModel = model == null
+            ? null
+            : ProxyServerModelMapper.mapModel(
+                model,
+                endpoint: endpoint,
+                defaultConfig: DefaultModelConfigService.instance.config,
+              );
 
         LoggerUtil.instance.d(
           'Model mapping: endpoint=${endpoint.name}, original=$model, mapped=$mappedModel',

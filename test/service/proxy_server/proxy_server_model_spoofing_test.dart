@@ -1,16 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import '../../support/authenticated_http_client.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import '../../support/authenticated_http_client.dart';
 
 /// Anthropic 格式端点的响应模型伪装（端到端）。
 ///
@@ -26,8 +26,8 @@ void main() {
 
     setUp(() {
       // 请求模型须精确命中全局入口,才能映射到端点实际模型。
-      ClaudeCodeModelConfigService.instance.replaceConfigForTesting(
-        const DefaultModelMapperEntity(
+      DefaultModelConfigService.instance.replaceConfigForTesting(
+        const DefaultModelConfig(
           haikuModel: 'claude-haiku-4-5-20251001',
           sonnetModel: 'claude-sonnet-4-5-20250929',
           opusModel: 'claude-opus-5',

@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:code_proxy/model/request_log_entity.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
-import 'package:code_proxy/service/claude_code_audit_service.dart';
+import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_request_log_service.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_log_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
+import 'package:code_proxy/service/request_log_factory.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../test_helpers.dart';
@@ -21,7 +21,7 @@ class _Repository extends Fake implements RequestLogRepository {
   }
 }
 
-class _Audit extends Fake implements ClaudeCodeAuditService {
+class _Audit extends Fake implements ProxyAuditService {
   final ids = <String>[];
   String? original;
   String? raw;
@@ -68,7 +68,7 @@ void main() {
     service = ProxyRequestLogService(
       repository: repository,
       audit: audit,
-      logHandler: ProxyServerLogHandler.create(),
+      logFactory: RequestLogFactory.create(),
     );
   });
   tearDown(() => service.dispose());

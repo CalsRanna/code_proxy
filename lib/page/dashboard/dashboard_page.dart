@@ -1,7 +1,7 @@
 import 'package:code_proxy/page/dashboard/dashboard_overview_cards.dart';
+import 'package:code_proxy/page/dashboard/dashboard_request_heatmap.dart';
 import 'package:code_proxy/page/dashboard/dashboard_request_line_chart.dart';
 import 'package:code_proxy/page/dashboard/dashboard_token_bar_chart.dart';
-import 'package:code_proxy/page/dashboard/dashboard_token_heatmap.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:code_proxy/view_model/dashboard_view_model.dart';
 import 'package:code_proxy/widget/empty_state.dart';
@@ -30,7 +30,7 @@ class _DashboardPageState extends State<DashboardPage> {
       spacing: ShadcnSpacing.spacing24,
       children: [
         _buildOverviewCards(),
-        _buildTokenHeatmap(),
+        _buildRequestHeatmap(),
         Expanded(child: _buildChartsRow()),
       ],
     );
@@ -88,10 +88,10 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  Widget _buildTokenHeatmap() {
+  Widget _buildRequestHeatmap() {
     return Watch((_) {
       final dailyRequests = viewModel.dailyHeatmapRequests.value;
-      return DashboardTokenHeatmap(dailyRequests);
+      return DashboardRequestHeatmap(dailyRequests);
     });
   }
 

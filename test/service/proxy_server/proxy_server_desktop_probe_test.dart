@@ -1,21 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/claude_code_model_config_service.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker_registry.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_router.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
+import 'package:code_proxy/service/proxy_server/routing/proxy_server_circuit_breaker_registry.dart';
+import 'package:code_proxy/service/proxy_server/routing/proxy_server_router.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
 import '../../support/authenticated_http_client.dart';
 
-const _modelConfig = DefaultModelMapperEntity(
+const _modelConfig = DefaultModelConfig(
   haikuModel: 'configured-haiku',
   sonnetModel: 'configured-sonnet',
   opusModel: 'configured-opus',
@@ -30,7 +30,7 @@ const _probe = {
 
 void main() {
   setUp(() {
-    ClaudeCodeModelConfigService.instance.replaceConfigForTesting(_modelConfig);
+    DefaultModelConfigService.instance.replaceConfigForTesting(_modelConfig);
   });
 
   group('Desktop probe matching', () {
@@ -144,8 +144,8 @@ void main() {
 
     test('uses the current configured Haiku model', () {
       expect(respond(_probe)?.statusCode, 200);
-      ClaudeCodeModelConfigService.instance.replaceConfigForTesting(
-        const DefaultModelMapperEntity(
+      DefaultModelConfigService.instance.replaceConfigForTesting(
+        const DefaultModelConfig(
           haikuModel: 'new-haiku',
           sonnetModel: 'configured-sonnet',
           opusModel: 'configured-opus',
@@ -183,8 +183,7 @@ void main() {
         apiTimeoutMs: 3000,
         circuitBreakerFailureThreshold: 2,
       ),
-      onRequestCompleted: (_, _, response) =>
-          statuses.add(response.statusCode),
+      onRequestCompleted: (_, _, response) => statuses.add(response.statusCode),
     );
     addTearDown(service.stop);
     service.endpoints = [
@@ -199,9 +198,7 @@ void main() {
     await service.start();
     final client = http.Client();
     addTearDown(client.close);
-    final uri = Uri.parse(
-      'http://127.0.0.1:${service.boundPort}/v1/messages',
-    );
+    final uri = Uri.parse('http://127.0.0.1:${service.boundPort}/v1/messages');
     const headers = {
       'x-api-key': testProxyAuthToken,
       'content-type': 'application/json',

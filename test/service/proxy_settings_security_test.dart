@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:code_proxy/service/claude_code_audit_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
+import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_settings_snapshot.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -234,7 +234,7 @@ void main() {
 
   test('审计头会脱敏，Unix 请求目录禁止 group/other 访问', () async {
     final auditRoot = p.join(tempDirectory.path, 'audit');
-    final service = ClaudeCodeAuditService(auditDirectory: auditRoot);
+    final service = ProxyAuditService(auditDirectory: auditRoot);
 
     await service.writeAuditLog(
       id: 'request-1',

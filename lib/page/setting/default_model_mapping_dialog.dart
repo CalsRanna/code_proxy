@@ -1,4 +1,4 @@
-import 'package:code_proxy/model/default_model_mapper_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/page/setting/setting_value_dialog.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +15,7 @@ class DefaultModelMappingDialog extends StatefulWidget {
 
 class _DefaultModelMappingDialogState extends State<DefaultModelMappingDialog> {
   late final _controllers = {
-    for (final field in DefaultModelMapperEntity.familyFields)
+    for (final field in DefaultModelConfig.familyFields)
       field.family: TextEditingController(
         text: widget.viewModel.defaultModelValues[field.family]!.value,
       ),
@@ -43,7 +43,7 @@ class _DefaultModelMappingDialogState extends State<DefaultModelMappingDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final fields = DefaultModelMapperEntity.familyFields;
+    final fields = DefaultModelConfig.familyFields;
     final rows = <List<ModelFamilyField>>[];
     for (var i = 0; i < fields.length; i += 2) {
       rows.add(

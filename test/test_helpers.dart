@@ -1,5 +1,5 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
-import 'package:code_proxy/service/proxy_server/proxy_server_circuit_breaker.dart';
+import 'package:code_proxy/service/proxy_server/routing/proxy_server_circuit_breaker.dart';
 
 ProxyServerCircuitBreaker createBreaker({
   int failureThreshold = 5,
