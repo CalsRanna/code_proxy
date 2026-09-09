@@ -3,6 +3,10 @@ class ModelPricingEntity {
   /// 模型 ID，如 "claude-sonnet-4-5-20250929"
   final String modelId;
 
+  /// models.dev 的 provider id，如 "anthropic" / "openai" / "zhipuai"。
+  /// 设置页按该字段分组；区域变体（zai、moonshotai-cn 等）由展示层合并。
+  final String provider;
+
   /// 输入价格 ($/MTok)
   final double inputPrice;
 
@@ -25,6 +29,7 @@ class ModelPricingEntity {
 
   const ModelPricingEntity({
     required this.modelId,
+    required this.provider,
     required this.inputPrice,
     required this.outputPrice,
     this.cacheWritePrice = 0,
@@ -36,6 +41,7 @@ class ModelPricingEntity {
   factory ModelPricingEntity.fromJson(Map<String, dynamic> json) {
     return ModelPricingEntity(
       modelId: json['modelId'] as String,
+      provider: json['provider'] as String? ?? '',
       inputPrice: (json['inputPrice'] as num).toDouble(),
       outputPrice: (json['outputPrice'] as num).toDouble(),
       cacheWritePrice: (json['cacheWritePrice'] as num?)?.toDouble() ?? 0,
@@ -48,6 +54,7 @@ class ModelPricingEntity {
   Map<String, dynamic> toJson() {
     return {
       'modelId': modelId,
+      'provider': provider,
       'inputPrice': inputPrice,
       'outputPrice': outputPrice,
       'cacheWritePrice': cacheWritePrice,

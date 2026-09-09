@@ -20,6 +20,7 @@ class _Pricing extends Fake implements ModelPricingService {
   List<ModelPricingEntity> get pricingModels => const [
     ModelPricingEntity(
       modelId: 'claude-test',
+      provider: 'anthropic',
       inputPrice: 3,
       outputPrice: 15,
       cacheWritePrice: 3.75,

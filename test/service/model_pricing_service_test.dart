@@ -13,6 +13,7 @@ void main() {
       service.replacePricingForTesting([
         const ModelPricingEntity(
           modelId: 'MiniMax-M2.5',
+          provider: 'minimax',
           inputPrice: 0.3,
           outputPrice: 1.2,
           cacheWritePrice: 0.375,
@@ -30,6 +31,7 @@ void main() {
       service.replacePricingForTesting([
         const ModelPricingEntity(
           modelId: 'MiniMax-M2.5',
+          provider: 'minimax',
           inputPrice: 0.3,
           outputPrice: 1.2,
           cacheWritePrice: 0.375,
@@ -88,13 +90,15 @@ void main() {
 
       final glmPricing = service.getPricing('glm-5');
       expect(glmPricing, isNotNull);
-      expect(glmPricing!.inputPrice, 1);
+      expect(glmPricing!.provider, 'zhipuai');
+      expect(glmPricing.inputPrice, 1);
       expect(glmPricing.outputPrice, 3.2);
       expect(glmPricing.cacheReadPrice, 0.2);
 
       final kimiPricing = service.getPricing('moonshotai/kimi-k2.5');
       expect(kimiPricing, isNotNull);
       expect(kimiPricing!.modelId, 'kimi-k2.5');
+      expect(kimiPricing.provider, 'moonshotai');
       expect(kimiPricing.inputPrice, 0.6);
       expect(kimiPricing.outputPrice, 3);
       expect(kimiPricing.cacheReadPrice, 0.1);
@@ -144,7 +148,8 @@ void main() {
 
       final pricing = service.getPricing('gpt-current');
       expect(pricing, isNotNull);
-      expect(pricing!.inputPrice, 0.5);
+      expect(pricing!.provider, 'openai');
+      expect(pricing.inputPrice, 0.5);
       expect(pricing.outputPrice, 1.5);
       expect(pricing.cacheReadPrice, 0.1);
       expect(service.getPricing('gpt-4'), isNull);
@@ -163,6 +168,19 @@ void main() {
       });
 
       expect(service.getPricing('no-date-model'), isNull);
+    });
+
+    test('provider 应随 toJson / fromJson 往返保留', () {
+      const entity = ModelPricingEntity(
+        modelId: 'glm-5',
+        provider: 'zhipuai',
+        inputPrice: 1,
+        outputPrice: 3.2,
+      );
+
+      final restored = ModelPricingEntity.fromJson(entity.toJson());
+      expect(restored.provider, 'zhipuai');
+      expect(restored.modelId, 'glm-5');
     });
   });
 }

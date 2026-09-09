@@ -11,9 +11,10 @@ import 'package:signals/signals.dart';
 
 class ModelPricingService {
   static final ModelPricingService instance = ModelPricingService._();
-  /// 缓存数据语义版本：v5 起模型实体带 release_date，可按"近一年"滚动
-  /// 窗口重新过滤（v4 缓存缺少发布日期字段，须作废后重新拉取）。
-  static const int _cacheSchemaVersion = 5;
+  /// 缓存数据语义版本：v6 起模型实体带 provider id，设置页按 provider 分组
+  /// （v5 缓存缺少该字段，须作废后重新拉取）；v5 起带 release_date，
+  /// 可按"近一年"滚动窗口重新过滤（v4 缓存缺少发布日期字段）。
+  static const int _cacheSchemaVersion = 6;
   /// 缓存超过该时长未同步即视为过期，重新从 API 拉取。
   /// 与滚动窗口配套：窗口随时间滑动，缓存过老时可用模型会逐渐变少，
   /// 保持 30 天内新鲜可保证统计集完整。
@@ -229,6 +230,7 @@ class ModelPricingService {
         modelId,
         () => ModelPricingEntity(
           modelId: modelId,
+          provider: provider,
           inputPrice: inputPrice,
           outputPrice: outputPrice,
           cacheWritePrice: cacheWritePrice,
@@ -263,6 +265,8 @@ class ModelPricingService {
     if (models != null) {
       for (final m in models) {
         final entity = ModelPricingEntity.fromJson(m as Map<String, dynamic>);
+        // v5 及更早的缓存没有 provider 字段，无法分组，跳过等待 refresh 重建。
+        if (entity.provider.isEmpty) continue;
         // 缓存里是"同步时点"的近一年模型，窗口滑动后按当前窗口重新过滤，
         // 剔除已滑出窗口的历史模型（缺的最新模型由 refresh 补齐）。
         if (!_isWithinRecentYear(entity.releaseDate)) continue;

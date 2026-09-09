@@ -81,7 +81,7 @@ CI（`.github/workflows/ci.yml`）锁定 Flutter 3.44.6，顺序执行 `pub get 
 
 - SQLite 位于 `~/.code_proxy/code_proxy.db`，通过 `laconic` 访问。迁移是 `lib/database/migration/migration_<YYYYMMDDHHmm>.dart` 中的类，各自用 `migrations` 表按 `name` 幂等判重，并在 `Database._migrate()` 中按顺序手动注册。新增迁移需同时做这三件事。
 - `SharedPreferenceUtil` 带版本号迁移（`_currentPrefVersion`），偏好键改名或删除时递增版本并在 `migrateIfNeeded` 中处理。
-- 模型定价来自 `https://models.dev/api.json`，缓存到 `~/.code_proxy/model_pricing.json`，带 `_cacheSchemaVersion`；`/v1/models` 的 `max_input_tokens` 也取自该数据。
+- 模型定价来自 `https://models.dev/api.json`，缓存到 `~/.code_proxy/model_pricing.json`，带 `_cacheSchemaVersion`；实体记录 models.dev 的 provider id，设置页按 provider 分组；`/v1/models` 的 `max_input_tokens` 也取自该数据。
 
 ### 测试约定
 

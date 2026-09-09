@@ -94,34 +94,51 @@ class ModelPricingSettingsTab extends StatelessWidget {
     );
   }
 
+  /// provider id → 分组显示名。区域变体（zai / moonshotai-cn / minimax-cn）
+  /// 与主 provider 同源，归入同一组；未列出的 provider 直接以 id 作为组名。
+  static const Map<String, String> _providerGroupLabels = {
+    'anthropic': 'Claude',
+    'openai': 'OpenAI',
+    'deepseek': 'DeepSeek',
+    'zhipuai': 'GLM',
+    'zai': 'GLM',
+    'moonshotai': 'Kimi',
+    'moonshotai-cn': 'Kimi',
+    'minimax': 'MiniMax',
+    'minimax-cn': 'MiniMax',
+  };
+
+  /// 分组展示顺序，未列出的组按组名排序追加在后。
+  static const List<String> _groupOrder = [
+    'Claude',
+    'OpenAI',
+    'DeepSeek',
+    'GLM',
+    'Kimi',
+    'MiniMax',
+  ];
+
   Map<String, List<ModelPricingEntity>> _groupPricingModels(
     List<ModelPricingEntity> models,
   ) {
-    final grouped = <String, List<ModelPricingEntity>>{
-      'Claude': [],
-      'DeepSeek': [],
-      'GLM': [],
-      'Kimi': [],
-      'MiniMax': [],
-      '其他': [],
-    };
-
+    final grouped = <String, List<ModelPricingEntity>>{};
     for (final model in models) {
-      grouped[_pricingGroupForModel(model)]!.add(model);
+      grouped.putIfAbsent(_pricingGroupForModel(model), () => []).add(model);
     }
 
-    grouped.removeWhere((_, value) => value.isEmpty);
-    return grouped;
+    final ordered = <String, List<ModelPricingEntity>>{};
+    for (final label in _groupOrder) {
+      final groupModels = grouped.remove(label);
+      if (groupModels != null) ordered[label] = groupModels;
+    }
+    for (final label in grouped.keys.toList()..sort()) {
+      ordered[label] = grouped[label]!;
+    }
+    return ordered;
   }
 
   String _pricingGroupForModel(ModelPricingEntity model) {
-    final normalized = model.modelId.toLowerCase();
-    if (normalized.contains('claude')) return 'Claude';
-    if (normalized.contains('deepseek')) return 'DeepSeek';
-    if (normalized.contains('glm')) return 'GLM';
-    if (normalized.contains('kimi')) return 'Kimi';
-    if (normalized.contains('minimax')) return 'MiniMax';
-    return '其他';
+    return _providerGroupLabels[model.provider] ?? model.provider;
   }
 
   Widget _buildPricingEmptyState(BuildContext context) {
