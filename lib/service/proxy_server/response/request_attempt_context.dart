@@ -1,4 +1,5 @@
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/proxy_audit_body_writer.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 /// 单次上游尝试的请求数据；重试之间不共享计时和转发内容。
@@ -18,12 +19,16 @@ class RequestAttemptContext {
   /// 请求准备阶段失败时为 null，发送后的耗时不包含此前退避。
   final int? startTime;
 
+  /// 本次尝试的流式正文写入器；未配置审计写入时为 null。
+  final ProxyAuditBodyWriter? bodyWriter;
+
   RequestAttemptContext({
     required this.endpoint,
     required this.request,
     required this.originalRequestBodyBytes,
     required this.originalModel,
     required this.startTime,
+    this.bodyWriter,
     this.mappedModel,
     this.mappedRequestBodyBytes,
     this.forwardedHeaders,

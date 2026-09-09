@@ -70,7 +70,7 @@ class ProxyServerResponseHandler {
     void recordStats(
       int responseTime,
       Map<String, int?>? usage,
-      String responseBody, {
+      String? responseBody, {
       int? ttftMs,
     }) {
       _recorder.recordResponse(
@@ -99,6 +99,7 @@ class ProxyServerResponseHandler {
         ),
         onStreamError: () => _onStreamError?.call(attempt.endpoint),
         originalModel: attempt.originalModel,
+        bodyWriter: attempt.bodyWriter,
       );
     }
     return _anthropicProcessor.processNormalResponse(

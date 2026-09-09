@@ -40,7 +40,9 @@ CI（`.github/workflows/ci.yml`）锁定 Flutter 3.44.6，顺序执行 `pub get 
 4. 其余请求进入端点循环：`ProxyServerRouter.startRequest()` 创建本请求的 `ProxyServerRouteSession`；每次尝试由 `ProxyServerRequestHandler.prepareRequest` 构建出站请求（模型映射 + 协议转换 + 头处理），`ProxyServerResponseHandler.handleResponse` 处理响应并通过 `RequestAttemptRecorder` 产出日志快照。
 5. 成功回调 `onRequestCompleted` → `ProxyRequestLogService.record`：写 SQLite `request_logs`，写审计文件，并向 `changes` 流广播，概览页 / 请求页据此刷新。
 
-首字用时（`request_logs.ttft_ms`）口径：起点与 `responseTime` 相同（退避之后的发送时刻），终点是首个 `content_block_delta` 到达（任意 delta 类型，thinking 也算；message_start / content_block_start / ping 不算）。Anthropic 端点由 `AnthropicSseScanner.sawContentDelta` 判定，OpenAI 端点由 `AnthropicSseWriter.hasContentDelta` 判定。非流式、失败、以及无法逐块解析的压缩透传流为 null，UI 显示 `-`。
+流式响应正文**边收边写**：`ProxyAuditBodyWriter` 在 `<audit>/.tmp/` 下逐块写临时文件，响应结束后由审计层 rename 进 `<日期>/<请求ID>/response_body`（非流式仍是一次性写字符串）；客户端取消时删除临时文件，进程启动时清空 `.tmp`。内存里只保留 4KB 头部片段供错误信息使用。SSE 逐行解析由 `AnthropicSseReader` 统一完成（解析一次，同时供 usage/完成信号与模型名伪装改写使用）。
+
+首字用时（`request_logs.ttft_ms`）口径：起点与 `responseTime` 相同（退避之后的发送时刻），终点是首个 `content_block_delta` 到达（任意 delta 类型，thinking 也算；message_start / content_block_start / ping 不算）。Anthropic 端点由 `AnthropicSseReader.sawContentDelta` 判定，OpenAI 端点由 `AnthropicSseWriter.hasContentDelta` 判定。非流式、失败、以及无法逐块解析的压缩透传流为 null，UI 显示 `-`。
 
 重试语义（改动前务必对照 `proxy_server_router.dart` 与 `proxy_server_service.dart` 的注释）：
 

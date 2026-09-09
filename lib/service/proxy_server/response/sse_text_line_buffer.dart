@@ -2,8 +2,7 @@
 /// [add] 或 [flush]。
 ///
 /// 与字节级的 [SseLineSplitter]（converter/）不同，本类接受已解码文本，
-/// 供 Anthropic 透传路径的 [AnthropicSseScanner] 与
-/// [AnthropicSseModelRewriter] 共用同一份行边界处理。
+/// 供 Anthropic 透传路径的 [AnthropicSseReader] 做行边界处理。
 class SseTextLineBuffer {
   final StringBuffer _pending = StringBuffer();
 
@@ -22,6 +21,9 @@ class SseTextLineBuffer {
 
     return buffered.substring(0, lastNewline).split('\n');
   }
+
+  /// 是否还有未输出的残余（没有换行结尾的尾行）。
+  bool get hasPending => _pending.isNotEmpty;
 
   /// 返回没有换行结尾的残余（可能为空字符串）。
   String flush() {

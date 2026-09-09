@@ -38,6 +38,7 @@ class RequestAttemptRecorder {
         errorBody: errorBody,
         responseBody: responseBody,
         rawResponseBody: rawResponseBody,
+        bodyWriter: attempt.bodyWriter,
       ),
     );
   }
@@ -61,6 +62,7 @@ class RequestAttemptRecorder {
         errorBody: error.toString(),
         rawResponseBody: rawResponseBody,
         responseBody: responseBody,
+        bodyWriter: attempt.bodyWriter,
       ),
     );
   }

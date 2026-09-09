@@ -33,6 +33,8 @@ class HomeViewModel {
       rethrow;
     }
     _audit.cleanExpiredLogs();
+    // 上次进程遗留的流式审计临时文件此时不可能有在途写入，直接清空
+    await _audit.cleanStaleBodyTemps();
     await _pricing.load();
     try {
       await _proxy.start();

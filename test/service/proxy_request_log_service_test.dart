@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:code_proxy/model/request_log_entity.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
+import 'package:code_proxy/service/proxy_audit_body_writer.dart';
 import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_request_log_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
@@ -29,9 +30,10 @@ class _Audit extends Fake implements ProxyAuditService {
   Future<void> writeAuditLog({
     required String id,
     required String request,
-    required String response,
+    String? response,
     String? originalRequest,
     String? rawResponse,
+    ProxyAuditBodyWriter? bodyWriter,
     Map<String, String>? requestHeaders,
     Map<String, String>? forwardedHeaders,
     Map<String, String>? responseHeaders,

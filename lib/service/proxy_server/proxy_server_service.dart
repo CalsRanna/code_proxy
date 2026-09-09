@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/proxy_audit_body_writer.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
@@ -30,6 +31,9 @@ class ProxyServerService {
   final void Function(EndpointEntity, ProxyServerRequest, ProxyServerResponse)?
   onRequestCompleted;
 
+  /// 每次尝试创建流式正文写入器的工厂；未配置时不启用流式审计。
+  final ProxyAuditBodyWriter Function()? createAuditBodyWriter;
+
   late final ProxyServerRouter _router;
 
   /// 出站请求处理器，随 [start] 重建、随 [stop] 关闭置空。
@@ -51,6 +55,7 @@ class ProxyServerService {
     this.onRequestCompleted,
     this.onEndpointUnavailable,
     this.onEndpointRestored,
+    this.createAuditBodyWriter,
   }) : _authToken = authToken {
     if (authToken.trim().isEmpty) {
       throw ArgumentError.value(authToken, 'authToken', 'must not be empty');
@@ -260,6 +265,11 @@ class ProxyServerService {
       if (endpoint == null) break;
       int? startTime;
       PreparedRequest? prepared;
+      final bodyWriter = createAuditBodyWriter?.call();
+      if (bodyWriter != null) {
+        // 客户端取消时清理尚未落盘的临时正文；日志层接管后 discard 是空操作。
+        cancellation.onCancel(() => unawaited(bodyWriter.discard()));
+      }
       RequestAttemptContext attemptContext() => RequestAttemptContext(
         endpoint: endpoint,
         request: request,
@@ -269,6 +279,7 @@ class ProxyServerService {
         // 日志里记录的模型名应与之一致，取原始模型名。
         mappedModel: prepared?.mappedModel ?? requestBody.originalModel,
         startTime: startTime,
+        bodyWriter: bodyWriter,
         mappedRequestBodyBytes: prepared?.request.bodyBytes,
         forwardedHeaders: prepared?.request.headers,
       );

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/service/proxy_audit_body_writer.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
@@ -19,17 +20,58 @@ class ProxyAuditService {
 
   static const _redactedValue = '[REDACTED]';
   final String? _auditDirectoryOverride;
+  bool _tempDirectoryReady = false;
 
   String get _auditDirectory =>
       _auditDirectoryOverride ??
       '${PathUtil.instance.getHomeDirectory()}/.code_proxy/audit';
 
+  /// 创建一次流式响应正文的写入器；首次写入才在 `.tmp` 下落临时文件。
+  ProxyAuditBodyWriter startBodyWriter() {
+    _ensureTempDirectory();
+    return ProxyAuditBodyWriter(tempDirectory: _tempDirectory);
+  }
+
+  /// 清空 `.tmp`：进程重启时不可能有在途请求，残留一律是崩溃遗留。
+  Future<void> cleanStaleBodyTemps() async {
+    try {
+      final tempDir = Directory(_tempDirectory);
+      if (!await tempDir.exists()) return;
+      await for (final entity in tempDir.list()) {
+        try {
+          await entity.delete(recursive: true);
+        } catch (e) {
+          LoggerUtil.instance.w('Failed to delete stale audit temp file: $e');
+        }
+      }
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to clean audit temp directory: $e');
+    }
+  }
+
+  String get _tempDirectory => '$_auditDirectory/.tmp';
+
+  void _ensureTempDirectory() {
+    if (_tempDirectoryReady) return;
+    try {
+      Directory(_tempDirectory).createSync(recursive: true);
+      _tempDirectoryReady = true;
+    } catch (e) {
+      LoggerUtil.instance.w('Failed to create audit temp directory: $e');
+    }
+  }
+
+  /// 落盘一次请求的审计。
+  ///
+  /// [response] 与 [bodyWriter] 二选一：非流式走字符串，流式走写入器
+  /// （正文已经边收边写进临时文件，这里只关闭并搬进本次目录）。
   Future<void> writeAuditLog({
     required String id,
     required String request,
-    required String response,
+    String? response,
     String? originalRequest,
     String? rawResponse,
+    ProxyAuditBodyWriter? bodyWriter,
     Map<String, String>? requestHeaders,
     Map<String, String>? forwardedHeaders,
     Map<String, String>? responseHeaders,
@@ -71,15 +113,41 @@ class ProxyAuditService {
         '${dir.path}/response_headers.json',
       ).writeAsString(jsonEncode(responseHeadersData));
 
-      await File('${dir.path}/response_body').writeAsString(response);
+      // 流式正文已边收边写进临时文件，优先搬文件；写入器没产生文件时
+      // （非流式、错误体等路径）回退到字符串。
+      final files = bodyWriter != null
+          ? await bodyWriter.finish()
+          : const ProxyAuditBodyFiles();
+      final responsePath = files.responseBodyPath;
+      if (responsePath != null) {
+        await _adoptBodyFile(responsePath, '${dir.path}/response_body');
+      } else if (response != null) {
+        await File('${dir.path}/response_body').writeAsString(response);
+      }
 
-      if (rawResponse != null &&
+      final rawPath = files.rawResponseBodyPath;
+      if (rawPath != null) {
+        await _adoptBodyFile(rawPath, '${dir.path}/raw_response_body');
+      } else if (rawResponse != null &&
           rawResponse.isNotEmpty &&
           rawResponse != response) {
         await File('${dir.path}/raw_response_body').writeAsString(rawResponse);
       }
     } catch (e) {
       LoggerUtil.instance.e('Failed to write audit log: $e');
+    }
+  }
+
+  /// 把写入器的临时文件搬到目标路径；失败时删掉临时文件避免残留。
+  Future<void> _adoptBodyFile(String from, String to) async {
+    try {
+      await File(from).rename(to);
+    } catch (e) {
+      LoggerUtil.instance.e('Failed to move audit body file: $e');
+      try {
+        final file = File(from);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
     }
   }
 

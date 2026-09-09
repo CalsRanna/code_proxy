@@ -100,6 +100,7 @@ void main() {
             onRequestCompleted,
             onEndpointUnavailable,
             onEndpointRestored,
+            createAuditBodyWriter,
           }) {
             final server = _Server(config, startError?.call(config.port));
             servers.add(server);

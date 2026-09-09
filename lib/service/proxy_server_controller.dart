@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/service/proxy_audit_body_writer.dart';
 import 'package:code_proxy/service/proxy_client_settings_service.dart';
 import 'package:code_proxy/service/proxy_request_log_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
@@ -20,6 +21,7 @@ typedef ProxyServerFactory =
       onRequestCompleted,
       void Function(EndpointEntity)? onEndpointUnavailable,
       void Function(EndpointEntity)? onEndpointRestored,
+      ProxyAuditBodyWriter Function()? createAuditBodyWriter,
     });
 
 /// 持有代理运行状态；页面只提交端点和配置变更，不参与监听与回滚。
@@ -125,6 +127,7 @@ class ProxyServerController {
         onRequestCompleted: _requestLogs.record,
         onEndpointUnavailable: _handleEndpointUnavailable,
         onEndpointRestored: _handleEndpointRestored,
+        createAuditBodyWriter: _requestLogs.startAuditBodyWriter,
       );
       try {
         await server.start();

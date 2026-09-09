@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:code_proxy/service/proxy_server/response/anthropic_sse_scanner.dart';
+import 'package:code_proxy/service/proxy_server/response/anthropic_sse_reader.dart';
 
 /// Token 提取器 - 从 API 响应中提取 token 使用量
 ///
@@ -9,7 +9,7 @@ import 'package:code_proxy/service/proxy_server/response/anthropic_sse_scanner.d
 /// input 仅表示未缓存输入，缓存创建与读取分别保存在独立字段中，不能从
 /// input 再次扣减。
 ///
-/// SSE 文本一律交给 [AnthropicSseScanner]，与流式路径共用同一份协议解析。
+/// SSE 文本一律交给 [AnthropicSseReader]，与流式路径共用同一份协议解析。
 class TokenExtractor {
   const TokenExtractor();
 
@@ -21,7 +21,7 @@ class TokenExtractor {
     final singleJsonUsage = _tryExtractFromJson(text);
     if (singleJsonUsage != null) return singleJsonUsage;
 
-    return AnthropicSseScanner.scanUsage(text);
+    return AnthropicSseReader.scanUsage(text);
   }
 
   Map<String, int?>? _tryExtractFromJson(String text) {

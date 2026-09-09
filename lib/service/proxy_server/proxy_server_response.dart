@@ -1,3 +1,5 @@
+import 'package:code_proxy/service/proxy_audit_body_writer.dart';
+
 /// 代理服务器响应
 class ProxyServerResponse {
   /// HTTP 状态码
@@ -33,6 +35,10 @@ class ProxyServerResponse {
   /// 仅转换端点（OpenAI 格式）填充；Anthropic 端点透传，无转换差异。
   final String? rawResponseBody;
 
+  /// 流式响应正文的落盘写入器；正文已边收边写进临时文件时为非空，
+  /// 此时 [responseBody] 为 null（内存只留头部片段供错误信息用）。
+  final ProxyAuditBodyWriter? bodyWriter;
+
   const ProxyServerResponse({
     required this.statusCode,
     required this.headers,
@@ -43,5 +49,6 @@ class ProxyServerResponse {
     this.errorBody,
     this.responseBody,
     this.rawResponseBody,
+    this.bodyWriter,
   });
 }

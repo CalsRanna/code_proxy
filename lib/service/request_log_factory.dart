@@ -95,6 +95,12 @@ class RequestLogFactory {
       return errorBody;
     }
 
+    // 流式响应的完整正文在审计文件里，内存只保留头部片段
+    final streamedHead = response.bodyWriter?.head.trim();
+    if (streamedHead != null && streamedHead.isNotEmpty) {
+      return streamedHead;
+    }
+
     final responseBody = response.responseBody?.trim();
     if (responseBody != null && responseBody.isNotEmpty) {
       return responseBody;

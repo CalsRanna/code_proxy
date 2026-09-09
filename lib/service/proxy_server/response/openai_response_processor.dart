@@ -141,16 +141,39 @@ class OpenAiResponseProcessor {
         attempt.endpoint.apiFormat == EndpointApiFormat.openaiResponses
         ? OpenAiResponsesSseStreamConverter(originalModel: originalModel)
         : OpenAiChatSseStreamConverter(originalModel: originalModel);
+    // 有写入器时正文与原始字节边收边写进审计临时文件；否则在内存里攒。
+    final bodyWriter = attempt.bodyWriter;
     // 转换后的完整事件文本（供审计记录）
     final outputChunks = <String>[];
     // 上游原始字节（协议转换前，供审计对照）。accept-encoding 已强制
     // identity，无需解压；流结束后整体解码，天然规避跨 chunk 的 UTF-8 截断。
     final rawChunks = <List<int>>[];
 
+    void appendOutput(List<int> bytes) {
+      if (bodyWriter != null) {
+        bodyWriter.addResponseBytes(bytes);
+      } else {
+        outputChunks.add(utf8.decode(bytes));
+      }
+    }
+
+    void appendRaw(List<int> bytes) {
+      if (bodyWriter != null) {
+        bodyWriter.addRawBytes(bytes);
+      } else {
+        rawChunks.add(bytes);
+      }
+    }
+
+    String rawStreamText() => utf8.decode(
+      rawChunks.expand((c) => c).toList(),
+      allowMalformed: true,
+    );
+
     Stream<List<int>> convert(Stream<List<int>> source) async* {
       final head = converter.initialEvents();
       if (head.isNotEmpty) {
-        outputChunks.add(utf8.decode(head));
+        appendOutput(head);
         yield head;
       }
       // 首个内容 delta 产出的时刻（首字用时终点）。本地先行产出的
@@ -158,13 +181,13 @@ class OpenAiResponseProcessor {
       int? firstContentAt;
       try {
         await for (final chunk in source) {
-          rawChunks.add(chunk);
+          appendRaw(chunk);
           final out = converter.handleData(chunk);
           if (firstContentAt == null && converter.hasContentDelta) {
             firstContentAt = DateTime.now().millisecondsSinceEpoch;
           }
           if (out.isNotEmpty) {
-            outputChunks.add(utf8.decode(out));
+            appendOutput(out);
             yield out;
           }
         }
@@ -178,16 +201,12 @@ class OpenAiResponseProcessor {
 
         final tail = converter.handleDone();
         if (tail.isNotEmpty) {
-          outputChunks.add(utf8.decode(tail));
+          appendOutput(tail);
           yield tail;
         }
 
         final responseTime =
             DateTime.now().millisecondsSinceEpoch - attempt.startTime!;
-        final rawStreamText = utf8.decode(
-          rawChunks.expand((c) => c).toList(),
-          allowMalformed: true,
-        );
         final contentAt = firstContentAt;
         _recorder.recordResponse(
           attempt,
@@ -196,8 +215,8 @@ class OpenAiResponseProcessor {
           ttftMs: contentAt == null ? null : contentAt - attempt.startTime!,
           forwardedResponseHeaders: _openAiStreamHeaders(),
           tokenUsage: converter.finalUsage,
-          responseBody: outputChunks.join(),
-          rawResponseBody: rawStreamText,
+          responseBody: bodyWriter != null ? null : outputChunks.join(),
+          rawResponseBody: bodyWriter != null ? null : rawStreamText(),
         );
       } catch (error) {
         LoggerUtil.instance.w('Upstream OpenAI stream error: $error');
@@ -208,19 +227,18 @@ class OpenAiResponseProcessor {
         // 保证本地可还原中断点
         final errorEvents = converter.handleError(error);
         if (errorEvents.isNotEmpty) {
-          outputChunks.add(utf8.decode(errorEvents));
+          appendOutput(errorEvents);
         }
         _recorder.recordException(
           attempt,
           error,
           // 已收到的半截原始流一并留存，便于排查中断点
-          rawResponseBody: utf8.decode(
-            rawChunks.expand((c) => c).toList(),
-            allowMalformed: true,
-          ),
+          rawResponseBody: bodyWriter != null ? null : rawStreamText(),
           // 客户端实际收到的完整输出（头部事件 + 已转换内容块 + error 事件）
           // 也落审计，便于还原中断点
-          responseBody: outputChunks.isEmpty ? null : outputChunks.join(),
+          responseBody: bodyWriter != null
+              ? null
+              : (outputChunks.isEmpty ? null : outputChunks.join()),
         );
 
         // 以标准 Anthropic error 事件优雅终止
