@@ -18,6 +18,9 @@ class ProxyServerRequest {
   /// 客户端请求的原始模型（映射前）
   final String? originalModel;
 
+  /// 实际写进转发请求体的模型名（映射后），供日志直接取用
+  final String? mappedModel;
+
   /// 客户端发来的原始请求体（映射与协议转换前），用于审计对照。
   /// 仅在与 [body] 存在差异时由审计层持久化。
   final String? originalBody;
@@ -28,6 +31,7 @@ class ProxyServerRequest {
     required this.headers,
     required this.body,
     this.originalModel,
+    this.mappedModel,
     this.originalBody,
     this.forwardedHeaders,
   });

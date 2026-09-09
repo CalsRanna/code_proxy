@@ -5,6 +5,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_body.dart';
 import 'package:code_proxy/service/proxy_server/routing/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/service/proxy_server/routing/proxy_server_router.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +37,7 @@ void main() {
           'HEAD',
           Uri.parse('http://localhost:9000/api/hello'),
         );
-        final response = responder.tryRespond(request, []);
+        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
       });
@@ -50,7 +51,7 @@ void main() {
           'HEAD',
           Uri.parse('http://localhost:9000/api/hello'),
         );
-        final response = responder.tryRespond(request, []);
+        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
         expect(response, isNotNull);
         expect(response!.statusCode, 503);
       });
@@ -74,7 +75,7 @@ void main() {
           'POST',
           Uri.parse('http://localhost:9000/v1/messages/count_tokens'),
         );
-        final response = responder.tryRespond(request, utf8.encode(body));
+        final response = responder.tryRespond(request, ProxyServerRequestBody(utf8.encode(body)));
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
         final respBody = await response.readAsString();
@@ -94,7 +95,7 @@ void main() {
           'POST',
           Uri.parse('http://localhost:9000/v1/messages/count_tokens'),
         );
-        final response = responder.tryRespond(request, utf8.encode(body));
+        final response = responder.tryRespond(request, ProxyServerRequestBody(utf8.encode(body)));
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
         final respBody = await response.readAsString();
@@ -117,7 +118,7 @@ void main() {
           'POST',
           Uri.parse('http://localhost:9000/v1/messages'),
         );
-        final response = responder.tryRespond(request, []);
+        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
         expect(response, isNull);
       });
 
@@ -135,7 +136,7 @@ void main() {
           'GET',
           Uri.parse('http://localhost:9000/v1/models'),
         );
-        final response = responder.tryRespond(request, []);
+        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
         final respBody = await response.readAsString();

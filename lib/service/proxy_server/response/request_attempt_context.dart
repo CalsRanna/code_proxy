@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
@@ -11,6 +9,12 @@ class RequestAttemptContext {
   final List<int>? mappedRequestBodyBytes;
   final Map<String, String>? forwardedHeaders;
 
+  /// 客户端请求的原始模型名（映射前）。
+  final String? originalModel;
+
+  /// 本次尝试实际写进转发请求体的模型名；请求体不可解析时为 null。
+  final String? mappedModel;
+
   /// 请求准备阶段失败时为 null，发送后的耗时不包含此前退避。
   final int? startTime;
 
@@ -18,24 +22,13 @@ class RequestAttemptContext {
     required this.endpoint,
     required this.request,
     required this.originalRequestBodyBytes,
+    required this.originalModel,
     required this.startTime,
+    this.mappedModel,
     this.mappedRequestBodyBytes,
     this.forwardedHeaders,
   });
 
   List<int> get forwardedRequestBodyBytes =>
       mappedRequestBodyBytes ?? originalRequestBodyBytes;
-
-  late final String? originalModel = _extractOriginalModel();
-
-  String? _extractOriginalModel() {
-    try {
-      final body = utf8.decode(originalRequestBodyBytes, allowMalformed: true);
-      if (body.isEmpty) return null;
-      final json = jsonDecode(body) as Map<String, dynamic>;
-      return json['model'] as String?;
-    } catch (_) {
-      return null;
-    }
-  }
 }

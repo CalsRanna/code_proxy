@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_body.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,7 +44,12 @@ void main() {
           ],
         }),
       );
-      return handler.prepareRequest(shelfRequest, endpoint, body);
+      final prepared = handler.prepareRequest(
+        shelfRequest,
+        endpoint,
+        ProxyServerRequestBody(body),
+      );
+      return prepared.request;
     }
 
     Map<String, String> authHeadersOf(http.Request request) {
@@ -160,7 +168,12 @@ void main() {
               },
         ),
       );
-      return handler.prepareRequest(shelfRequest, endpoint, body);
+      final prepared = handler.prepareRequest(
+        shelfRequest,
+        endpoint,
+        ProxyServerRequestBody(body),
+      );
+      return prepared.request;
     }
 
     const expectedBetas = 'context-1m-2025-08-07,max-tokens-1m';
@@ -256,4 +269,106 @@ void main() {
       await clientClosed.future.timeout(const Duration(seconds: 3));
     });
   });
+  group('ProxyServerRequestHandler 请求体解析共享', () {
+    final handler = ProxyServerRequestHandler(const ProxyServerConfig());
+
+    tearDownAll(handler.close);
+
+    setUp(() {
+      DefaultModelConfigService.instance.replaceConfigForTesting(
+        const DefaultModelConfig(
+          haikuModel: 'claude-haiku-4-5-20251001',
+          sonnetModel: 'claude-sonnet-4-5-20250929',
+          opusModel: 'claude-opus-5',
+        ),
+      );
+    });
+
+    shelf.Request shelfRequest() =>
+        shelf.Request('POST', Uri.parse('http://localhost:9000/v1/messages'));
+
+    EndpointEntity endpointOf(String id, {String? opusModel}) => EndpointEntity(
+      id: id,
+      name: id,
+      baseUrl: 'https://$id.example.com',
+      opusModel: opusModel,
+    );
+
+    test('anthropic 端点模型未映射时，转发字节与输入逐字节一致', () {
+      // 多余空格与非常规键序：一旦重新编码就会被规范化，字节必然不同。
+      const raw =
+          '{"max_tokens":256,   "model":"unknown-model",\n "messages":[]}';
+      final prepared = handler.prepareRequest(
+        shelfRequest(),
+        endpointOf('passthrough'),
+        ProxyServerRequestBody(utf8.encode(raw)),
+      );
+      expect(prepared.request.bodyBytes, utf8.encode(raw));
+      expect(prepared.mappedModel, 'unknown-model');
+    });
+
+    test('模型映射命中时改写 model，共享解析结果保持原值', () {
+      const raw = '{"model":"claude-opus-5","max_tokens":16}';
+      final body = ProxyServerRequestBody(utf8.encode(raw));
+      final prepared = handler.prepareRequest(
+        shelfRequest(),
+        endpointOf('mapped', opusModel: 'upstream-opus'),
+        body,
+      );
+      expect(
+        jsonDecode(utf8.decode(prepared.request.bodyBytes))['model'],
+        'upstream-opus',
+      );
+      expect(prepared.mappedModel, 'upstream-opus');
+      // 共享的解析结果与 originalModel 必须仍是客户端原始模型名，
+      // 否则故障转移到下一个端点会读到上一个端点的映射结果。
+      expect(body.originalModel, 'claude-opus-5');
+      expect(body.json!['model'], 'claude-opus-5');
+    });
+
+    test('故障转移到另一个端点时，各自使用自己的映射模型', () {
+      const raw = '{"model":"claude-opus-5","max_tokens":16}';
+      final body = ProxyServerRequestBody(utf8.encode(raw));
+      final first = handler.prepareRequest(
+        shelfRequest(),
+        endpointOf('first', opusModel: 'up-a'),
+        body,
+      );
+      final second = handler.prepareRequest(
+        shelfRequest(),
+        endpointOf('second', opusModel: 'up-b'),
+        body,
+      );
+      expect(
+        jsonDecode(utf8.decode(first.request.bodyBytes))['model'],
+        'up-a',
+      );
+      expect(
+        jsonDecode(utf8.decode(second.request.bodyBytes))['model'],
+        'up-b',
+      );
+      expect(body.originalModel, 'claude-opus-5');
+    });
+
+    test('同端点重试复用请求体缓存', () {
+      const raw = '{"model":"claude-opus-5","max_tokens":16}';
+      final body = ProxyServerRequestBody(utf8.encode(raw));
+      final endpoint = endpointOf('cached', opusModel: 'up-c');
+      final cache = ProxyServerBodyCache();
+      final first = handler.prepareRequest(
+        shelfRequest(),
+        endpoint,
+        body,
+        bodyCache: cache,
+      );
+      final second = handler.prepareRequest(
+        shelfRequest(),
+        endpoint,
+        body,
+        bodyCache: cache,
+      );
+      expect(identical(first.request.bodyBytes, second.request.bodyBytes), isTrue);
+    });
+  });
+
 }

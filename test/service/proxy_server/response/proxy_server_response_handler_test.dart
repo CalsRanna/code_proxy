@@ -183,6 +183,7 @@ RequestAttemptContext _attempt(
   ),
   request: shelf.Request('POST', Uri.parse('http://localhost/v1/messages')),
   originalRequestBodyBytes: utf8.encode('{"model":"client-model"}'),
+  originalModel: 'client-model',
   mappedRequestBodyBytes: utf8.encode('{"model":"upstream"}'),
   forwardedHeaders: {'x-trace': 'attempt-1'},
   startTime: started ? DateTime.now().millisecondsSinceEpoch : null,

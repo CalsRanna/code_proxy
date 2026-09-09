@@ -7,6 +7,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_body.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request_handler.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/response/proxy_server_response_handler.dart';
@@ -17,7 +18,6 @@ import 'package:code_proxy/service/proxy_server/routing/proxy_server_router.dart
 import 'package:code_proxy/service/proxy_server/transport/proxy_server_client_connections.dart';
 import 'package:code_proxy/service/proxy_server/transport/proxy_server_request_cancellation.dart';
 import 'package:code_proxy/util/logger_util.dart';
-import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
@@ -150,7 +150,10 @@ class ProxyServerService {
     // HEAD 仅返回本地存活状态，不读取正文、也不会访问上游，因此可供
     // 操作系统或桌面客户端在尚未装载凭据时探活。
     if (request.method == 'HEAD') {
-      final localResponse = _localResponder.tryRespond(request, const []);
+      final localResponse = _localResponder.tryRespond(
+        request,
+        ProxyServerRequestBody.empty(),
+      );
       if (localResponse != null) return localResponse;
     }
 
@@ -207,17 +210,21 @@ class ProxyServerService {
     cancellation.throwIfCancelled();
     final Uint8List rawBody = bodyBuilder.takeBytes();
 
+    // 请求体解析结果在本请求内共享：探针识别与模型映射/协议转换读同一份，
+    // 避免各自把整段请求体 jsonDecode 一遍（见 ProxyServerRequestBody）。
+    final requestBody = ProxyServerRequestBody(rawBody);
+
     // 本地应答: 对健康检查、count_tokens 等请求直接返回，
     // 避免不必要的上游网络往返。
-    final localResponse = _localResponder.tryRespond(request, rawBody);
+    final localResponse = _localResponder.tryRespond(request, requestBody);
     if (localResponse != null) return localResponse;
 
-    return _handleForwardedRequest(request, rawBody, cancellation);
+    return _handleForwardedRequest(request, requestBody, cancellation);
   }
 
   Future<shelf.Response> _handleForwardedRequest(
     shelf.Request request,
-    Uint8List rawBody,
+    ProxyServerRequestBody requestBody,
     ProxyServerRequestCancellation cancellation,
   ) async {
     // Do not filter completed attempts by status when forwarding them for logging.
@@ -252,29 +259,34 @@ class ProxyServerService {
       final endpoint = routeSession.currentEndpoint;
       if (endpoint == null) break;
       int? startTime;
-      http.Request? preparedRequest;
+      PreparedRequest? prepared;
       RequestAttemptContext attemptContext() => RequestAttemptContext(
         endpoint: endpoint,
         request: request,
-        originalRequestBodyBytes: rawBody,
+        originalRequestBodyBytes: requestBody.bytes,
+        originalModel: requestBody.originalModel,
+        // prepareRequest 抛异常时出站请求为空，转发体回退为原始字节，
+        // 日志里记录的模型名应与之一致，取原始模型名。
+        mappedModel: prepared?.mappedModel ?? requestBody.originalModel,
         startTime: startTime,
-        mappedRequestBodyBytes: preparedRequest?.bodyBytes,
-        forwardedHeaders: preparedRequest?.headers,
+        mappedRequestBodyBytes: prepared?.request.bodyBytes,
+        forwardedHeaders: prepared?.request.headers,
       );
       final requestHandler = _requestHandler!;
       try {
         // 1. 构建请求
-        preparedRequest = requestHandler.prepareRequest(
+        final preparedForAttempt = requestHandler.prepareRequest(
           request,
           endpoint,
-          rawBody,
+          requestBody,
           bodyCache: bodyCache,
         );
+        prepared = preparedForAttempt;
         // 2. 从本次发送开始计时，responseTime 不包含此前的退避等待。
         startTime = DateTime.now().millisecondsSinceEpoch;
         final response = await cancellation.run(
           requestHandler.forwardRequest(
-            preparedRequest,
+            preparedForAttempt.request,
             cancellation: cancellation,
           ),
         );

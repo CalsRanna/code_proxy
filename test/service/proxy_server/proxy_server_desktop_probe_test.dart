@@ -6,6 +6,7 @@ import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_local_responder.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_body.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
 import 'package:code_proxy/service/proxy_server/routing/proxy_server_circuit_breaker_registry.dart';
 import 'package:code_proxy/service/proxy_server/routing/proxy_server_router.dart';
@@ -46,7 +47,7 @@ void main() {
     }) {
       return responder.tryRespond(
         shelf.Request(method, Uri.parse('http://localhost$path')),
-        utf8.encode(jsonEncode(body)),
+        ProxyServerRequestBody(utf8.encode(jsonEncode(body))),
       );
     }
 
@@ -138,8 +139,8 @@ void main() {
         'POST',
         Uri.parse('http://localhost/v1/messages'),
       );
-      expect(responder.tryRespond(request, utf8.encode('{invalid')), isNull);
-      expect(responder.tryRespond(request, [0xff]), isNull);
+      expect(responder.tryRespond(request, ProxyServerRequestBody(utf8.encode('{invalid'))), isNull);
+      expect(responder.tryRespond(request, ProxyServerRequestBody([0xff])), isNull);
     });
 
     test('uses the current configured Haiku model', () {

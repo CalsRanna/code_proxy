@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:code_proxy/model/endpoint_entity.dart';
 import 'package:code_proxy/model/request_log_entity.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_request.dart';
@@ -33,24 +31,14 @@ class RequestLogFactory {
     // 视为错误。两处口径曾不一致，导致 3xx 的正常响应体被写进
     // error_message、且其 usage 被丢弃。
     final isError = response.statusCode >= 400;
-    String? model;
     int? inputTokens;
     int? outputTokens;
     int? cacheCreationInputTokens;
     int? cacheReadInputTokens;
     String? errorMessage;
 
-    // 从请求体中提取模型信息
-    if (request.body.isNotEmpty) {
-      try {
-        final requestJson = jsonDecode(request.body);
-        if (requestJson is Map<String, dynamic>) {
-          model = requestJson['model'] as String?;
-        }
-      } catch (e) {
-        // 忽略 JSON 解析错误
-      }
-    }
+    // 模型名由转发链路直接带出（映射后的模型名），不再解析请求体。
+    final model = request.mappedModel;
 
     // 直接使用 response.usage。ResponseHandler 已统一为 Anthropic 口径：
     // input 是未缓存输入，缓存创建与读取是互不重叠的独立类别。

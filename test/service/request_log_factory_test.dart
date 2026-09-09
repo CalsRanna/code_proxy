@@ -19,6 +19,7 @@ void main() {
           path: '/v1/messages',
           headers: {},
           body: '{"model":"MiniMax-M2.5"}',
+          mappedModel: 'MiniMax-M2.5',
         ),
         response: const ProxyServerResponse(
           statusCode: 500,
@@ -41,6 +42,7 @@ void main() {
           path: '/v1/messages',
           headers: {},
           body: '{"model":"MiniMax-M2.5"}',
+          mappedModel: 'MiniMax-M2.5',
         ),
         response: const ProxyServerResponse(
           statusCode: 500,
@@ -63,6 +65,7 @@ void main() {
           path: '/v1/messages',
           headers: {},
           body: '{"model":"claude-opus-5"}',
+          mappedModel: 'claude-opus-5',
         ),
         response: const ProxyServerResponse(
           statusCode: 304,
@@ -84,6 +87,7 @@ void main() {
           path: '/v1/messages',
           headers: {},
           body: '{"model":"claude-opus-5"}',
+          mappedModel: 'claude-opus-5',
         ),
         response: const ProxyServerResponse(
           statusCode: 500,
@@ -131,6 +135,7 @@ void main() {
         path: '/v1/messages',
         headers: {},
         body: '{"model":"claude-opus-5"}',
+        mappedModel: 'claude-opus-5',
       );
 
       final streamed = handler.buildRequestLog(
@@ -158,4 +163,43 @@ void main() {
       expect(nonStream.ttftMs, isNull);
     });
   });
+  group('RequestLogFactory 模型名来源', () {
+    test('模型名取自请求对象，不再解析请求体', () {
+      final log = RequestLogFactory.create().buildRequestLog(
+        endpoint: createEndpoint(),
+        request: const ProxyServerRequest(
+          method: 'POST',
+          path: '/v1/messages',
+          headers: {},
+          body: '{"model":"body-model"}',
+          mappedModel: 'mapped-model',
+        ),
+        response: const ProxyServerResponse(
+          statusCode: 200,
+          headers: {},
+          responseTime: 1,
+        ),
+      );
+      expect(log.model, 'mapped-model');
+    });
+
+    test('mappedModel 缺失时模型名为 null', () {
+      final log = RequestLogFactory.create().buildRequestLog(
+        endpoint: createEndpoint(),
+        request: const ProxyServerRequest(
+          method: 'POST',
+          path: '/v1/messages',
+          headers: {},
+          body: '{"model":"body-model"}',
+        ),
+        response: const ProxyServerResponse(
+          statusCode: 200,
+          headers: {},
+          responseTime: 1,
+        ),
+      );
+      expect(log.model, isNull);
+    });
+  });
+
 }

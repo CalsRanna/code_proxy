@@ -7,6 +7,7 @@ import 'package:code_proxy/service/proxy_server/converter/openai_chat_request_co
 import 'package:code_proxy/service/proxy_server/converter/openai_responses_request_converter.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_model_mapper.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_body.dart';
 import 'package:code_proxy/service/proxy_server/transport/proxy_server_request_cancellation.dart';
 import 'package:code_proxy/service/proxy_server/transport/proxy_server_transport.dart';
 import 'package:code_proxy/util/logger_util.dart';
@@ -36,11 +37,14 @@ class ProxyServerRequestHandler {
     ProxyServerRequestCancellation? cancellation,
   }) => _transport.forwardRequest(request, cancellation: cancellation);
 
-  /// 为端点准备HTTP请求
-  http.Request prepareRequest(
+  /// 为端点准备HTTP请求。
+  ///
+  /// 返回出站请求与本次实际写进请求体的模型名，供调用方记录日志，
+  /// 避免日志层为了拿模型名再把请求体解析一遍。
+  PreparedRequest prepareRequest(
     shelf.Request request,
     EndpointEntity endpoint,
-    List<int> rawBody, {
+    ProxyServerRequestBody body, {
     ProxyServerBodyCache? bodyCache,
   }) {
     // 构建目标URL
@@ -50,18 +54,19 @@ class ProxyServerRequestHandler {
     // 模型族判断。传入 bodyCache 时，同端点重试直接复用上次的字节，
     // 不再对大请求体重复 decode + encode。
     final processed = bodyCache == null
-        ? _processRequestBody(rawBody, endpoint)
+        ? _processRequestBody(body, endpoint)
         : bodyCache.putIfAbsent(
             endpoint.id,
-            () => _processRequestBody(rawBody, endpoint),
+            () => _processRequestBody(body, endpoint),
           );
 
     // 准备请求头
-    final headers = _prepareHeaders(request, endpoint, processed.model);
+    final headers = _prepareHeaders(request, endpoint, processed.mappedModel);
 
-    return http.Request(request.method, uri)
+    final outbound = http.Request(request.method, uri)
       ..headers.addAll(headers)
       ..bodyBytes = processed.bytes;
+    return PreparedRequest(outbound, processed.mappedModel);
   }
 
   /// 构建目标URL
@@ -281,60 +286,82 @@ class ProxyServerRequestHandler {
   }
 
   /// 处理请求体中的模型映射，并回传映射后的模型名。
+  ///
+  /// 解析结果来自 [ProxyServerRequestBody.json]，同一次请求内只解析一遍。
+  /// 该 Map 是共享的只读视图：需要改写 model 时先做顶层浅拷贝，否则故障
+  /// 转移到下一个端点会读到上一个端点写入的模型名。
   ProcessedRequestBody _processRequestBody(
-    List<int> rawBody,
+    ProxyServerRequestBody body,
     EndpointEntity endpoint,
   ) {
     try {
-      final bodyString = utf8.decode(rawBody, allowMalformed: true);
-      if (bodyString.isEmpty) return ProcessedRequestBody(rawBody, null);
-
-      final bodyJson = jsonDecode(bodyString) as Map<String, dynamic>;
+      // 空请求体与解析失败要分开：空 body 不打告警（历史行为）。
+      if (body.bytes.isEmpty) {
+        return ProcessedRequestBody(body.bytes, mappedModel: null);
+      }
+      final bodyJson = body.json;
+      if (bodyJson == null) {
+        LoggerUtil.instance.w('Failed to parse/replace model in body');
+        return ProcessedRequestBody(body.bytes, mappedModel: null);
+      }
 
       // 模型映射
-      var model = bodyJson['model'] as String?;
+      final originalModel = body.originalModel;
+      var mappedModel = originalModel;
       if (bodyJson.containsKey('model')) {
-        final mappedModel = model == null
+        mappedModel = originalModel == null
             ? null
             : ProxyServerModelMapper.mapModel(
-                model,
+                originalModel,
                 endpoint: endpoint,
                 defaultConfig: DefaultModelConfigService.instance.config,
               );
 
         LoggerUtil.instance.d(
-          'Model mapping: endpoint=${endpoint.name}, original=$model, mapped=$mappedModel',
+          'Model mapping: endpoint=${endpoint.name}, '
+          'original=$originalModel, mapped=$mappedModel',
         );
-
-        if (mappedModel != null && mappedModel.isNotEmpty) {
-          bodyJson['model'] = mappedModel;
-          model = mappedModel;
-        }
       }
+
+      // 只有模型名真的发生变化时才拷贝并改写，其余情况原样复用共享 Map。
+      final rewritten =
+          mappedModel != null &&
+              mappedModel.isNotEmpty &&
+              mappedModel != originalModel
+          ? (Map<String, dynamic>.of(bodyJson)..['model'] = mappedModel)
+          : bodyJson;
 
       // OpenAI 格式端点：整体转换为对应 API 的请求格式。
       // 模型映射已先行完成。
       switch (endpoint.apiFormat) {
         case EndpointApiFormat.openaiChat:
           return ProcessedRequestBody(
-            utf8.encode(jsonEncode(_openAiRequestConverter.convert(bodyJson))),
-            model,
+            utf8.encode(jsonEncode(_openAiRequestConverter.convert(rewritten))),
+            mappedModel: mappedModel,
           );
         case EndpointApiFormat.openaiResponses:
           return ProcessedRequestBody(
             utf8.encode(
-              jsonEncode(_openAiResponsesRequestConverter.convert(bodyJson)),
+              jsonEncode(_openAiResponsesRequestConverter.convert(rewritten)),
             ),
-            model,
+            mappedModel: mappedModel,
           );
         case EndpointApiFormat.anthropic:
           break;
       }
 
-      return ProcessedRequestBody(utf8.encode(jsonEncode(bodyJson)), model);
+      // anthropic 透传：模型未改写时直接复用原始字节，不再重新编码，
+      // 既省一次 jsonEncode + utf8.encode，也让出站字节与客户端一致。
+      if (identical(rewritten, bodyJson)) {
+        return ProcessedRequestBody(body.bytes, mappedModel: mappedModel);
+      }
+      return ProcessedRequestBody(
+        utf8.encode(jsonEncode(rewritten)),
+        mappedModel: mappedModel,
+      );
     } catch (e) {
       LoggerUtil.instance.w('Failed to parse/replace model in body: $e');
-      return ProcessedRequestBody(rawBody, null);
+      return ProcessedRequestBody(body.bytes, mappedModel: null);
     }
   }
 }
@@ -342,13 +369,27 @@ class ProxyServerRequestHandler {
 /// 处理后的请求体字节，以及其中携带的（映射后）模型名。
 ///
 /// 模型名单独回传，避免调用方为了判断模型族而把请求体再解析一遍。
+/// 处理后的请求体字节，以及实际写进请求体的（映射后）模型名。
+///
+/// 模型名单独回传，避免调用方为了判断模型族或记录日志而把请求体再解析一遍。
 class ProcessedRequestBody {
   final List<int> bytes;
 
-  /// 映射后的模型名；请求体无 model 字段或解析失败时为 null。
-  final String? model;
+  /// 映射后的模型名；请求体无 model 字段、解析失败或模型非字符串时为 null。
+  final String? mappedModel;
 
-  const ProcessedRequestBody(this.bytes, this.model);
+  const ProcessedRequestBody(this.bytes, {required this.mappedModel});
+}
+
+/// 一次出站尝试的请求：出站请求本身，以及实际写进请求体的模型名。
+class PreparedRequest {
+  /// 已完成模型映射与协议转换的出站请求。
+  final http.Request request;
+
+  /// 实际写进请求体的模型名；与 [ProcessedRequestBody.mappedModel] 同源。
+  final String? mappedModel;
+
+  const PreparedRequest(this.request, this.mappedModel);
 }
 
 /// 单个代理请求内的请求体处理缓存。

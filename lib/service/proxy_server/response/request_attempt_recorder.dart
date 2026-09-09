@@ -74,6 +74,7 @@ class RequestAttemptRecorder {
         allowMalformed: true,
       ),
       originalModel: attempt.originalModel,
+      mappedModel: attempt.mappedModel,
       originalBody: utf8.decode(
         attempt.originalRequestBodyBytes,
         allowMalformed: true,

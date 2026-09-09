@@ -52,6 +52,7 @@ void main() {
     path: '/v1/messages',
     headers: {},
     body: '{"model":"forwarded"}',
+    mappedModel: 'forwarded',
     originalBody: '{"model":"original"}',
   );
   const response = ProxyServerResponse(

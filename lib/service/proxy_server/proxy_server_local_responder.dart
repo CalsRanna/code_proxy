@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/service/proxy_server/proxy_server_request_body.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/model_display_name_util.dart';
 import 'package:shelf/shelf.dart' as shelf;
@@ -31,7 +32,10 @@ class ProxyServerLocalResponder {
   }) : _hasAvailableEndpoints = hasAvailableEndpoints;
 
   /// 尝试本地处理此请求；无法处理时返回 null。
-  shelf.Response? tryRespond(shelf.Request request, List<int> rawBody) {
+  shelf.Response? tryRespond(
+    shelf.Request request,
+    ProxyServerRequestBody requestBody,
+  ) {
     final method = request.method;
     final path = _normalizePath(request.requestedUri.path);
 
@@ -54,7 +58,7 @@ class ProxyServerLocalResponder {
     // 3) count_tokens → 本地估算，避免 60% 上游 404
     if (method == 'POST' && path == '/v1/messages/count_tokens') {
       final estimatedTokens = ProxyServerTokenEstimator.estimateRequestBody(
-        rawBody,
+        requestBody.bytes,
       );
       final body = jsonEncode({'input_tokens': estimatedTokens});
       return shelf.Response.ok(
@@ -64,33 +68,24 @@ class ProxyServerLocalResponder {
     }
 
     if (method == 'POST' && path == '/v1/messages') {
-      return _tryRespondDesktopProbe(rawBody);
+      return _tryRespondDesktopProbe(requestBody);
     }
 
     return null;
   }
 
-  shelf.Response? _tryRespondDesktopProbe(List<int> rawBody) {
-    final dynamic body;
-    try {
-      body = jsonDecode(utf8.decode(rawBody));
-    } on FormatException {
-      return null;
-    }
-    if (body is! Map<String, dynamic> ||
-        body.length != 3 ||
-        body['max_tokens'] is! int ||
-        body['max_tokens'] != 1) {
-      return null;
-    }
+  shelf.Response? _tryRespondDesktopProbe(ProxyServerRequestBody requestBody) {
+    // 解析结果与模型映射/协议转换共用同一份；解析失败（非法 JSON、非对象、
+    // 非法 UTF-8）时不是探针，交给转发链路。
+    final body = requestBody.json;
+    if (body == null || body.length != 3) return null;
+    if (body['max_tokens'] is! int || body['max_tokens'] != 1) return null;
     final model = body['model'];
     final messages = body['messages'];
-    if (model is! String ||
-        model.isEmpty ||
-        messages is! List ||
-        messages.length != 1) {
+    if (model is! String || model.isEmpty || messages is! List) {
       return null;
     }
+    if (messages.length != 1) return null;
     final message = messages.single;
     if (message is! Map<String, dynamic> ||
         message.length != 2 ||
