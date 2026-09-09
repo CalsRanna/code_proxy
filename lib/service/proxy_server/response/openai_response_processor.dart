@@ -153,10 +153,16 @@ class OpenAiResponseProcessor {
         outputChunks.add(utf8.decode(head));
         yield head;
       }
+      // 首个内容 delta 产出的时刻（首字用时终点）。本地先行产出的
+      // message_start / ping 不算内容，不会触发。
+      int? firstContentAt;
       try {
         await for (final chunk in source) {
           rawChunks.add(chunk);
           final out = converter.handleData(chunk);
+          if (firstContentAt == null && converter.hasContentDelta) {
+            firstContentAt = DateTime.now().millisecondsSinceEpoch;
+          }
           if (out.isNotEmpty) {
             outputChunks.add(utf8.decode(out));
             yield out;
@@ -182,10 +188,12 @@ class OpenAiResponseProcessor {
           rawChunks.expand((c) => c).toList(),
           allowMalformed: true,
         );
+        final contentAt = firstContentAt;
         _recorder.recordResponse(
           attempt,
           response,
           responseTime: responseTime,
+          ttftMs: contentAt == null ? null : contentAt - attempt.startTime!,
           forwardedResponseHeaders: _openAiStreamHeaders(),
           tokenUsage: converter.finalUsage,
           responseBody: outputChunks.join(),

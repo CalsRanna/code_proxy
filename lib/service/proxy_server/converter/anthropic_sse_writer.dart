@@ -17,6 +17,13 @@ class AnthropicSseWriter {
   int? _thinkingIndex;
   NormalizedTokenUsage? _usage;
   bool finished = false;
+  bool _hasContentDelta = false;
+
+  /// 是否已输出过内容 delta（text / thinking / tool 参数）。
+  ///
+  /// 首次翻转的时刻即 OpenAI 端点的首字用时终点；message_start / ping /
+  /// content_block_start 不算内容。
+  bool get hasContentDelta => _hasContentDelta;
 
   Map<String, int?> get finalUsage => {
     'input': _usage?.inputTokens,
@@ -169,6 +176,7 @@ class AnthropicSseWriter {
   }
 
   void writeEvent(String event, Map<String, dynamic> data) {
+    if (event == 'content_block_delta') _hasContentDelta = true;
     _output.write('event: $event\ndata: ${jsonEncode(data)}\n\n');
   }
 

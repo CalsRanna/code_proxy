@@ -19,6 +19,7 @@ class RequestAttemptRecorder {
     RequestAttemptContext attempt,
     http.StreamedResponse response, {
     required int responseTime,
+    int? ttftMs,
     Map<String, String>? forwardedResponseHeaders,
     Map<String, int?>? tokenUsage,
     String? errorBody,
@@ -32,6 +33,7 @@ class RequestAttemptRecorder {
         headers: response.headers,
         forwardedHeaders: forwardedResponseHeaders,
         responseTime: responseTime,
+        ttftMs: ttftMs,
         usage: tokenUsage,
         errorBody: errorBody,
         responseBody: responseBody,

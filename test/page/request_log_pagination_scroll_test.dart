@@ -45,7 +45,8 @@ void main() {
         error_message TEXT,
         origin_model TEXT,
         cache_creation_input_tokens INTEGER,
-        cache_read_input_tokens INTEGER
+        cache_read_input_tokens INTEGER,
+        ttft_ms INTEGER
       )
     ''');
 
@@ -256,5 +257,39 @@ void main() {
     // 翻页后回到第一行
     final afterPixels = verticalPositionOf(tester).pixels;
     expect(afterPixels, 0.0);
+  });
+
+  testWidgets('响应时间列同时展示总用时与首字用时', (tester) async {
+    final repo = RequestLogRepository(Database.instance);
+    // 最新一条带首字用时；setUp 写入的历史记录没有首字用时，显示占位符
+    await repo.insert(
+      RequestLogEntity(
+        id: 'log-ttft',
+        timestamp: DateTime(2026, 1, 2).millisecondsSinceEpoch,
+        endpointName: 'Anthropic',
+        path: 'v1/messages',
+        method: 'POST',
+        statusCode: 200,
+        responseTime: 7390,
+        ttftMs: 548,
+        model: 'claude-sonnet-5',
+        inputTokens: 100,
+        outputTokens: 50,
+      ),
+    );
+    GetIt.instance.registerSingleton<RequestLogViewModel>(
+      RequestLogViewModel(
+        repository: repo,
+        logChanges: const Stream<void>.empty(),
+      ),
+    );
+    GetIt.instance.get<RequestLogViewModel>().initSignals();
+
+    await tester.pumpWidget(ShadApp(home: Scaffold(body: RequestLogPage())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('响应时间 / 首字用时'), findsOneWidget);
+    expect(find.text('7.39s / 548ms'), findsOneWidget);
+    expect(find.text('0.50s / -'), findsWidgets);
   });
 }

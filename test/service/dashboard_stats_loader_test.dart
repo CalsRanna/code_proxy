@@ -38,7 +38,8 @@ void main() {
         error_message TEXT,
         origin_model TEXT,
         cache_creation_input_tokens INTEGER,
-        cache_read_input_tokens INTEGER
+        cache_read_input_tokens INTEGER,
+        ttft_ms INTEGER
       )
     ''');
 
@@ -107,8 +108,7 @@ void main() {
   });
 
   test('各时间窗口的聚合结果正确', () async {
-    final result =
-        await DashboardStatsLoader().load(dbPath, now: now);
+    final result = await DashboardStatsLoader().load(dbPath, now: now);
 
     // 概览（全表、无时间窗口）：messages 仅 2xx 的 v1/messages；
     // 失败请求不计 token/消息，只计活跃天数
@@ -120,10 +120,7 @@ void main() {
     expect(result.overview.cacheHitRate, closeTo(50 / 182, 1e-9));
 
     // 折线图：15 天窗口（08-23 ~ 09-07），失败请求也计入请求数
-    expect(result.dailyRequests, {
-      '2026-09-06': 1,
-      '2026-09-07': 2,
-    });
+    expect(result.dailyRequests, {'2026-09-06': 1, '2026-09-07': 2});
 
     // 热力图：全年（含窗口外的 01-05）
     expect(result.heatmapRequests, {
@@ -133,8 +130,10 @@ void main() {
     });
 
     // 模型日期统计：15 天窗口
-    expect(result.recentModelTokens.map((s) => s.date).toSet(),
-        {'2026-09-06', '2026-09-07'});
+    expect(result.recentModelTokens.map((s) => s.date).toSet(), {
+      '2026-09-06',
+      '2026-09-07',
+    });
     final todayM1 = result.recentModelTokens.singleWhere(
       (s) => s.date == '2026-09-07' && s.model == 'm1',
     );
@@ -146,15 +145,11 @@ void main() {
 
     // 全历史：多出窗口外的 01-05 与去年 12-31（失败请求仍不计入）
     final allDates = result.allModelTokens.map((s) => s.date).toSet();
-    expect(allDates, {'2026-01-05', '2026-09-06', '2026-09-07',
-        '2025-12-31'});
-    final lastYear = result.allModelTokens.singleWhere(
-      (s) => s.model == 'm3',
-    );
+    expect(allDates, {'2026-01-05', '2026-09-06', '2026-09-07', '2025-12-31'});
+    final lastYear = result.allModelTokens.singleWhere((s) => s.model == 'm3');
     expect(lastYear.input, 100);
     expect(lastYear.output, 100);
   });
-
 }
 
 Future<void> _insert(

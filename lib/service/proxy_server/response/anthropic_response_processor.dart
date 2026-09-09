@@ -123,6 +123,7 @@ class AnthropicResponseProcessor {
       Map<String, int?>? tokenUsage,
       int responseTime,
       String responseBody,
+      int? ttftMs,
     )
     recordStats,
     void Function(Object error, String responseBody) recordException, {
@@ -174,6 +175,16 @@ class AnthropicResponseProcessor {
     // 解压后一次性喂入。完成信号与 usage 因此天然同口径，不会分叉。
     final scanner = AnthropicSseScanner();
     var failed = false;
+    // 首个内容 delta 到达的时刻（首字用时终点）。只在逐 chunk 解析的路径上
+    // 捕获：压缩透传流要到结束才解压扫描，届时的时间戳只是总耗时，不能
+    // 冒充首字用时，保持 null。
+    int? firstContentAt;
+    void markFirstContent() {
+      if (firstContentAt == null && scanner.sawContentDelta) {
+        firstContentAt = DateTime.now().millisecondsSinceEpoch;
+      }
+    }
+
     final canEmitSseError =
         !isCompressed &&
         (response.headers['content-type'] ?? '').contains('text/event-stream');
@@ -200,12 +211,14 @@ class AnthropicResponseProcessor {
               // 无伪装：原样转发原始字节（与历史行为一致）
               responseChunks.add(text);
               scanner.add(text);
+              markFirstContent();
               sink.add(chunk);
             } else {
               final forwarded = modelRewriter.add(text);
               if (forwarded.isNotEmpty) {
                 responseChunks.add(forwarded);
                 scanner.add(forwarded);
+                markFirstContent();
                 sink.add(utf8.encode(forwarded));
               }
             }
@@ -273,7 +286,9 @@ class AnthropicResponseProcessor {
             return;
           }
 
-          recordStats(scanner.usage, responseTime, responseBody);
+          final contentAt = firstContentAt;
+          final ttftMs = contentAt == null ? null : contentAt - startTime;
+          recordStats(scanner.usage, responseTime, responseBody, ttftMs);
           sink.close();
         },
         handleError: (error, stackTrace, sink) {

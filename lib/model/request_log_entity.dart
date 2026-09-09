@@ -39,6 +39,11 @@ class RequestLogEntity {
   /// 缓存读取 token 数量
   final int? cacheReadInputTokens;
 
+  /// 首字用时（毫秒）：从向上游发送请求到收到首个内容 delta 的耗时。
+  ///
+  /// 仅流式响应有值；非流式、失败以及无法逐块解析的压缩透传流为 null。
+  final int? ttftMs;
+
   /// 错误信息（仅在非成功请求时保存）
   final String? errorMessage;
 
@@ -56,6 +61,7 @@ class RequestLogEntity {
     this.outputTokens,
     this.cacheCreationInputTokens,
     this.cacheReadInputTokens,
+    this.ttftMs,
     this.errorMessage,
   });
 
@@ -94,6 +100,7 @@ class RequestLogEntity {
       outputTokens: json['outputTokens'] as int?,
       cacheCreationInputTokens: json['cacheCreationInputTokens'] as int?,
       cacheReadInputTokens: json['cacheReadInputTokens'] as int?,
+      ttftMs: json['ttftMs'] as int?,
       errorMessage: json['errorMessage'] as String?,
     );
   }
@@ -114,6 +121,7 @@ class RequestLogEntity {
       'outputTokens': outputTokens,
       'cacheCreationInputTokens': cacheCreationInputTokens,
       'cacheReadInputTokens': cacheReadInputTokens,
+      'ttftMs': ttftMs,
       'errorMessage': errorMessage,
     };
   }
@@ -138,6 +146,7 @@ class RequestLogEntity {
     int? outputTokens,
     int? cacheCreationInputTokens,
     int? cacheReadInputTokens,
+    int? ttftMs,
     String? errorMessage,
   }) {
     return RequestLogEntity(
@@ -155,6 +164,7 @@ class RequestLogEntity {
       cacheCreationInputTokens:
           cacheCreationInputTokens ?? this.cacheCreationInputTokens,
       cacheReadInputTokens: cacheReadInputTokens ?? this.cacheReadInputTokens,
+      ttftMs: ttftMs ?? this.ttftMs,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

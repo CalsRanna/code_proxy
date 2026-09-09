@@ -698,4 +698,58 @@ void main() {
       expect(parseEvents(first).last.$1, 'message_stop');
     });
   });
+
+  group('hasContentDelta', () {
+    test('头部事件与仅含 role 的 chunk 不算内容，首个 content 分片才翻转', () {
+      final converter = OpenAiChatSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      expect(converter.hasContentDelta, isFalse);
+
+      converter.handleData(
+        utf8.encode(
+          'data: ${jsonEncode({
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'role': 'assistant'},
+              },
+            ],
+          })}\n\n',
+        ),
+      );
+      expect(converter.hasContentDelta, isFalse);
+
+      converter.handleData(
+        utf8.encode(
+          'data: ${jsonEncode({
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': 'hi'},
+              },
+            ],
+          })}\n\n',
+        ),
+      );
+      expect(converter.hasContentDelta, isTrue);
+    });
+
+    test('reasoning 分片同样算内容', () {
+      final converter = OpenAiChatSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      converter.handleData(
+        utf8.encode(
+          'data: ${jsonEncode({
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'reasoning_content': '思考中'},
+              },
+            ],
+          })}\n\n',
+        ),
+      );
+      expect(converter.hasContentDelta, isTrue);
+    });
+  });
 }

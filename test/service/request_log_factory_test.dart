@@ -122,4 +122,40 @@ void main() {
       expect(binarySummary, contains('base64:'));
     });
   });
+
+  group('RequestLogFactory 首字用时', () {
+    test('ttftMs 原样透传，非流式缺失时为 null', () {
+      final handler = RequestLogFactory.create();
+      const request = ProxyServerRequest(
+        method: 'POST',
+        path: '/v1/messages',
+        headers: {},
+        body: '{"model":"claude-opus-5"}',
+      );
+
+      final streamed = handler.buildRequestLog(
+        endpoint: createEndpoint(),
+        request: request,
+        response: const ProxyServerResponse(
+          statusCode: 200,
+          headers: {},
+          responseTime: 7390,
+          ttftMs: 548,
+        ),
+      );
+      expect(streamed.ttftMs, 548);
+      expect(streamed.responseTime, 7390);
+
+      final nonStream = handler.buildRequestLog(
+        endpoint: createEndpoint(),
+        request: request,
+        response: const ProxyServerResponse(
+          statusCode: 200,
+          headers: {},
+          responseTime: 7390,
+        ),
+      );
+      expect(nonStream.ttftMs, isNull);
+    });
+  });
 }

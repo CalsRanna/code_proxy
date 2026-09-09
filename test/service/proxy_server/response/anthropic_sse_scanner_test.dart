@@ -95,4 +95,38 @@ void main() {
       });
     });
   });
+
+  group('AnthropicSseScanner 首字信号', () {
+    test(
+      'message_start / content_block_start / ping 不触发，首个 content_block_delta 触发',
+      () {
+        final scanner = AnthropicSseScanner();
+        scanner.add(
+          'event: message_start\n'
+          'data: {"type":"message_start","message":{"usage":{"input_tokens":1}}}\n\n'
+          'event: content_block_start\n'
+          'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n'
+          'event: ping\n'
+          'data: {"type":"ping"}\n\n',
+        );
+        expect(scanner.sawContentDelta, isFalse);
+
+        // thinking 也是内容：扩展思考开启时它就是首个 token
+        scanner.add(
+          'event: content_block_delta\n'
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"…"}}\n\n',
+        );
+        expect(scanner.sawContentDelta, isTrue);
+      },
+    );
+
+    test('跨 chunk 分裂的 content_block_delta 在行完整后才触发', () {
+      final scanner = AnthropicSseScanner();
+      scanner.add('data: {"type":"content_block_del');
+      expect(scanner.sawContentDelta, isFalse);
+
+      scanner.add('ta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n');
+      expect(scanner.sawContentDelta, isTrue);
+    });
+  });
 }

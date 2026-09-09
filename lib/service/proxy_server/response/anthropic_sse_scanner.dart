@@ -18,6 +18,7 @@ import 'package:code_proxy/service/proxy_server/response/sse_text_line_buffer.da
 class AnthropicSseScanner {
   final SseTextLineBuffer _lineBuffer = SseTextLineBuffer();
   bool _sawCompletionSignal = false;
+  bool _sawContentDelta = false;
 
   int? _inputTokens;
   int? _outputTokens;
@@ -26,6 +27,13 @@ class AnthropicSseScanner {
 
   /// 是否已收到 Anthropic 的流完成信号（`message_stop`）。
   bool get sawCompletionSignal => _sawCompletionSignal;
+
+  /// 是否已收到首个内容 delta（任意类型的 `content_block_delta`）。
+  ///
+  /// 流式处理器在喂入每个 chunk 后检查，首次翻转的时刻即首字用时的终点。
+  /// message_start / content_block_start / ping 不算内容：它们在上游开始
+  /// 生成前就会到达，按它们计时只能得到接近 TTFB 的常量。
+  bool get sawContentDelta => _sawContentDelta;
 
   /// 是否解析到过任何 usage 字段。
   ///
@@ -86,6 +94,7 @@ class AnthropicSseScanner {
       if (decoded is! Map<String, dynamic>) return;
 
       if (decoded['type'] == 'message_stop') _sawCompletionSignal = true;
+      if (decoded['type'] == 'content_block_delta') _sawContentDelta = true;
 
       // message_start 的 usage 在 message.usage 下，message_delta 在顶层
       final Object? usageValue;

@@ -12,6 +12,10 @@ class ProxyServerResponse {
   /// 响应时间（毫秒）- 总时间
   final int responseTime;
 
+  /// 首字用时（毫秒）：从发送请求到收到首个内容 delta（任意类型的
+  /// `content_block_delta`）的耗时。仅流式响应有值，非流式为 null。
+  final int? ttftMs;
+
   /// Token 使用量：input 表示未缓存输入，cache_creation/cache_read
   /// 分别表示缓存创建与读取，四类计数互不重叠。
   /// 在 ResponseHandler 中统一解析（流式和非流式）
@@ -33,6 +37,7 @@ class ProxyServerResponse {
     required this.statusCode,
     required this.headers,
     required this.responseTime,
+    this.ttftMs,
     this.forwardedHeaders,
     this.usage,
     this.errorBody,

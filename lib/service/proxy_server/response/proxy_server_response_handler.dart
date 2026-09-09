@@ -70,12 +70,14 @@ class ProxyServerResponseHandler {
     void recordStats(
       int responseTime,
       Map<String, int?>? usage,
-      String responseBody,
-    ) {
+      String responseBody, {
+      int? ttftMs,
+    }) {
       _recorder.recordResponse(
         attempt,
         response,
         responseTime: responseTime,
+        ttftMs: ttftMs,
         forwardedResponseHeaders: headers,
         tokenUsage: usage,
         responseBody: responseBody,
@@ -88,7 +90,8 @@ class ProxyServerResponseHandler {
         headers,
         attempt.startTime!,
         contentEncoding,
-        (usage, responseTime, body) => recordStats(responseTime, usage, body),
+        (usage, responseTime, body, ttftMs) =>
+            recordStats(responseTime, usage, body, ttftMs: ttftMs),
         (error, body) => _recorder.recordException(
           attempt,
           error,

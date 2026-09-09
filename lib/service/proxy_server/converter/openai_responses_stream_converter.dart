@@ -96,6 +96,9 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   @override
   bool get isComplete => _receivedCompletionEvent;
 
+  @override
+  bool get hasContentDelta => _writer.hasContentDelta;
+
   /// 取走当前累计的输出并清空缓冲。
   @override
   List<int> takeOutput() => _writer.takeOutput();
@@ -163,7 +166,9 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
         LoggerUtil.instance.w('Responses stream failed: $err');
         _receivedCompletionEvent = true;
         _writer.writeRaw(
-          buildSseErrorEventText('Upstream response failed: ${err ?? 'unknown'}'),
+          buildSseErrorEventText(
+            'Upstream response failed: ${err ?? 'unknown'}',
+          ),
         );
         _writer.finished = true;
       default:

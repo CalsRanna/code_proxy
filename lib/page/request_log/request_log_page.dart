@@ -2,6 +2,7 @@ import 'package:code_proxy/page/request_log/request_log_detail_dialog.dart';
 import 'package:code_proxy/page/request_log/request_log_pagination.dart';
 import 'package:code_proxy/theme/shadcn_colors.dart';
 import 'package:code_proxy/theme/shadcn_spacing.dart';
+import 'package:code_proxy/util/format_number_util.dart';
 import 'package:code_proxy/view_model/request_log_view_model.dart';
 import 'package:code_proxy/widget/empty_state.dart';
 import 'package:code_proxy/widget/page_header.dart';
@@ -185,7 +186,8 @@ class _RequestLogPageState extends State<RequestLogPage> {
             var log = logs[index.row];
             var time = DateTime.fromMillisecondsSinceEpoch(log.timestamp);
             var statusCode = log.statusCode;
-            var tokenText = '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}';
+            var tokenText =
+                '${log.inputTokens ?? 0} / ${log.outputTokens ?? 0}';
             Widget child;
             switch (index.column) {
               case 0:
@@ -215,8 +217,11 @@ class _RequestLogPageState extends State<RequestLogPage> {
                     : ShadBadge.destructive(child: Text(statusCode.toString()));
                 break;
               case 4:
+                // 总用时 / 首字用时，如 7.39s / 548ms；无首字用时显示 -
                 child = Text(
-                  '${((log.responseTime ?? 0) / 1000).toStringAsFixed(2)}s',
+                  formatResponseTiming(log.responseTime, log.ttftMs),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 );
                 break;
               case 5:
@@ -233,7 +238,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
           },
           columnCount: 6,
           columnSpanExtent: (column) {
-            final totalFixedWidth = 180 + 160 + 100 + 120 + 160;
+            final totalFixedWidth = 180 + 160 + 100 + 150 + 160;
             final availableWidth = constraints.maxWidth;
             final remainingWidth = (availableWidth - totalFixedWidth).clamp(
               120.0,
@@ -245,7 +250,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
               1 => FixedSpanExtent(160),
               2 => FixedSpanExtent(remainingWidth),
               3 => FixedSpanExtent(100),
-              4 => FixedSpanExtent(120),
+              4 => FixedSpanExtent(150),
               5 => FixedSpanExtent(160),
               _ => null,
             };
@@ -258,7 +263,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
               0 => '请求时间',
               1 => '端点',
               2 => '模型',
-              4 => '响应时间',
+              4 => '响应时间 / 首字用时',
               5 => 'Token',
               _ => '',
             };

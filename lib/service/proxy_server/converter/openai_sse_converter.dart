@@ -27,6 +27,12 @@ abstract class OpenAiSseConverter {
   /// 伪装成"零输出成功响应"。
   bool get isComplete;
 
+  /// 是否已向客户端输出过首个内容 delta（text / thinking / tool 参数）。
+  ///
+  /// 响应处理器在每个上游 chunk 处理后检查，首次翻转的时刻即首字用时终点；
+  /// message_start / ping / content_block_start 不算内容。
+  bool get hasContentDelta;
+
   /// 取走当前累计的输出并清空缓冲
   List<int> takeOutput();
 }

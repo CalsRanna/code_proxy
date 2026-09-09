@@ -19,8 +19,8 @@ class RequestLogFactory {
 
   /// 为本次上游尝试创建独立的日志记录。
   ///
-  /// 每次调用生成新 ID，时间戳为记录创建时间，耗时取自 [response]，
-  /// 不包含此前退避等待。ID 不用于标识整条重试链路。
+  /// 每次调用生成新 ID，时间戳为记录创建时间，耗时与首字用时取自
+  /// [response]，均不包含此前退避等待。ID 不用于标识整条重试链路。
   RequestLogEntity buildRequestLog({
     required EndpointEntity endpoint,
     required ProxyServerRequest request,
@@ -96,6 +96,7 @@ class RequestLogFactory {
       outputTokens: outputTokens,
       cacheCreationInputTokens: cacheCreationInputTokens,
       cacheReadInputTokens: cacheReadInputTokens,
+      ttftMs: response.ttftMs,
       errorMessage: errorMessage,
     );
   }

@@ -487,4 +487,69 @@ void main() {
       expect(converter.isComplete, isFalse);
     });
   });
+
+  group('hasContentDelta', () {
+    test('response.created 不算内容，首个 output_text.delta 才翻转', () {
+      final converter = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      converter.initialEvents();
+      expect(converter.hasContentDelta, isFalse);
+
+      converter.handleData(
+        sse([
+          {
+            'type': 'response.created',
+            'response': {'id': 'resp_1'},
+          },
+        ]),
+      );
+      expect(converter.hasContentDelta, isFalse);
+
+      converter.handleData(
+        sse([
+          {'type': 'response.output_text.delta', 'delta': 'hi'},
+        ]),
+      );
+      expect(converter.hasContentDelta, isTrue);
+    });
+
+    test('reasoning 分片与工具参数分片同样算内容', () {
+      final reasoning = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      reasoning.initialEvents();
+      reasoning.handleData(
+        sse([
+          {'type': 'response.reasoning_summary_text.delta', 'delta': '思考'},
+        ]),
+      );
+      expect(reasoning.hasContentDelta, isTrue);
+
+      final tool = OpenAiResponsesSseStreamConverter(originalModel: 'm');
+      tool.initialEvents();
+      tool.handleData(
+        sse([
+          {
+            'type': 'response.output_item.added',
+            'item': {
+              'type': 'function_call',
+              'id': 'fc_1',
+              'call_id': 'call_1',
+              'name': 'read',
+            },
+          },
+        ]),
+      );
+      // 只开了 tool_use block，还没有参数分片
+      expect(tool.hasContentDelta, isFalse);
+
+      tool.handleData(
+        sse([
+          {
+            'type': 'response.function_call_arguments.delta',
+            'item_id': 'fc_1',
+            'delta': '{"path":',
+          },
+        ]),
+      );
+      expect(tool.hasContentDelta, isTrue);
+    });
+  });
 }

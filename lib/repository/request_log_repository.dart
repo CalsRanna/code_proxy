@@ -18,7 +18,8 @@ class DashboardAggregationSql {
   }
 
   /// 每日请求数（折线图与热力图共用，仅时间段不同）。
-  static String dailyRequestStats(String localOffsetModifier) => '''
+  static String dailyRequestStats(String localOffsetModifier) =>
+      '''
     SELECT date(timestamp / 1000, 'unixepoch', '$localOffsetModifier') as date,
            COUNT(id) as request_count
     FROM request_logs
@@ -31,7 +32,8 @@ class DashboardAggregationSql {
   ///
   /// `total > 0` 的过滤留给调用方：费用计算不需要过滤而图表需要，
   /// 放在 SQL 里就得为两种需求各开一条查询。
-  static String modelDateTokenStats(String localOffsetModifier) => '''
+  static String modelDateTokenStats(String localOffsetModifier) =>
+      '''
     SELECT date(timestamp / 1000, 'unixepoch', '$localOffsetModifier') as date,
            COALESCE(model, 'unknown') as model,
            SUM(COALESCE(input_tokens, 0)) as input,
@@ -53,7 +55,8 @@ class DashboardAggregationSql {
   /// - activeDays：有任意请求（含失败）的本地去重日期数，与热力图口径一致
   /// - cacheHitRate：cache_read / (cache_read + input)，仅 2xx 成功请求；
   ///   分子乘 1.0 强制浮点除法（SQLite 整数除法会截断为 0）。
-  static String overviewStats(String localOffsetModifier) => '''
+  static String overviewStats(String localOffsetModifier) =>
+      '''
     SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', '$localOffsetModifier')) AS active_days,
            COUNT(CASE WHEN path = 'v1/messages' AND status_code = 200 THEN 1 END) AS messages,
            COALESCE(SUM(CASE WHEN status_code = 200 THEN
@@ -150,6 +153,7 @@ class RequestLogRepository {
         'output_tokens': log.outputTokens,
         'cache_creation_input_tokens': log.cacheCreationInputTokens,
         'cache_read_input_tokens': log.cacheReadInputTokens,
+        'ttft_ms': log.ttftMs,
         'error_message': log.errorMessage,
       },
     ]);
@@ -171,6 +175,7 @@ class RequestLogRepository {
       outputTokens: row['output_tokens'] as int?,
       cacheCreationInputTokens: row['cache_creation_input_tokens'] as int?,
       cacheReadInputTokens: row['cache_read_input_tokens'] as int?,
+      ttftMs: row['ttft_ms'] as int?,
       errorMessage: row['error_message'] as String?,
     );
   }

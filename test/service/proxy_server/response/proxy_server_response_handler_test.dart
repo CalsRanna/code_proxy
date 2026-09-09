@@ -62,9 +62,99 @@ void main() {
       expect(loggedResponse.usage?['output'], 1);
       if (entry.key == EndpointApiFormat.openaiChat) {
         expect(loggedResponse.rawResponseBody, entry.value);
+        // 首个 chunk 就携带 content，首字用时在流结束前已捕获
+        expect(loggedResponse.ttftMs, isNotNull);
+        expect(
+          loggedResponse.ttftMs!,
+          lessThanOrEqualTo(loggedResponse.responseTime),
+        );
+      } else {
+        // 该流没有 content_block_delta（零输出），首字用时保持 null
+        expect(loggedResponse.ttftMs, isNull);
       }
     });
   }
+
+  test('Anthropic SSE 的首字用时取首个 content_block_delta 到达时刻，不晚于总耗时', () async {
+    final logs = <ProxyServerResponse>[];
+    final handler = ProxyServerResponseHandler(
+      recorder: RequestAttemptRecorder(
+        onRequestCompleted: (_, _, response) => logs.add(response),
+      ),
+    );
+    final source = StreamController<List<int>>();
+    final response = await handler.handleResponse(
+      http.StreamedResponse(
+        source.stream,
+        200,
+        headers: {'content-type': 'text/event-stream'},
+      ),
+      _attempt(EndpointApiFormat.anthropic),
+    );
+    final bodyFuture = response.readAsString();
+    // 头部事件先到：message_start / content_block_start / ping 都不算内容
+    source.add(
+      utf8.encode(
+        'event: message_start\n'
+        'data: {"type":"message_start","message":{"id":"msg_1","model":"upstream","usage":{"input_tokens":2}}}\n\n'
+        'event: content_block_start\n'
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n'
+        'event: ping\n'
+        'data: {"type":"ping"}\n\n',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    source.add(
+      utf8.encode(
+        'event: content_block_delta\n'
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n\n',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    source.add(
+      utf8.encode(
+        'event: content_block_stop\n'
+        'data: {"type":"content_block_stop","index":0}\n\n'
+        'event: message_delta\n'
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}\n\n'
+        'event: message_stop\n'
+        'data: {"type":"message_stop"}\n\n',
+      ),
+    );
+    await source.close();
+    await bodyFuture;
+
+    final logged = logs.single;
+    final ttftMs = logged.ttftMs;
+    expect(ttftMs, isNotNull);
+    // 首个内容分片在 40ms 后才发出，首字用时不可能更短
+    expect(ttftMs!, greaterThanOrEqualTo(40));
+    // 收尾事件又晚了 40ms，总耗时应明显大于首字用时
+    expect(logged.responseTime - ttftMs, greaterThanOrEqualTo(30));
+  });
+
+  test('非流式响应不记录首字用时', () async {
+    final logs = <ProxyServerResponse>[];
+    final handler = ProxyServerResponseHandler(
+      recorder: RequestAttemptRecorder(
+        onRequestCompleted: (_, _, response) => logs.add(response),
+      ),
+    );
+    const body =
+        '{"id":"msg_1","type":"message","model":"upstream","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":2,"output_tokens":1}}';
+    final response = await handler.handleResponse(
+      http.StreamedResponse(
+        Stream.value(utf8.encode(body)),
+        200,
+        headers: {'content-type': 'application/json'},
+      ),
+      _attempt(EndpointApiFormat.anthropic),
+    );
+    await response.readAsString();
+
+    expect(logs.single.ttftMs, isNull);
+    expect(logs.single.usage?['output'], 1);
+  });
 
   test('请求准备阶段异常仍记录一次，耗时为零且不依赖上游响应', () {
     final logs = <ProxyServerResponse>[];
