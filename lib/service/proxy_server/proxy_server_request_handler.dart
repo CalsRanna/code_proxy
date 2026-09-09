@@ -66,10 +66,7 @@ class ProxyServerRequestHandler {
 
   /// 构建目标URL
   Uri _buildTargetUrl(EndpointEntity endpoint, shelf.Request request) {
-    final baseUrl = (endpoint.anthropicBaseUrl ?? '').replaceAll(
-      RegExp(r'/$'),
-      '',
-    );
+    final baseUrl = (endpoint.baseUrl ?? '').replaceAll(RegExp(r'/$'), '');
     final path = _resolveForwardPath(endpoint, request.url.path);
     final query = request.url.query;
     final separator = path.startsWith('/') ? '' : '/';
@@ -105,13 +102,10 @@ class ProxyServerRequestHandler {
       );
       return originalPath;
     }
-    final baseUrl = (endpoint.anthropicBaseUrl ?? '').replaceAll(
-      RegExp(r'/+$'),
-      '',
-    );
+    final baseUrl = (endpoint.baseUrl ?? '').replaceAll(RegExp(r'/+$'), '');
     final hasV1Suffix = baseUrl.endsWith('/v1');
     switch (endpoint.apiFormat) {
-      case EndpointApiFormat.openai:
+      case EndpointApiFormat.openaiChat:
         return hasV1Suffix ? '/chat/completions' : '/v1/chat/completions';
       case EndpointApiFormat.openaiResponses:
         return hasV1Suffix ? '/responses' : '/v1/responses';
@@ -243,7 +237,7 @@ class ProxyServerRequestHandler {
   /// - xApiKey: 强制使用 x-api-key（如 OpenCode Go 的 /v1/messages 只认此头）
   /// - bearer: 强制使用 Authorization: Bearer
   void _replaceAuthToken(Map<String, String> headers, EndpointEntity endpoint) {
-    final token = endpoint.anthropicAuthToken ?? '';
+    final token = endpoint.authToken ?? '';
     switch (endpoint.authMode) {
       case EndpointAuthMode.preserve:
         if (headers.containsKey('x-api-key')) {
@@ -273,7 +267,7 @@ class ProxyServerRequestHandler {
     Map<String, String> headers,
     EndpointEntity endpoint,
   ) {
-    final token = endpoint.anthropicAuthToken ?? '';
+    final token = endpoint.authToken ?? '';
 
     headers
       ..remove('x-api-key')
@@ -321,7 +315,7 @@ class ProxyServerRequestHandler {
       // OpenAI 格式端点：整体转换为对应 API 的请求格式。
       // 模型映射已先行完成。
       switch (endpoint.apiFormat) {
-        case EndpointApiFormat.openai:
+        case EndpointApiFormat.openaiChat:
           return ProcessedRequestBody(
             utf8.encode(jsonEncode(_openAiRequestConverter.convert(bodyJson))),
             model,

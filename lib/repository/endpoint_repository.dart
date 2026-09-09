@@ -31,8 +31,8 @@ class EndpointRepository {
         'weight': endpoint.weight,
         'auth_mode': endpoint.authMode.name,
         'api_format': endpoint.apiFormat.name,
-        'anthropic_auth_token': endpoint.anthropicAuthToken,
-        'anthropic_base_url': endpoint.anthropicBaseUrl,
+        'anthropic_auth_token': endpoint.authToken,
+        'anthropic_base_url': endpoint.baseUrl,
         'haiku_model': endpoint.haikuModel,
         'sonnet_model': endpoint.sonnetModel,
         'opus_model': endpoint.opusModel,
@@ -50,8 +50,8 @@ class EndpointRepository {
       'weight': endpoint.weight,
       'auth_mode': endpoint.authMode.name,
       'api_format': endpoint.apiFormat.name,
-      'anthropic_auth_token': endpoint.anthropicAuthToken,
-      'anthropic_base_url': endpoint.anthropicBaseUrl,
+      'anthropic_auth_token': endpoint.authToken,
+      'anthropic_base_url': endpoint.baseUrl,
       'haiku_model': endpoint.haikuModel,
       'sonnet_model': endpoint.sonnetModel,
       'opus_model': endpoint.opusModel,
@@ -82,15 +82,12 @@ class EndpointRepository {
         orElse: () => EndpointAuthMode.preserve,
       ),
       apiFormat: apiFormatFromString(row['api_format'] as String?),
-      anthropicAuthToken: row['anthropic_auth_token'] as String?,
-      anthropicBaseUrl: row['anthropic_base_url'] as String?,
-      haikuModel:
-          row['haiku_model'] as String?,
-      sonnetModel:
-          row['sonnet_model'] as String?,
+      authToken: row['anthropic_auth_token'] as String?,
+      baseUrl: row['anthropic_base_url'] as String?,
+      haikuModel: row['haiku_model'] as String?,
+      sonnetModel: row['sonnet_model'] as String?,
       opusModel: row['opus_model'] as String?,
-      fableModel:
-          row['fable_model'] as String?,
+      fableModel: row['fable_model'] as String?,
     );
   }
 }

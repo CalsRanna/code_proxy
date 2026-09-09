@@ -46,9 +46,9 @@ void main() {
       return EndpointEntity(
         id: id,
         name: 'OpenAI Endpoint',
-        apiFormat: EndpointApiFormat.openai,
-        anthropicBaseUrl: 'http://127.0.0.1:$port',
-        anthropicAuthToken: 'upstream-token',
+        apiFormat: EndpointApiFormat.openaiChat,
+        baseUrl: 'http://127.0.0.1:$port',
+        authToken: 'upstream-token',
       );
     }
 
@@ -638,7 +638,7 @@ void main() {
         EndpointEntity(
           id: 'ep-anthropic',
           name: 'Anthropic Endpoint',
-          anthropicBaseUrl: 'http://127.0.0.1:${upstreamServers[1].port}',
+          baseUrl: 'http://127.0.0.1:${upstreamServers[1].port}',
         ),
       ];
       await service!.start();

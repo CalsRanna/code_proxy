@@ -141,7 +141,7 @@ void main() {
       ShadApp(
         home: Scaffold(
           body: EndpointFormDialog(
-            endpoint: createEndpoint(apiFormat: EndpointApiFormat.openai),
+            endpoint: createEndpoint(apiFormat: EndpointApiFormat.openaiChat),
             viewModel: viewModel,
           ),
         ),
@@ -152,7 +152,7 @@ void main() {
         .widget<ShadRadioGroupFormField<EndpointApiFormat>>(
           find.byType(ShadRadioGroupFormField<EndpointApiFormat>),
         );
-    expect(formatField.initialValue, EndpointApiFormat.openai);
+    expect(formatField.initialValue, EndpointApiFormat.openaiChat);
   });
 
   testWidgets('编辑已有端点时 Fable 模型初始化为端点配置值', (tester) async {

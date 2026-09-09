@@ -190,8 +190,8 @@ void main() {
       EndpointEntity(
         id: 'endpoint',
         name: 'Endpoint',
-        anthropicBaseUrl: 'http://127.0.0.1:${upstream.port}',
-        anthropicAuthToken: 'upstream-token',
+        baseUrl: 'http://127.0.0.1:${upstream.port}',
+        authToken: 'upstream-token',
         haikuModel: 'mapped-upstream-haiku',
       ),
     ];

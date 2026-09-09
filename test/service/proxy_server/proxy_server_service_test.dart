@@ -614,8 +614,8 @@ EndpointEntity _buildEndpoint(String id, int port) {
   return EndpointEntity(
     id: id,
     name: 'Endpoint $id',
-    anthropicBaseUrl: 'http://127.0.0.1:$port',
-    anthropicAuthToken: 'upstream-token',
+    baseUrl: 'http://127.0.0.1:$port',
+    authToken: 'upstream-token',
   );
 }
 

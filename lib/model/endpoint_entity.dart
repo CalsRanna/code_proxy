@@ -10,11 +10,11 @@ enum EndpointAuthMode { preserve, bearer, xApiKey }
 ///
 /// 控制代理与该端点通信时使用的协议格式：
 /// - [anthropic]: Anthropic Messages API 格式（默认，直接透传）
-/// - [openai]: OpenAI Chat Completions 兼容格式，代理自动完成
+/// - [openaiChat]: OpenAI Chat Completions 兼容格式，代理自动完成
 ///   Anthropic ↔ OpenAI 双向协议转换（请求体、响应体、SSE 流、错误体）
 /// - [openaiResponses]: OpenAI Responses API 格式（POST /v1/responses），
-///   转换方式同 [openai]，请求/响应/SSE 流按 Responses API 结构映射
-enum EndpointApiFormat { anthropic, openaiResponses, openai }
+///   转换方式同 [openaiChat]，请求/响应/SSE 流按 Responses API 结构映射
+enum EndpointApiFormat { anthropic, openaiResponses, openaiChat }
 
 /// 从字符串解析 API 协议格式，无法识别时兜底为 anthropic。
 EndpointApiFormat apiFormatFromString(String? value) {
@@ -47,11 +47,11 @@ class EndpointEntity {
   /// API 协议格式
   final EndpointApiFormat apiFormat;
 
-  /// Anthropic API 认证令牌
-  final String? anthropicAuthToken;
+  /// 上游 API 认证令牌
+  final String? authToken;
 
-  /// Anthropic API Base URL
-  final String? anthropicBaseUrl;
+  /// 上游 API Base URL
+  final String? baseUrl;
 
   /// Anthropic 默认 Haiku 模型名称
   final String? haikuModel;
@@ -73,15 +73,15 @@ class EndpointEntity {
     this.weight = 1,
     this.authMode = EndpointAuthMode.preserve,
     this.apiFormat = EndpointApiFormat.anthropic,
-    this.anthropicAuthToken,
-    this.anthropicBaseUrl,
+    this.authToken,
+    this.baseUrl,
     this.haikuModel,
     this.sonnetModel,
     this.opusModel,
     this.fableModel,
   });
 
-  /// 从 JSON 反序列化
+  /// 从 JSON 反序列化，保留已有的认证令牌和 URL 键名。
   factory EndpointEntity.fromJson(Map<String, dynamic> json) {
     return EndpointEntity(
       id: json['id'] as String,
@@ -91,11 +91,10 @@ class EndpointEntity {
       weight: json['weight'] as int? ?? 1,
       authMode: _authModeFromString(json['authMode'] as String?),
       apiFormat: apiFormatFromString(json['apiFormat'] as String?),
-      anthropicAuthToken: json['anthropicAuthToken'] as String?,
-      anthropicBaseUrl: json['anthropicBaseUrl'] as String?,
+      authToken: json['anthropicAuthToken'] as String?,
+      baseUrl: json['anthropicBaseUrl'] as String?,
       haikuModel: json['haikuModel'] as String?,
-      sonnetModel:
-          json['sonnetModel'] as String?,
+      sonnetModel: json['sonnetModel'] as String?,
       opusModel: json['opusModel'] as String?,
       fableModel: json['fableModel'] as String?,
     );
@@ -111,8 +110,8 @@ class EndpointEntity {
       'weight': weight,
       'authMode': authMode.name,
       'apiFormat': apiFormat.name,
-      'anthropicAuthToken': anthropicAuthToken,
-      'anthropicBaseUrl': anthropicBaseUrl,
+      'anthropicAuthToken': authToken,
+      'anthropicBaseUrl': baseUrl,
       'haikuModel': haikuModel,
       'sonnetModel': sonnetModel,
       'opusModel': opusModel,
@@ -129,8 +128,8 @@ class EndpointEntity {
     int? weight,
     EndpointAuthMode? authMode,
     EndpointApiFormat? apiFormat,
-    String? anthropicAuthToken,
-    String? anthropicBaseUrl,
+    String? authToken,
+    String? baseUrl,
     String? haikuModel,
     String? sonnetModel,
     String? opusModel,
@@ -144,16 +143,12 @@ class EndpointEntity {
       weight: weight ?? this.weight,
       authMode: authMode ?? this.authMode,
       apiFormat: apiFormat ?? this.apiFormat,
-      anthropicAuthToken: anthropicAuthToken ?? this.anthropicAuthToken,
-      anthropicBaseUrl: anthropicBaseUrl ?? this.anthropicBaseUrl,
-      haikuModel:
-          haikuModel ?? this.haikuModel,
-      sonnetModel:
-          sonnetModel ?? this.sonnetModel,
-      opusModel:
-          opusModel ?? this.opusModel,
-      fableModel:
-          fableModel ?? this.fableModel,
+      authToken: authToken ?? this.authToken,
+      baseUrl: baseUrl ?? this.baseUrl,
+      haikuModel: haikuModel ?? this.haikuModel,
+      sonnetModel: sonnetModel ?? this.sonnetModel,
+      opusModel: opusModel ?? this.opusModel,
+      fableModel: fableModel ?? this.fableModel,
     );
   }
 
@@ -167,8 +162,8 @@ class EndpointEntity {
       weight: weight,
       authMode: authMode,
       apiFormat: apiFormat,
-      anthropicAuthToken: anthropicAuthToken,
-      anthropicBaseUrl: anthropicBaseUrl,
+      authToken: authToken,
+      baseUrl: baseUrl,
       haikuModel: haikuModel,
       sonnetModel: sonnetModel,
       opusModel: opusModel,

@@ -52,8 +52,8 @@ void main() {
         id: 'ep-anthropic',
         name: 'Anthropic Endpoint',
         apiFormat: EndpointApiFormat.anthropic,
-        anthropicBaseUrl: 'http://127.0.0.1:$port',
-        anthropicAuthToken: 'upstream-token',
+        baseUrl: 'http://127.0.0.1:$port',
+        authToken: 'upstream-token',
         // 端点实际模型：请求侧的 claude-opus-5 会被映射到这里
         opusModel: 'upstream-real-opus-model',
       );

@@ -48,8 +48,8 @@ void main() {
   }) => EndpointEntity(
     id: id,
     name: id,
-    anthropicBaseUrl: 'http://127.0.0.1:$port',
-    anthropicAuthToken: 'upstream-secret',
+    baseUrl: 'http://127.0.0.1:$port',
+    authToken: 'upstream-secret',
     apiFormat: format,
   );
 
@@ -378,7 +378,7 @@ void main() {
   );
 
   for (final format in [
-    EndpointApiFormat.openai,
+    EndpointApiFormat.openaiChat,
     EndpointApiFormat.openaiResponses,
   ]) {
     test('retries and converts ${format.name} responses', () async {
@@ -391,7 +391,7 @@ void main() {
           request.response.headers.contentType = ContentType.json;
           request.response.write(
             jsonEncode(
-              format == EndpointApiFormat.openai
+              format == EndpointApiFormat.openaiChat
                   ? {
                       'id': 'chatcmpl-test',
                       'object': 'chat.completion',
@@ -450,10 +450,7 @@ void main() {
         backupHits++;
         await request.response.close();
       });
-      await start(
-        [endpoint('a', a.port), endpoint('b', b.port)],
-        threshold: 1,
-      );
+      await start([endpoint('a', a.port), endpoint('b', b.port)], threshold: 1);
       final response = await send();
       expect(response.statusCode, status);
       expect(response.body, 'upstream error');
@@ -572,7 +569,7 @@ void main() {
         endpoint(
           'a',
           raw.port,
-        ).copyWith(anthropicBaseUrl: 'https://127.0.0.1:${raw.port}'),
+        ).copyWith(baseUrl: 'https://127.0.0.1:${raw.port}'),
       ], timeout: 10000);
       final downstream = client();
       final cancelled = expectLater(

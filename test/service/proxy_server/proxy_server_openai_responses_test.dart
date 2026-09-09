@@ -47,8 +47,8 @@ void main() {
         id: id,
         name: 'OpenAI Responses Endpoint',
         apiFormat: EndpointApiFormat.openaiResponses,
-        anthropicBaseUrl: 'http://127.0.0.1:$port',
-        anthropicAuthToken: 'upstream-token',
+        baseUrl: 'http://127.0.0.1:$port',
+        authToken: 'upstream-token',
       );
     }
 
@@ -547,8 +547,8 @@ void main() {
           id: 'ep-v1',
           name: 'V1 Suffix Endpoint',
           apiFormat: EndpointApiFormat.openaiResponses,
-          anthropicBaseUrl: 'http://127.0.0.1:${upstreamServers[0].port}/v1',
-          anthropicAuthToken: 'token',
+          baseUrl: 'http://127.0.0.1:${upstreamServers[0].port}/v1',
+          authToken: 'token',
         ),
       ];
       await service!.start();

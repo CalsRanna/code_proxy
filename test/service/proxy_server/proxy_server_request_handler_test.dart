@@ -24,8 +24,8 @@ void main() {
         id: 'ep-1',
         name: 'Test Endpoint',
         authMode: authMode,
-        anthropicAuthToken: endpointToken,
-        anthropicBaseUrl: 'https://api.example.com',
+        authToken: endpointToken,
+        baseUrl: 'https://api.example.com',
       );
       final shelfRequest = shelf.Request(
         'POST',
@@ -140,8 +140,8 @@ void main() {
       final endpoint = EndpointEntity(
         id: 'ep-1',
         name: 'Test Endpoint',
-        anthropicAuthToken: 'sk-endpoint-token',
-        anthropicBaseUrl: 'https://api.example.com',
+        authToken: 'sk-endpoint-token',
+        baseUrl: 'https://api.example.com',
       );
       final shelfRequest = shelf.Request(
         'POST',

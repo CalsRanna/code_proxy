@@ -20,7 +20,7 @@ void main() {
         'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}\n\n'
         'event: message_stop\n'
         'data: {"type":"message_stop"}\n\n',
-    EndpointApiFormat.openai:
+    EndpointApiFormat.openaiChat:
         'data: {"id":"chatcmpl-1","model":"upstream","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"},"finish_reason":null}]}\n\n'
         'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1}}\n\n'
         'data: [DONE]\n\n',
@@ -60,7 +60,7 @@ void main() {
       expect(loggedResponse.statusCode, 200);
       expect(loggedResponse.usage?['input'], 2);
       expect(loggedResponse.usage?['output'], 1);
-      if (entry.key == EndpointApiFormat.openai) {
+      if (entry.key == EndpointApiFormat.openaiChat) {
         expect(loggedResponse.rawResponseBody, entry.value);
       }
     });

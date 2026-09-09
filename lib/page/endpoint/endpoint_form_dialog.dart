@@ -180,11 +180,9 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     nameController = TextEditingController(text: widget.endpoint?.name);
     noteController = TextEditingController(text: widget.endpoint?.note);
     authTokenController = TextEditingController(
-      text: widget.endpoint?.anthropicAuthToken,
+      text: widget.endpoint?.authToken,
     );
-    baseUrlController = TextEditingController(
-      text: widget.endpoint?.anthropicBaseUrl,
-    );
+    baseUrlController = TextEditingController(text: widget.endpoint?.baseUrl);
     haikuModelController = TextEditingController(
       text: widget.endpoint?.haikuModel,
     );
@@ -241,8 +239,8 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         await widget.viewModel.addEndpoint(
           name: nameController.text,
           note: noteController.text.isEmpty ? null : noteController.text,
-          anthropicAuthToken: authTokenController.text,
-          anthropicBaseUrl: baseUrlController.text,
+          authToken: authTokenController.text,
+          baseUrl: baseUrlController.text,
           haikuModel: haikuModelController.text.isEmpty
               ? null
               : haikuModelController.text,
@@ -267,8 +265,8 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
             weight: widget.endpoint!.weight,
             authMode: _authMode,
             apiFormat: _apiFormat,
-            anthropicAuthToken: authTokenController.text,
-            anthropicBaseUrl: baseUrlController.text,
+            authToken: authTokenController.text,
+            baseUrl: baseUrlController.text,
             haikuModel: haikuModelController.text.isEmpty
                 ? null
                 : haikuModelController.text,
@@ -321,7 +319,7 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
     switch (format) {
       case EndpointApiFormat.anthropic:
         return 'Anthropic';
-      case EndpointApiFormat.openai:
+      case EndpointApiFormat.openaiChat:
         return 'Chat Completions';
       case EndpointApiFormat.openaiResponses:
         return 'Responses';

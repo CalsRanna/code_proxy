@@ -87,6 +87,11 @@ Database → DI → WindowUtil → TrayUtil → LaunchAtStartup → runApp
 - **ProxyAuditService** — 审计日志记录到 `~/.code_proxy/audit/`，按天分目录，支持自动过期清理
 - **DefaultModelConfigService** — 管理全局默认模型映射（`~/.code_proxy/default_model.yaml`）
 
+### 端点模型
+
+`EndpointEntity` 使用 `authToken`、`baseUrl` 表示上游认证令牌和地址；Chat Completions 格式为 `EndpointApiFormat.openaiChat`。
+数据库和 JSON 直接使用枚举名称，Chat Completions 格式统一保存为 `openaiChat`。迁移 `migration_202609090000` 在启动时将已有 `api_format = 'openai'` 更新为 `openaiChat`；读取逻辑不再兼容旧协议值。JSON 键 `anthropicAuthToken` / `anthropicBaseUrl` 和数据库列 `anthropic_auth_token` / `anthropic_base_url` 保持不变。
+
 ### 数据库
 
 SQLite3 + Laconic ORM。数据库文件位于 `~/.code_proxy/code_proxy.db`。

@@ -114,10 +114,10 @@ class _EndpointCardState extends State<EndpointCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      if (widget.endpoint.anthropicBaseUrl != null &&
-                          widget.endpoint.anthropicBaseUrl!.isNotEmpty)
+                      if (widget.endpoint.baseUrl != null &&
+                          widget.endpoint.baseUrl!.isNotEmpty)
                         Text(
-                          widget.endpoint.anthropicBaseUrl!,
+                          widget.endpoint.baseUrl!,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: ShadcnColors.mutedForeground(
