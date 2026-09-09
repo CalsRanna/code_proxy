@@ -19,6 +19,10 @@ class ModelPricingEntity {
   /// null 表示未知。
   final int? contextWindow;
 
+  /// 发布日期（"YYYY-MM-DD"），来自 models.dev 的 release_date。
+  /// null 表示数据源未提供，加载缓存时会按"近一年"窗口过滤掉。
+  final String? releaseDate;
+
   const ModelPricingEntity({
     required this.modelId,
     required this.inputPrice,
@@ -26,6 +30,7 @@ class ModelPricingEntity {
     this.cacheWritePrice = 0,
     this.cacheReadPrice = 0,
     this.contextWindow,
+    this.releaseDate,
   });
 
   factory ModelPricingEntity.fromJson(Map<String, dynamic> json) {
@@ -36,6 +41,7 @@ class ModelPricingEntity {
       cacheWritePrice: (json['cacheWritePrice'] as num?)?.toDouble() ?? 0,
       cacheReadPrice: (json['cacheReadPrice'] as num?)?.toDouble() ?? 0,
       contextWindow: (json['contextWindow'] as num?)?.toInt(),
+      releaseDate: json['releaseDate'] as String?,
     );
   }
 
@@ -47,6 +53,7 @@ class ModelPricingEntity {
       'cacheWritePrice': cacheWritePrice,
       'cacheReadPrice': cacheReadPrice,
       if (contextWindow != null) 'contextWindow': contextWindow,
+      if (releaseDate != null) 'releaseDate': releaseDate,
     };
   }
 }

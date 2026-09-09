@@ -11,9 +11,16 @@ import 'package:signals/signals.dart';
 
 class ModelPricingService {
   static final ModelPricingService instance = ModelPricingService._();
-  static const int _cacheSchemaVersion = 3;
+  /// 缓存数据语义版本：v5 起模型实体带 release_date，可按"近一年"滚动
+  /// 窗口重新过滤（v4 缓存缺少发布日期字段，须作废后重新拉取）。
+  static const int _cacheSchemaVersion = 5;
+  /// 缓存超过该时长未同步即视为过期，重新从 API 拉取。
+  /// 与滚动窗口配套：窗口随时间滑动，缓存过老时可用模型会逐渐变少，
+  /// 保持 30 天内新鲜可保证统计集完整。
+  static const Duration _maxCacheAge = Duration(days: 30);
   static const List<String> _supportedProviders = [
     'anthropic',
+    'openai',
     'deepseek',
     'minimax',
     'minimax-cn',
@@ -46,7 +53,12 @@ class ModelPricingService {
         final json = jsonDecode(content) as Map<String, dynamic>;
         _loadFromCacheJson(json);
         final cacheVersion = (json['schemaVersion'] as num?)?.toInt() ?? 0;
-        if (cacheVersion >= _cacheSchemaVersion) {
+        final updated = lastUpdated.value;
+        // 缓存超过 [_maxCacheAge] 未同步则刷新：滚动窗口随时间滑动，
+        // 旧缓存会让统计模型集偏离当前窗口。
+        final fresh = updated != null &&
+            DateTime.now().difference(updated) <= _maxCacheAge;
+        if (cacheVersion >= _cacheSchemaVersion && fresh) {
           return;
         }
       } catch (e) {
@@ -194,6 +206,10 @@ class ModelPricingService {
       final modelData = entry.value as Map<String, dynamic>?;
       if (modelData == null) continue;
 
+      // 只统计最近一年内发布的模型，历史模型不入库（费用计 0、不出现在定价列表）。
+      final releaseDate = modelData['release_date']?.toString();
+      if (!_isWithinRecentYear(releaseDate)) continue;
+
       final cost = modelData['cost'] as Map<String, dynamic>?;
       if (cost == null) continue;
 
@@ -218,9 +234,26 @@ class ModelPricingService {
           cacheWritePrice: cacheWritePrice,
           cacheReadPrice: cacheReadPrice,
           contextWindow: contextWindow,
+          releaseDate: releaseDate,
         ),
       );
     }
+  }
+
+  /// 只统计最近一年内（发布日期 >= 去年今日）发布的模型；
+  /// 发布日期缺失或无法解析的模型一律视为不满足，不统计。
+  static bool _isWithinRecentYear(String? releaseDate) {
+    final date = DateTime.tryParse(releaseDate ?? '');
+    if (date == null) {
+      if (releaseDate != null && releaseDate.isNotEmpty) {
+        LoggerUtil.instance.w('无法解析模型发布日期: $releaseDate');
+      }
+      return false;
+    }
+    final now = DateTime.now();
+    // 日历语义"去年今日"；2 月 29 日在平年会折叠为 3 月 1 日，可接受。
+    final threshold = DateTime(now.year - 1, now.month, now.day);
+    return !date.isBefore(threshold);
   }
 
   void _loadFromCacheJson(Map<String, dynamic> json) {
@@ -230,6 +263,9 @@ class ModelPricingService {
     if (models != null) {
       for (final m in models) {
         final entity = ModelPricingEntity.fromJson(m as Map<String, dynamic>);
+        // 缓存里是"同步时点"的近一年模型，窗口滑动后按当前窗口重新过滤，
+        // 剔除已滑出窗口的历史模型（缺的最新模型由 refresh 补齐）。
+        if (!_isWithinRecentYear(entity.releaseDate)) continue;
         _pricingMap[entity.modelId] = entity;
       }
     }
