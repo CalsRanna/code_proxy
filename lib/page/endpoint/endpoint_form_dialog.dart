@@ -238,21 +238,13 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         // 添加新端点
         await widget.viewModel.addEndpoint(
           name: nameController.text,
-          note: noteController.text.isEmpty ? null : noteController.text,
+          note: noteController.text,
           authToken: authTokenController.text,
           baseUrl: baseUrlController.text,
-          haikuModel: haikuModelController.text.isEmpty
-              ? null
-              : haikuModelController.text,
-          sonnetModel: sonnetModelController.text.isEmpty
-              ? null
-              : sonnetModelController.text,
-          opusModel: opusModelController.text.isEmpty
-              ? null
-              : opusModelController.text,
-          fableModel: fableModelController.text.isEmpty
-              ? null
-              : fableModelController.text,
+          haikuModel: haikuModelController.text,
+          sonnetModel: sonnetModelController.text,
+          opusModel: opusModelController.text,
+          fableModel: fableModelController.text,
           authMode: _authMode,
           apiFormat: _apiFormat,
         );
@@ -261,24 +253,16 @@ class _EndpointFormDialogState extends State<EndpointFormDialog> {
         await widget.viewModel.updateEndpoint(
           widget.endpoint!.copyWith(
             name: nameController.text,
-            note: noteController.text.isEmpty ? null : noteController.text,
+            note: noteController.text,
             weight: widget.endpoint!.weight,
             authMode: _authMode,
             apiFormat: _apiFormat,
             authToken: authTokenController.text,
             baseUrl: baseUrlController.text,
-            haikuModel: haikuModelController.text.isEmpty
-                ? null
-                : haikuModelController.text,
-            sonnetModel: sonnetModelController.text.isEmpty
-                ? null
-                : sonnetModelController.text,
-            opusModel: opusModelController.text.isEmpty
-                ? null
-                : opusModelController.text,
-            fableModel: fableModelController.text.isEmpty
-                ? null
-                : fableModelController.text,
+            haikuModel: haikuModelController.text,
+            sonnetModel: sonnetModelController.text,
+            opusModel: opusModelController.text,
+            fableModel: fableModelController.text,
           ),
         );
       }
