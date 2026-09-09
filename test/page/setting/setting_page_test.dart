@@ -56,7 +56,7 @@ void main() {
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(preferences.timeout, 120000);
-    expect(find.text('120000 毫秒'), findsOneWidget);
+    expect(find.text('120,000 毫秒'), findsOneWidget);
     expect(find.text('API 超时时间已更新，重启代理服务器后生效。'), findsOneWidget);
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
@@ -79,7 +79,7 @@ void main() {
     expect(find.text('端点熔断阈值'), findsOneWidget);
     await tester.tap(find.text('Claude'));
     await tester.pumpAndSettle();
-    expect(find.text('120000 毫秒'), findsOneWidget);
+    expect(find.text('120,000 毫秒'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
