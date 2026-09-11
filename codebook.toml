@@ -1,6 +1,10 @@
 words = [
+    "CJK",
+    "EOF",
     "LLM",
+    "Shadcn",
     "Sse",
+    "heatmap",
     "openai",
     "ttft",
 ]
