@@ -148,24 +148,23 @@ void main() {
     return dirs;
   }
 
-  Future<List<Directory>> waitForRequestDirs(int count) async {
-    for (var attempt = 0; attempt < 200; attempt++) {
-      final dirs = await requestDirs();
-      if (dirs.length >= count) return dirs;
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-    }
-    fail('审计目录未在预期时间内出现（期望 $count 个）');
-  }
-
-  /// 等到至少 [count] 个审计目录都写出了 response_body（目录先创建、
-  /// 正文后写入，只等目录会读到半成品）。
-  Future<List<Directory>> waitForAuditBodies(int count) async {
+  /// 等到至少 [count] 个审计目录都写全了 [files]（目录先创建、正文后写入，
+  /// 只等目录会读到半成品）。
+  Future<List<Directory>> waitForAuditBodies(
+    int count, {
+    List<String> files = const ['response_body'],
+  }) async {
     for (var attempt = 0; attempt < 200; attempt++) {
       final complete = <Directory>[];
       for (final dir in await requestDirs()) {
-        if (await File(p.join(dir.path, 'response_body')).exists()) {
-          complete.add(dir);
+        var ready = true;
+        for (final name in files) {
+          if (!await File(p.join(dir.path, name)).exists()) {
+            ready = false;
+            break;
+          }
         }
+        if (ready) complete.add(dir);
       }
       if (complete.length >= count) return complete;
       await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -195,7 +194,7 @@ void main() {
     final body = await stream.stream.bytesToString();
     expect(body, _sse);
 
-    final dirs = await waitForRequestDirs(1);
+    final dirs = await waitForAuditBodies(1);
     expect(
       await File(p.join(dirs.single.path, 'response_body')).readAsString(),
       _sse,
@@ -224,7 +223,7 @@ void main() {
     final stream = await client().send(request());
     await stream.stream.bytesToString();
 
-    final dirs = await waitForRequestDirs(1);
+    final dirs = await waitForAuditBodies(1);
     final body = await File(
       p.join(dirs.single.path, 'response_body'),
     ).readAsString();
@@ -297,7 +296,11 @@ void main() {
     final body = await stream.stream.bytesToString();
     expect(body, contains('event: message_start'));
 
-    final dirs = await waitForRequestDirs(1);
+    // raw_response_body 在 response_body 之后才 rename 落盘，等两个都齐再读
+    final dirs = await waitForAuditBodies(
+      1,
+      files: ['response_body', 'raw_response_body'],
+    );
     final responseBody = await File(
       p.join(dirs.single.path, 'response_body'),
     ).readAsString();
@@ -324,7 +327,7 @@ void main() {
     final body = await stream.stream.bytesToString();
     expect(body, contains('message_stop'));
 
-    final dirs = await waitForRequestDirs(1);
+    final dirs = await waitForAuditBodies(1);
     final responseBody = await File(
       p.join(dirs.single.path, 'response_body'),
     ).readAsString();
@@ -347,7 +350,7 @@ void main() {
     final body = await stream.stream.bytesToString();
     expect(body, _sse);
 
-    final dirs = await waitForRequestDirs(1);
+    final dirs = await waitForAuditBodies(1);
     final responseBody = await File(
       p.join(dirs.single.path, 'response_body'),
     ).readAsString();

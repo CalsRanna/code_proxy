@@ -20,6 +20,18 @@ void main() {
       .map((file) => p.basename(file.path))
       .toList();
 
+  /// 等到临时目录里出现至少 [count] 个文件。
+  ///
+  /// File.openWrite 的建文件由 dart:io 的 IO 线程异步完成，写完立刻同步
+  /// listSync 可能还看不到它；断言前先等文件真正落盘。
+  Future<void> waitForTempFiles(int count) async {
+    for (var attempt = 0; attempt < 200; attempt++) {
+      if (tempFiles().length >= count) return;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    fail('审计临时文件未在预期时间内出现（期望 $count 个，实际 ${tempFiles()}）');
+  }
+
   test('未写入时不产生文件，finish 返回空', () async {
     final writer0 = writer();
     expect(tempFiles(), isEmpty);
@@ -57,6 +69,8 @@ void main() {
     final claimed = writer();
     claimed.addResponseBytes(utf8.encode('y'));
     claimed.claim();
+    // 先等临时文件真正落盘（建文件是异步的），再验证取消路径不会删除它
+    await waitForTempFiles(1);
     await claimed.discard();
     // 已交给日志层，取消路径不再删除，避免与落盘 rename 竞态
     expect(tempFiles(), hasLength(1));
