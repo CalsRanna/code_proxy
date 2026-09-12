@@ -9,7 +9,18 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 先建空 Release，各平台 job 并行 upload asset（已存在则跳过，保证重跑幂等）
+      # --draft=false 显式发布，避免 gh release create 留下草稿
+      - run: gh release view "${{ github.ref_name }}" >/dev/null 2>&1 || gh release create "${{ github.ref_name }}" --generate-notes --draft=false
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   build-macos:
+    needs: create-release
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,12 +48,16 @@ jobs:
           fi
           zip -r -y CodeProxy-macOS.zip "$APP_BUNDLE"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CodeProxy-macOS
-          path: build/macos/Build/Products/Release/CodeProxy-macOS.zip
+      # 直传 Release（create-release 已预建，--clobber 容忍重跑）
+      - name: Upload asset
+        working-directory: build/macos/Build/Products/Release
+        shell: bash
+        run: gh release upload "${{ github.ref_name }}" "CodeProxy-macOS.zip" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   build-windows:
+    needs: create-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,12 +81,15 @@ jobs:
           Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath CodeProxy-Windows.zip
         shell: pwsh
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CodeProxy-Windows
-          path: CodeProxy-Windows.zip
+      # 直传 Release（create-release 已预建，--clobber 容忍重跑）
+      - name: Upload asset
+        shell: bash
+        run: gh release upload "${{ github.ref_name }}" "CodeProxy-Windows.zip" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   build-linux:
+    needs: create-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -102,23 +120,9 @@ jobs:
       - name: Package Linux app
         run: tar -czf CodeProxy-Linux.tar.gz -C build/linux/x64/release/bundle .
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CodeProxy-Linux
-          path: CodeProxy-Linux.tar.gz
-
-  release:
-    needs: [build-macos, build-windows, build-linux]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            CodeProxy-macOS.zip
-            CodeProxy-Windows.zip
-            CodeProxy-Linux.tar.gz
-          generate_release_notes: true
+      # 直传 Release（create-release 已预建，--clobber 容忍重跑）
+      - name: Upload asset
+        shell: bash
+        run: gh release upload "${{ github.ref_name }}" "CodeProxy-Linux.tar.gz" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
