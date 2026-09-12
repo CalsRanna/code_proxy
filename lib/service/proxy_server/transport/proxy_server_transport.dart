@@ -66,14 +66,9 @@ class ProxyServerTransport {
 
   /// 建立 socket 时启用 TCP keepalive 的 connectionFactory。
   ///
-  /// 重要：当设置了自定义 connectionFactory 后，Dart SDK 的 HttpClient
-  /// **不会**自动为 HTTPS 请求做 TLS 升级。SDK 内部的逻辑是：
-  ///   - 没有 connectionFactory → HTTPS 直连用 SecureSocket.startConnect
-  ///   - 有 connectionFactory → 直接调用 factory，拿到什么 socket 就用什么
-  ///
-  /// 因此我们必须自己判断 scheme：
-  ///   - https → 用 SecureSocket.startConnect（返回的 socket 已完成 TLS）
-  ///   - http  → 用 Socket.startConnect（裸 TCP）
+  /// HTTPS 直连时 SDK 直接使用 factory 返回的 socket，必须自行完成 TLS。
+  /// 经 HTTP 代理时则返回裸 TCP，SDK 负责发送 CONNECT 并升级隧道的 TLS。
+  /// 普通 HTTP 也返回裸 TCP。
   ///
   /// TCP keepalive 选项在 TLS 之下的底层 TCP socket 上设置。对于
   /// SecureSocket，我们通过监听 Future 在 socket 建立后设置选项——
@@ -90,7 +85,8 @@ class ProxyServerTransport {
     cancellation?.throwIfCancelled();
     final host = proxyHost ?? uri.host;
     final port = proxyPort ?? uri.port;
-    final isSecure = uri.isScheme('https');
+    // HTTP 代理先通过裸 TCP 建立 CONNECT 隧道；HttpClient 随后升级 TLS。
+    final isSecure = uri.isScheme('https') && proxyHost == null;
 
     final ConnectionTask<Socket> task;
     if (isSecure) {

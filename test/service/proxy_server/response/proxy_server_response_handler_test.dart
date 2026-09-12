@@ -12,6 +12,48 @@ import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart' as shelf;
 
 void main() {
+  test('Responses failed 只发一次错误，并记录失败、通知断路器', () async {
+    final logs = <ProxyServerResponse>[];
+    var failures = 0;
+    final handler = ProxyServerResponseHandler(
+      recorder: RequestAttemptRecorder(
+        onRequestCompleted: (_, _, r) => logs.add(r),
+      ),
+      onStreamError: (_) => failures++,
+    );
+    final source = StreamController<List<int>>();
+    final response = await handler.handleResponse(
+      http.StreamedResponse(
+        source.stream,
+        200,
+        headers: {'content-type': 'text/event-stream'},
+      ),
+      _attempt(EndpointApiFormat.openaiResponses),
+    );
+    final body = response.readAsString();
+    source.add(
+      utf8.encode(
+        'data: ${jsonEncode({
+          'type': 'response.failed',
+          'response': {
+            'status': 'failed',
+            'error': {'code': 'server_error', 'message': 'boom'},
+          },
+        })}\n\n',
+      ),
+    );
+    // 失败事件本身就应结束处理，不依赖上游关闭连接。
+    final text = await body.timeout(const Duration(seconds: 2));
+    await source.close();
+    expect('event: error'.allMatches(text), hasLength(1));
+    expect(text, contains('boom'));
+    expect(text, isNot(contains('message_stop')));
+    expect(logs, hasLength(1));
+    expect(logs.single.statusCode, 502);
+    expect(logs.single.errorBody, contains('boom'));
+    expect(failures, 1);
+  });
+
   const streams = {
     EndpointApiFormat.anthropic:
         'event: message_start\n'

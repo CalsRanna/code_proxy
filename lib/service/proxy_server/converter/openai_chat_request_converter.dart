@@ -43,7 +43,14 @@ class OpenAiChatRequestConverter {
     }
 
     final maxTokens = body['max_tokens'];
-    if (maxTokens is int) converted['max_tokens'] = maxTokens;
+    if (maxTokens is int) {
+      // o 系列不接受旧字段；其他兼容网关保留既有参数契约。
+      final model = (body['model'] as String? ?? '').split('/').last;
+      final key = RegExp(r'^o\d+(?:-|$)').hasMatch(model)
+          ? 'max_completion_tokens'
+          : 'max_tokens';
+      converted[key] = maxTokens;
+    }
 
     final temperature = body['temperature'];
     if (temperature is num) converted['temperature'] = temperature;

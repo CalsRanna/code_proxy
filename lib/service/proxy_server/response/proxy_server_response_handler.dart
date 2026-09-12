@@ -35,7 +35,8 @@ class ProxyServerResponseHandler {
         attempt.endpoint.apiFormat != EndpointApiFormat.anthropic;
     final contentEncoding = response.headers['content-encoding'];
 
-    if (response.statusCode >= 400) {
+    // 重定向按原协议透传，保留 Location，不能当作 OpenAI 消息转换。
+    if (response.statusCode >= 300) {
       final bytes = await response.stream.toBytes();
       final responseTime =
           DateTime.now().millisecondsSinceEpoch - attempt.startTime!;
@@ -43,7 +44,7 @@ class ProxyServerResponseHandler {
         bytes,
         contentEncoding,
       );
-      if (needsConversion) {
+      if (needsConversion && response.statusCode >= 400) {
         return _openAiProcessor.processErrorResponse(response, attempt, body);
       }
       final headers = _forwardedHeaders(response);
@@ -53,7 +54,7 @@ class ProxyServerResponseHandler {
         responseTime: responseTime,
         forwardedResponseHeaders: headers,
         tokenUsage: _tokenExtractor.extractUsage(body),
-        errorBody: body,
+        errorBody: response.statusCode >= 400 ? body : null,
         responseBody: body,
       );
       return shelf.Response(response.statusCode, headers: headers, body: bytes);

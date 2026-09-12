@@ -1,5 +1,7 @@
 import 'package:laconic/laconic.dart';
 
+import 'table_rebuild_recovery.dart';
+
 /// 数据库迁移 - 删除 endpoints 表的 forbidden 和 forbidden_until 列
 ///
 /// 变更内容：
@@ -8,12 +10,13 @@ import 'package:laconic/laconic.dart';
 class Migration202603130000 {
   static const name = 'migration_202603130000';
 
-  Future<void> migrate(Laconic laconic) async {
-    final count =
-        await laconic.table('migrations').where('name', name).count();
+  Future<void> migrate(Laconic laconic) => laconic.transaction(() async {
+    final count = await laconic.table('migrations').where('name', name).count();
     if (count > 0) {
       return;
     }
+
+    await recoverTableRebuild(laconic, 'endpoints');
 
     // 检查是否存在需要删除的字段
     final tableInfo = await laconic.select("PRAGMA table_info('endpoints')");
@@ -88,5 +91,5 @@ class Migration202603130000 {
     await laconic.table('migrations').insert([
       {'name': name},
     ]);
-  }
+  });
 }

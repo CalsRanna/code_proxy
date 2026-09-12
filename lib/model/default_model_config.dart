@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// 默认模型映射实体
 ///
 /// 存储从 ~/.code_proxy/default_model.yaml 读取的默认模型配置。
@@ -122,7 +124,7 @@ class DefaultModelConfig {
 
 ''');
     for (final field in familyFields) {
-      lines.writeln('${field.key}: ${valueFor(field)}');
+      lines.writeln('${field.key}: ${jsonEncode(valueFor(field))}');
     }
     return lines.toString();
   }

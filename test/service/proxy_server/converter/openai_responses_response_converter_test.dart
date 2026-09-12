@@ -4,6 +4,25 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const converter = OpenAiResponsesResponseConverter();
 
+  for (final arguments in ['', '{"path":"partial']) {
+    test('截断的工具参数保留 max_tokens：$arguments', () {
+      final result = converter.convertResponse({
+        'status': 'incomplete',
+        'incomplete_details': {'reason': 'max_output_tokens'},
+        'output': [
+          {
+            'type': 'function_call',
+            'id': 'fc_1',
+            'call_id': 'call_1',
+            'name': 'write_file',
+            'arguments': arguments,
+          },
+        ],
+      }, originalModel: 'client-model');
+      expect(result['stop_reason'], 'max_tokens');
+    });
+  }
+
   test('标准响应：reasoning + message + function_call 按序转换', () {
     final out = converter.convertResponse({
       'id': 'resp_123',
@@ -150,11 +169,7 @@ void main() {
         {
           'type': 'message',
           'content': [
-            {
-              'type': 'refusal',
-              'refusal': 'cannot do that',
-              'text': 'cannot do that',
-            },
+            {'type': 'refusal', 'refusal': 'cannot do that'},
           ],
         },
       ],

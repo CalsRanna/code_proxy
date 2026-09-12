@@ -1,6 +1,7 @@
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/proxy_settings_snapshot.dart';
+import 'package:code_proxy/service/proxy_settings_file.dart';
 
 class ProxyClientSettingsService {
   ProxyClientSettingsService({required this.code, required this.desktop});
@@ -8,7 +9,12 @@ class ProxyClientSettingsService {
   final ClaudeCodeSettingService code;
   final ClaudeDesktopSettingService desktop;
 
-  Future<void> update({required String authToken, required int port}) async {
+  Future<void> update({required String authToken, required int port}) =>
+      ProxySettingsFile.serialized(
+        () => _update(authToken: authToken, port: port),
+      );
+
+  Future<void> _update({required String authToken, required int port}) async {
     final snapshot = await ProxySettingsSnapshot.capture([
       ...code.managedFilePaths,
       ...desktop.managedFilePaths,

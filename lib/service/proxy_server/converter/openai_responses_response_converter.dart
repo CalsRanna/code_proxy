@@ -39,7 +39,8 @@ class OpenAiResponsesResponseConverter {
       contentBlocks.add(const {'type': 'text', 'text': ''});
     }
 
-    final stopReason = converted.hasToolUse
+    final stopReason =
+        converted.hasToolUse && responsesResponse['status'] != 'incomplete'
         ? 'tool_use'
         : mapStopReason(responsesResponse);
 
@@ -125,9 +126,13 @@ class OpenAiResponsesResponseConverter {
     if (content is! List) return parts;
     for (final p in content) {
       if (p is! Map) continue;
-      if ((p['type'] == 'output_text' || p['type'] == 'refusal') &&
-          p['text'] is String) {
-        parts.add(p['text'] as String);
+      final text = switch (p['type']) {
+        'output_text' => p['text'],
+        'refusal' => p['refusal'],
+        _ => null,
+      };
+      if (text is String) {
+        parts.add(text);
       }
     }
     return parts;
@@ -165,7 +170,7 @@ class OpenAiResponsesResponseConverter {
   ///
   /// 优先级：incomplete(max_output_tokens) → max_tokens；
   /// status=incomplete 其他原因 → max_tokens（最接近的语义）；
-  /// 其余按 end_turn 处理（tool_use 判定由调用方在含 function_call 时覆盖）。
+  /// 其余按 end_turn 处理（调用方仅在未截断且含 function_call 时覆盖为 tool_use）。
   static String mapStopReason(Map<String, dynamic> response) {
     final status = response['status'];
     if (status == 'incomplete') {

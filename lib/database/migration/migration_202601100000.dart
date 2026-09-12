@@ -1,5 +1,7 @@
 import 'package:laconic/laconic.dart';
 
+import 'table_rebuild_recovery.dart';
+
 /// 数据库迁移 - 清理 endpoints 表多余字段
 ///
 /// 变更内容：
@@ -11,11 +13,13 @@ import 'package:laconic/laconic.dart';
 class Migration202601100000 {
   static const name = 'migration_202601100000';
 
-  Future<void> migrate(Laconic laconic) async {
+  Future<void> migrate(Laconic laconic) => laconic.transaction(() async {
     final count = await laconic.table('migrations').where('name', name).count();
     if (count > 0) {
       return;
     }
+
+    await recoverTableRebuild(laconic, 'endpoints');
 
     // 检查是否存在需要清理的字段
     final tableInfo = await laconic.select("PRAGMA table_info('endpoints')");
@@ -96,5 +100,5 @@ class Migration202601100000 {
     await laconic.table('migrations').insert([
       {'name': name},
     ]);
-  }
+  });
 }

@@ -27,6 +27,9 @@ abstract class OpenAiSseConverter {
   /// 伪装成"零输出成功响应"。
   bool get isComplete;
 
+  /// 上游显式报告的失败；终止事件并不代表成功。
+  Object? get error;
+
   /// 是否已向客户端输出过首个内容 delta（text / thinking / tool 参数）。
   ///
   /// 响应处理器在每个上游 chunk 处理后检查，首次翻转的时刻即首字用时终点；

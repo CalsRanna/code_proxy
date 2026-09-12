@@ -64,6 +64,7 @@ class ProxyServerRequestHandler {
     final headers = _prepareHeaders(request, endpoint, processed.mappedModel);
 
     final outbound = http.Request(request.method, uri)
+      ..followRedirects = false
       ..headers.addAll(headers)
       ..bodyBytes = processed.bytes;
     return PreparedRequest(outbound, processed.mappedModel);
@@ -246,6 +247,7 @@ class ProxyServerRequestHandler {
     switch (endpoint.authMode) {
       case EndpointAuthMode.preserve:
         if (headers.containsKey('x-api-key')) {
+          headers.remove('authorization');
           headers['x-api-key'] = token;
         } else if (headers.containsKey('authorization')) {
           headers['authorization'] = 'Bearer $token';

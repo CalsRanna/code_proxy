@@ -165,10 +165,8 @@ class OpenAiResponseProcessor {
       }
     }
 
-    String rawStreamText() => utf8.decode(
-      rawChunks.expand((c) => c).toList(),
-      allowMalformed: true,
-    );
+    String rawStreamText() =>
+        utf8.decode(rawChunks.expand((c) => c).toList(), allowMalformed: true);
 
     Stream<List<int>> convert(Stream<List<int>> source) async* {
       final head = converter.initialEvents();
@@ -190,6 +188,8 @@ class OpenAiResponseProcessor {
             appendOutput(out);
             yield out;
           }
+          final error = converter.error;
+          if (error != null) throw error;
         }
 
         // 上游静默截断：流已 EOF 但从未收到完成信号（finish_reason/[DONE]

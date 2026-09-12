@@ -83,17 +83,7 @@ class ProxyServerTokenEstimator {
         for (final msg in messages) {
           if (msg is Map<String, dynamic>) {
             total += 5; // 消息结构开销
-            final content = msg['content'];
-            if (content is String) {
-              total += estimate(content);
-            } else if (content is List) {
-              for (final block in content) {
-                if (block is Map<String, dynamic>) {
-                  final text = block['text'];
-                  if (text is String) total += estimate(text);
-                }
-              }
-            }
+            total += _estimateContent(msg['content']);
           }
         }
       }
@@ -112,6 +102,26 @@ class ProxyServerTokenEstimator {
     } catch (_) {
       return 0;
     }
+  }
+
+  static int _estimateContent(Object? content) {
+    if (content is String) return estimate(content);
+    if (content is! List) return 0;
+    var total = 0;
+    for (final block in content) {
+      if (block is! Map) continue;
+      switch (block['type']) {
+        case 'tool_result':
+          total += _estimateContent(block['content']);
+        case 'tool_use':
+          final input = block['input'];
+          if (input != null) total += estimate(jsonEncode(input));
+        default:
+          final text = block['text'];
+          if (text is String) total += estimate(text);
+      }
+    }
+    return total;
   }
 
   /// CJK 统一表意文字相关区块:

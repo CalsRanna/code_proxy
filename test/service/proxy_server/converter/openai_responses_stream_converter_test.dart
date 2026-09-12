@@ -145,6 +145,39 @@ void main() {
   });
 
   group('工具调用流', () {
+    test('工具参数中途达到输出限制时保留 max_tokens 停止原因', () {
+      final events = runStream([
+        sse([
+          {
+            'type': 'response.output_item.added',
+            'output_index': 0,
+            'item': {
+              'type': 'function_call',
+              'id': 'fc_1',
+              'call_id': 'call_1',
+              'name': 'lookup',
+            },
+          },
+          {
+            'type': 'response.function_call_arguments.delta',
+            'item_id': 'fc_1',
+            'output_index': 0,
+            'delta': '{"query":',
+          },
+          {
+            'type': 'response.incomplete',
+            'response': {
+              'status': 'incomplete',
+              'incomplete_details': {'reason': 'max_output_tokens'},
+            },
+          },
+        ]),
+      ]);
+      final delta = events.singleWhere((e) => e.$1 == 'message_delta');
+      expect(delta.$2['delta']['stop_reason'], 'max_tokens');
+      expect(events.where((e) => e.$1 == 'message_stop'), hasLength(1));
+    });
+
     test('added → arguments.delta → done → completed 全序列', () {
       final events = runStream([
         sse([
@@ -227,7 +260,7 @@ void main() {
       expect(events[6].$2['usage']['input_tokens'], 20);
       expect(events[6].$2['usage']['output_tokens'], 8);
       expect(events[6].$2['usage']['cache_read_input_tokens'], 30);
-      expect(events[6].$2['delta']['stop_reason'], 'end_turn');
+      expect(events[6].$2['delta']['stop_reason'], 'tool_use');
     });
 
     test('completed 后 handleDone 不重复输出收尾事件', () {

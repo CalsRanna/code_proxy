@@ -1,5 +1,7 @@
 import 'package:laconic/laconic.dart';
 
+import 'table_rebuild_recovery.dart';
+
 /// 数据库迁移 - 将原始数据迁移到文件
 ///
 /// 变更内容：
@@ -8,11 +10,13 @@ import 'package:laconic/laconic.dart';
 class Migration202512150001 {
   static const name = 'migration_202512150001';
 
-  Future<void> migrate(Laconic laconic) async {
+  Future<void> migrate(Laconic laconic) => laconic.transaction(() async {
     final count = await laconic.table('migrations').where('name', name).count();
     if (count > 0) {
       return;
     }
+
+    await recoverTableRebuild(laconic, 'request_logs');
 
     // SQLite 不支持 DROP COLUMN，需要重建表
     // 步骤：
@@ -91,5 +95,5 @@ class Migration202512150001 {
     await laconic.table('migrations').insert([
       {'name': name},
     ]);
-  }
+  });
 }

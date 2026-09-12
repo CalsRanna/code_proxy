@@ -4,6 +4,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
+  for (final id in [
+    '123',
+    'true',
+    'null',
+    'a: b',
+    'a # b',
+    'quoted"model',
+    'a\nb',
+  ]) {
+    test('YAML 字符串往返：${id.replaceAll('\n', r'\n')}', () {
+      final config = DefaultModelConfig(
+        haikuModel: id,
+        sonnetModel: 's',
+        opusModel: 'o',
+        fableModel: 'f',
+      );
+      config.validateForSave();
+      final restored = DefaultModelConfig.fromYaml(
+        loadYaml(config.toYamlString()) as Map,
+      );
+      expect(restored.haikuModel, id);
+      expect(restored.fableModel, 'f');
+    });
+  }
+
   group('保存校验', () {
     final validValues = {
       'haiku': 'claude-haiku-4-5-20251001',

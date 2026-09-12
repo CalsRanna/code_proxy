@@ -62,7 +62,8 @@ class ProxyServerRouter {
     return endpoints;
   }
 
-  void _recordSuccess(EndpointEntity endpoint) {
+  /// 完整响应成功结束后结算，流式响应不能在仅收到响应头时调用。
+  void recordSuccess(EndpointEntity endpoint) {
     final breaker = _circuitBreakerRegistry.getBreaker(endpoint.id);
     final wasHalfOpen =
         breaker.state == ProxyServerCircuitBreakerState.halfOpen;
@@ -146,7 +147,7 @@ class ProxyServerRouteSession {
 
   /// 显式记录当前端点成功，不推进会话。
   void recordSuccess() {
-    _router._recordSuccess(currentEndpoint!);
+    _router.recordSuccess(currentEndpoint!);
   }
 
   /// 显式记录一次普通失败；透明重试和客户端取消不调用此方法。

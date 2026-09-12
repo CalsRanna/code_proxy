@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:code_proxy/util/async_operation_queue.dart';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
@@ -45,15 +46,20 @@ class ProxyServerController {
   final ProxyServerFactory _createServer;
   final _circuitBreakerChanges = StreamController<void>.broadcast();
   ProxyServerService? _proxyServer;
+  final _lifecycle = AsyncOperationQueue();
+  bool _disposed = false;
   List<EndpointEntity> _endpoints = [];
 
   Stream<void> get circuitBreakerChanges => _circuitBreakerChanges.stream;
 
-  Future<void> start() async {
+  Future<void> start() => _lifecycle.run(() async {
+    if (_disposed) throw StateError('Proxy controller is disposed');
+    if (_proxyServer != null) return;
     _proxyServer = await _startConfiguredServer();
-  }
+  });
 
-  Future<void> restartProxyServer() async {
+  Future<void> restartProxyServer() => _lifecycle.run(() async {
+    if (_disposed) throw StateError('Proxy controller is disposed');
     final oldServer = _proxyServer;
     await oldServer?.stop();
     _proxyServer = null;
@@ -73,7 +79,7 @@ class ProxyServerController {
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
-  }
+  });
 
   Future<ProxyServerService> _startConfiguredServer() async {
     ProxyServerService? server;
@@ -188,8 +194,11 @@ class ProxyServerController {
     _circuitBreakerChanges.add(null);
   }
 
-  Future<void> dispose() async {
+  Future<void> dispose() => _lifecycle.run(() async {
+    if (_disposed) return;
+    _disposed = true;
     await _proxyServer?.stop();
+    _proxyServer = null;
     await _circuitBreakerChanges.close();
-  }
+  });
 }

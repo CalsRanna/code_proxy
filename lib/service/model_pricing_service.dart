@@ -11,10 +11,12 @@ import 'package:signals/signals.dart';
 
 class ModelPricingService {
   static final ModelPricingService instance = ModelPricingService._();
+
   /// 缓存数据语义版本：v6 起模型实体带 provider id，设置页按 provider 分组
   /// （v5 缓存缺少该字段，须作废后重新拉取）；v5 起带 release_date，
   /// 可按"近一年"滚动窗口重新过滤（v4 缓存缺少发布日期字段）。
   static const int _cacheSchemaVersion = 6;
+
   /// 缓存超过该时长未同步即视为过期，重新从 API 拉取。
   /// 与滚动窗口配套：窗口随时间滑动，缓存过老时可用模型会逐渐变少，
   /// 保持 30 天内新鲜可保证统计集完整。
@@ -57,7 +59,8 @@ class ModelPricingService {
         final updated = lastUpdated.value;
         // 缓存超过 [_maxCacheAge] 未同步则刷新：滚动窗口随时间滑动，
         // 旧缓存会让统计模型集偏离当前窗口。
-        final fresh = updated != null &&
+        final fresh =
+            updated != null &&
             DateTime.now().difference(updated) <= _maxCacheAge;
         if (cacheVersion >= _cacheSchemaVersion && fresh) {
           return;
@@ -113,6 +116,10 @@ class ModelPricingService {
     if (_pricingMap.containsKey(model)) return _pricingMap[model];
 
     final normalizedModel = normalizeModelId(model);
+    // 精确匹配必须先遍历完成，不能被较早出现的前缀变体占据同一优先级。
+    for (final entry in _pricingMap.entries) {
+      if (normalizeModelId(entry.key) == normalizedModel) return entry.value;
+    }
 
     // 前缀匹配：优先选择最长的匹配键（最精确的匹配）
     // 例如 model="claude-sonnet-4-20250514" 应优先匹配 "claude-sonnet-4-20250514"
@@ -121,12 +128,6 @@ class ModelPricingService {
     int bestLength = 0;
     for (final entry in _pricingMap.entries) {
       final normalizedEntryKey = normalizeModelId(entry.key);
-
-      if (normalizedModel == normalizedEntryKey &&
-          normalizedEntryKey.length > bestLength) {
-        bestMatch = entry.value;
-        bestLength = normalizedEntryKey.length;
-      }
 
       if (normalizedModel.startsWith(normalizedEntryKey) &&
           normalizedEntryKey.length > bestLength) {

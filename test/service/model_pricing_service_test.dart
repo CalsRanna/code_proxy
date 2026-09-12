@@ -7,6 +7,34 @@ import 'package:flutter_test/flutter_test.dart';
 String _dateStr(DateTime d) => d.toIso8601String().substring(0, 10);
 
 void main() {
+  test('归一化精确匹配优先于变体，且不依赖插入顺序', () {
+    const main = ModelPricingEntity(
+      modelId: 'gpt-5',
+      provider: 'openai',
+      inputPrice: 10,
+      outputPrice: 20,
+      contextWindow: 128000,
+    );
+    const mini = ModelPricingEntity(
+      modelId: 'gpt-5-mini',
+      provider: 'openai',
+      inputPrice: 1,
+      outputPrice: 2,
+      contextWindow: 32000,
+    );
+    final service = ModelPricingService.instance;
+    for (final models in [
+      [mini, main],
+      [main, mini],
+    ]) {
+      service.replacePricingForTesting(models);
+      for (final id in ['gpt-5', 'openai/gpt-5', 'GPT-5', ' gpt-5 ']) {
+        expect(service.getPricing(id), same(main));
+        expect(service.calculateCost(model: id, inputTokens: 1000000), 10);
+      }
+    }
+  });
+
   group('ModelPricingService', () {
     test('应匹配带 provider 前缀的 MiniMax 模型名', () {
       final service = ModelPricingService.instance;

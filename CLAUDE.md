@@ -46,7 +46,8 @@ CI（`.github/workflows/ci.yml`）锁定 Flutter 3.44.6，顺序执行 `pub get 
 
 重试语义（改动前务必对照 `proxy_server_router.dart` 与 `proxy_server_service.dart` 的注释）：
 
-- 2xx/3xx 成功；4xx 直接透传，不重试、不计入断路器；5xx 与传输异常记失败。
+- 2xx/3xx 在正文完整结束后结算成功；SSE 必须有成功结束信号，响应头不清零断路器。Responses 的 `response.failed` 走失败日志及断路器路径。4xx 直接透传，不重试、不计入断路器；5xx 与传输异常记失败。
+- 出站请求不自动跟随重定向；3xx 保留原始正文及 Location 透传给客户端，避免上游凭据被复制到新地址。
 - 断路器按端点跨请求共享连续失败计数，不是每请求独立的重试配额。
 - 「响应头未到达即连接关闭」的瞬时错误在同端点透明重试最多 2 次，不记日志、不计入断路器，但仅在断路器 closed 时允许。
 - 同端点重试用全抖动退避（`calculateProxyRetryDelayMs`），`Retry-After` 作为下限；断路器打开后立即切换下一端点。
@@ -62,7 +63,7 @@ CI（`.github/workflows/ci.yml`）锁定 Flutter 3.44.6，顺序执行 `pub get 
 
 ### 客户端配置写入
 
-`ProxyServerController.start()` 只有在端口绑定成功后才调用 `ProxyClientSettingsService.update`，后者先对 `~/.claude/settings.json` 与 Claude Desktop 3P 文件做快照，任一写入失败则整体回滚。所有 JSON 写入都走临时文件 + rename。Claude Desktop 未安装（配置目录不存在）时静默跳过。
+`ProxyServerController` 串行执行启动、重启和退出。`start()` 只有在端口绑定成功后才调用 `ProxyClientSettingsService.update`，后者先对 `~/.claude/settings.json` 与 Claude Desktop 3P 文件做快照，任一写入失败则整体回滚。快照、写入、回滚与单独的配置更新共用串行队列。JSON 使用独立临时文件 + rename；Unix 下凭据落盘前设为 0600，替换及回滚保留原权限，新文件默认 0600。Claude Desktop 未安装（配置目录不存在）时静默跳过。
 
 首选端口被占用时从 `preferences.getPort()` 起向后扫描最多 100 个端口，实际绑定端口回写偏好并同步到客户端配置。
 

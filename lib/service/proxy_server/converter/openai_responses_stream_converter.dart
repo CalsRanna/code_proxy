@@ -54,6 +54,7 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   /// 与 [_writer.finished] 分离：handleDone 也会置 [_writer.finished]，但它只是
   /// 收尾动作，不代表上游真正发送过完成信号。
   bool _receivedCompletionEvent = false;
+  Object? _error;
 
   OpenAiResponsesSseStreamConverter({this.originalModel});
 
@@ -95,6 +96,9 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
   /// 是否收到过完成信号（response.completed / incomplete / failed）。
   @override
   bool get isComplete => _receivedCompletionEvent;
+
+  @override
+  Object? get error => _error;
 
   @override
   bool get hasContentDelta => _writer.hasContentDelta;
@@ -152,6 +156,9 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
       case 'response.completed':
         final response = eventJson['response'];
         if (response is Map) _updateUsage(response['usage']);
+        if (_tools.values.any((tool) => tool.started)) {
+          _stopReason = 'tool_use';
+        }
         _receivedCompletionEvent = true;
         _finishSequence();
       case 'response.incomplete':
@@ -164,6 +171,7 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
         final response = eventJson['response'];
         final err = response is Map ? response['error'] : null;
         LoggerUtil.instance.w('Responses stream failed: $err');
+        _error = StateError('Upstream response failed: ${err ?? 'unknown'}');
         _receivedCompletionEvent = true;
         _writer.writeRaw(
           buildSseErrorEventText(

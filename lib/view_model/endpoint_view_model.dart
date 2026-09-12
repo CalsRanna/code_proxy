@@ -42,8 +42,14 @@ class EndpointViewModel {
     EndpointAuthMode authMode = EndpointAuthMode.preserve,
     EndpointApiFormat apiFormat = EndpointApiFormat.anthropic,
   }) async {
-    // 计算新的 weight 值：当前列表数量 + 1（作为最后一个）
-    final newWeight = endpoints.value.length + 1;
+    // 按当前顺序重编，清理删除后的空隙和旧版已产生的重复权重。
+    final current = List<EndpointEntity>.of(endpoints.value);
+    for (final (index, endpoint) in current.indexed) {
+      if (endpoint.weight != index + 1) {
+        await _endpointRepository.update(endpoint.copyWith(weight: index + 1));
+      }
+    }
+    final newWeight = current.length + 1;
 
     final endpoint = EndpointEntity(
       id: _uuid.v4(),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/service/proxy_settings_file.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
@@ -57,12 +58,25 @@ class ClaudeCodeSettingService {
     String? authToken,
     int? port,
     bool? backgroundDataCollection,
+  }) => ProxySettingsFile.serialized(
+    () => _updateProxySetting(
+      authToken: authToken,
+      port: port,
+      backgroundDataCollection: backgroundDataCollection,
+    ),
+  );
+
+  Future<void> _updateProxySetting({
+    String? authToken,
+    int? port,
+    bool? backgroundDataCollection,
   }) async {
     final instance = SharedPreferenceUtil.instance;
     final resolvedPort = port ?? await instance.getPort();
     final apiTimeout = await instance.getApiTimeout();
     final backgroundDataCollectionEnabled =
-        backgroundDataCollection ?? await instance.getBackgroundDataCollection();
+        backgroundDataCollection ??
+        await instance.getBackgroundDataCollection();
     final experimentalApiFeatures = await instance.getExperimentalApiFeatures();
     final clientAttribution = await instance.getClientAttribution();
     final enableAgentTeams = await instance.getEnableAgentTeams();
@@ -128,16 +142,7 @@ class ClaudeCodeSettingService {
     }
 
     final json = JsonEncoder.withIndent('  ').convert(existing);
-    final tempPath = '${file.path}.tmp';
-    final tempFile = File(tempPath);
-    try {
-      await tempFile.writeAsString(json, flush: true);
-      await tempFile.rename(file.path);
-    } finally {
-      if (await tempFile.exists()) {
-        await tempFile.delete();
-      }
-    }
+    await ProxySettingsFile.write(file, utf8.encode(json));
   }
 
   static Future<Map<String, dynamic>> _readJsonObject(File file) async {

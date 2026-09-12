@@ -28,6 +28,78 @@ void main() {
     }
   });
 
+  test('CLI 并发更新完整提交且保留原权限和用户字段', () async {
+    final file = File(p.join(tempDirectory.path, 'settings.json'));
+    await file.writeAsString('{"hooks":{"keep":true}}');
+    if (!Platform.isWindows) {
+      expect((await Process.run('chmod', ['600', file.path])).exitCode, 0);
+    }
+    final service = ClaudeCodeSettingService(settingsPath: file.path);
+    await Future.wait(
+      List.generate(
+        10,
+        (i) =>
+            service.updateProxySetting(authToken: 'token-$i', port: 9000 + i),
+      ),
+    );
+    final json = jsonDecode(await file.readAsString());
+    expect(json['hooks']['keep'], isTrue);
+    expect(json['env']['ANTHROPIC_AUTH_TOKEN'], 'token-9');
+    expect(json['env']['ANTHROPIC_BASE_URL'], 'http://127.0.0.1:9009');
+    if (!Platform.isWindows) expect((await file.stat()).mode & 0x1ff, 0x180);
+    expect(await tempDirectory.list().length, 1);
+  });
+
+  test('Desktop 并发更新保持多文件一致和原有 0600 权限', () async {
+    final service = ClaudeDesktopSettingService(
+      paths: ClaudeDesktopConfigPaths(
+        normalConfigDir: p.join(tempDirectory.path, 'Claude'),
+        threepConfigDir: p.join(tempDirectory.path, 'Claude-3p'),
+      ),
+    );
+    for (final path in service.managedFilePaths) {
+      final file = File(path);
+      await file.parent.create(recursive: true);
+      await file.writeAsString('{}');
+      if (!Platform.isWindows) {
+        expect((await Process.run('chmod', ['600', path])).exitCode, 0);
+      }
+    }
+    await Future.wait(
+      List.generate(
+        5,
+        (i) =>
+            service.updateProxySetting(authToken: 'token-$i', port: 9100 + i),
+      ),
+    );
+    for (final path in service.managedFilePaths) {
+      final file = File(path);
+      final json = jsonDecode(await file.readAsString());
+      if (json.containsKey('inferenceGatewayApiKey')) {
+        expect(json['inferenceGatewayApiKey'], 'token-4');
+        expect(json['inferenceGatewayBaseUrl'], 'http://localhost:9104');
+      }
+      if (!Platform.isWindows) expect((await file.stat()).mode & 0x1ff, 0x180);
+    }
+  });
+
+  test('新建含令牌配置仅当前用户可读，快照恢复原权限', () async {
+    final file = File(p.join(tempDirectory.path, 'settings.json'));
+    await ClaudeCodeSettingService(
+      settingsPath: file.path,
+    ).updateProxySetting(authToken: 'private-token', port: 9000);
+    final original = await file.readAsBytes();
+    if (!Platform.isWindows) expect((await file.stat()).mode & 0x1ff, 0x180);
+    final snapshot = await ProxySettingsSnapshot.capture([file.path]);
+    await file.writeAsString('changed');
+    if (!Platform.isWindows) {
+      expect((await Process.run('chmod', ['644', file.path])).exitCode, 0);
+    }
+    await snapshot.restore();
+    expect(await file.readAsBytes(), original);
+    if (!Platform.isWindows) expect((await file.stat()).mode & 0x1ff, 0x180);
+  });
+
   test('本地代理令牌安全生成并在多次读取之间保持稳定', () async {
     final first = await SharedPreferenceUtil.instance
         .getOrCreateProxyAuthToken();

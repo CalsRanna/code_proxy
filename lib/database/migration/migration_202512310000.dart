@@ -7,22 +7,20 @@ import 'package:laconic/laconic.dart';
 class Migration202512310000 {
   static const name = 'migration_202512310000';
 
-  Future<void> migrate(Laconic laconic) async {
+  Future<void> migrate(Laconic laconic) => laconic.transaction(() async {
     final count = await laconic.table('migrations').where('name', name).count();
-    if (count > 0) {
-      return;
+    if (count > 0) return;
+
+    // 旧版可能已加列、尚未登记；只补齐缺失列，并原子提交迁移记录。
+    final info = await laconic.select("PRAGMA table_info('request_logs')");
+    final columns = info.map((row) => row['name']).toSet();
+    if (!columns.contains('error_message')) {
+      await laconic.statement(
+        'ALTER TABLE request_logs ADD COLUMN error_message TEXT',
+      );
     }
-
-    // 添加 error_message 字段
-    // TEXT 类型在 SQLite 中没有长度限制,最大可存储约 1GB 数据
-    // 对于错误响应,通常在几 KB 范围内,完全满足需求
-    await laconic.statement('''
-      ALTER TABLE request_logs ADD COLUMN error_message TEXT
-    ''');
-
-    // 记录迁移完成
     await laconic.table('migrations').insert([
       {'name': name},
     ]);
-  }
+  });
 }

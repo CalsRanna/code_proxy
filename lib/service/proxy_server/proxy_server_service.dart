@@ -238,6 +238,10 @@ class ProxyServerService {
     final recorder = RequestAttemptRecorder(
       onRequestCompleted: (endpoint, request, response) {
         if (!cancellation.isCancelled) {
+          // 记录器在正文完整结束后回调，兼顾普通响应与 SSE。
+          if (response.statusCode >= 200 && response.statusCode < 400) {
+            _router.recordSuccess(endpoint);
+          }
           onRequestCompleted?.call(endpoint, request, response);
         }
       },
@@ -344,7 +348,6 @@ class ProxyServerService {
       }
       cancellation.throwIfCancelled();
       if (succeeded) {
-        routeSession.recordSuccess();
         break;
       }
       routeSession.recordFailure();

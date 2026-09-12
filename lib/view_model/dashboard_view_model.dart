@@ -64,17 +64,20 @@ class DashboardViewModel {
     if (!_dirty && isFresh) return;
 
     _loading = true;
+    // 先消费旧标记，加载期间的 markDirty 必须留给下一轮。
+    _dirty = false;
     try {
-      _loadStats();
-      // 查询发起即视为已刷新：加载失败会在下次超窗（或 markDirty）后重试
-      _lastLoadedAt = DateTime.now();
-      _dirty = false;
+      if (await _loadStats()) {
+        _lastLoadedAt = DateTime.now();
+      } else {
+        _dirty = true;
+      }
     } finally {
       _loading = false;
     }
   }
 
-  Future<void> _loadStats() async {
+  Future<bool> _loadStats() async {
     try {
       // 聚合查询在后台 isolate 执行（见 DashboardStatsLoader），
       // 5 万行以上的全年/全历史聚合不再阻塞 UI isolate。
@@ -95,8 +98,10 @@ class DashboardViewModel {
       dailyCost.value = _toDailyCost(stats.recentModelTokens);
       totalCost.value = _totalCost(stats.allModelTokens);
       overviewStats.value = stats.overview;
+      return true;
     } catch (e) {
       LoggerUtil.instance.e('Failed to load dashboard stats: $e');
+      return false;
     }
   }
 

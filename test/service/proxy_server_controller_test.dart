@@ -110,6 +110,48 @@ void main() {
   });
   tearDown(() => controller.dispose());
 
+  test('并发重启按顺序完成，始终保留唯一的活动实例', () async {
+    await controller.start();
+    settings.barrier = Completer<void>();
+    final first = controller.restartProxyServer();
+    // 等到第一轮新实例完成监听，停在配置写入阶段。
+    while (settings.ports.length < 2) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    final second = controller.restartProxyServer();
+    await Future<void>.delayed(Duration.zero);
+    expect(settings.ports, hasLength(2));
+    expect(servers.where((s) => s.running), hasLength(1));
+    settings.barrier!.complete();
+    await Future.wait([first, second]);
+    expect(servers, hasLength(3));
+    expect(servers.where((s) => s.running), [servers.last]);
+    await controller.dispose();
+    expect(servers.every((s) => !s.running), isTrue);
+  });
+
+  test('启动期间 dispose 等待配置结束并关闭监听，之后禁止重新启动', () async {
+    settings.barrier = Completer<void>();
+    final starting = controller.start();
+    await settings.entered.future;
+    final disposing = controller.dispose();
+    settings.barrier!.complete();
+    await starting;
+    await disposing;
+    expect(servers.single.running, isFalse);
+    await expectLater(controller.start(), throwsStateError);
+    expect(servers, hasLength(1));
+  });
+
+  test('失败操作不会阻塞后续启动，并发 start 不会重复监听', () async {
+    settings.fail = true;
+    await expectLater(controller.start(), throwsStateError);
+    settings.fail = false;
+    await Future.wait([controller.start(), controller.start()]);
+    expect(servers, hasLength(2));
+    expect(servers.where((s) => s.running), [servers.last]);
+  });
+
   test(
     'occupied port scans forward and publishes the bound port and endpoints',
     () async {

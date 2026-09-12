@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_proxy/model/endpoint_entity.dart';
+import 'package:code_proxy/model/default_model_config.dart';
+import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_config.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_response.dart';
 import 'package:code_proxy/service/proxy_server/proxy_server_service.dart';
@@ -57,12 +59,14 @@ void main() {
     List<EndpointEntity> endpoints, {
     int timeout = 3000,
     int threshold = 5,
+    int recoveryMs = 60000,
   }) async {
     proxy = ProxyServerService(
       config: ProxyServerConfig(
         port: 0,
         apiTimeoutMs: timeout,
         circuitBreakerFailureThreshold: threshold,
+        circuitBreakerRecoveryTimeoutMs: recoveryMs,
       ),
       authToken: testProxyAuthToken,
       onEndpointUnavailable: (_) => unavailable++,
@@ -97,6 +101,9 @@ void main() {
       http.Response.fromStream(await client().send(request()));
 
   setUp(() {
+    DefaultModelConfigService.instance.replaceConfigForTesting(
+      DefaultModelConfig.defaultConfig,
+    );
     logs.clear();
     unavailable = 0;
     restored = 0;
@@ -117,6 +124,124 @@ void main() {
       await server.close();
     }
     rawServers.clear();
+  });
+
+  test('双认证头只转发所选上游凭据', () async {
+    String? authorization;
+    String? key;
+    final a = await upstream((r) async {
+      authorization = r.headers.value('authorization');
+      key = r.headers.value('x-api-key');
+      r.response.write('{}');
+      await r.response.close();
+    });
+    await start([endpoint('a', a.port)]);
+    final req = request()
+      ..headers['authorization'] = 'Bearer $testProxyAuthToken';
+    expect(
+      (await http.Response.fromStream(await client().send(req))).statusCode,
+      200,
+    );
+    expect(authorization, isNull);
+    expect(key, 'upstream-secret');
+  });
+
+  for (final format in EndpointApiFormat.values) {
+    test('${format.name} 303 透传 Location，不向新地址发送凭据', () async {
+      var targetHits = 0;
+      final target = await upstream((r) async {
+        targetHits++;
+        await r.response.close();
+      });
+      final location = 'http://localhost:${target.port}/collect';
+      final a = await upstream((r) async {
+        r.response.statusCode = 303;
+        r.response.headers.set('location', location);
+        r.response.write('redirect body');
+        await r.response.close();
+      });
+      await start([endpoint('a', a.port, format: format)]);
+      final req = request()..followRedirects = false;
+      final result = await http.Response.fromStream(await client().send(req));
+      expect(result.statusCode, 303);
+      expect(result.headers['location'], location);
+      expect(result.body, 'redirect body');
+      expect(targetHits, 0);
+    });
+
+    test('${format.name} 连续五次流失败后熔断并切换备用', () async {
+      var hits = 0;
+      final brokenStream = switch (format) {
+        EndpointApiFormat.anthropic =>
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}\n\n',
+        EndpointApiFormat.openaiChat =>
+          'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',
+        EndpointApiFormat.openaiResponses =>
+          'data: {"type":"response.failed","response":{"error":{"message":"boom"}}}\n\n',
+      };
+      final a = await upstream((r) async {
+        hits++;
+        r.response.headers.set('content-type', 'text/event-stream');
+        r.response.write(brokenStream);
+        await r.response.close();
+      });
+      final b = await upstream((r) async {
+        r.response.write('backup');
+        await r.response.close();
+      });
+      await start([
+        endpoint('a', a.port, format: format),
+        endpoint('b', b.port),
+      ]);
+      for (var i = 0; i < 5; i++) {
+        final result = await http.Response.fromStream(
+          await client().send(request(stream: true)),
+        );
+        expect(result.body, contains('event: error'));
+      }
+      expect(hits, 5);
+      expect(logs.map((r) => r.statusCode), everyElement(502));
+      expect(proxy!.getOpenCircuitBreakerEndpointIds(['a']), {'a'});
+      expect((await send()).body, 'backup');
+      expect(hits, 5);
+    });
+  }
+
+  test('半开 SSE 探测必须等正文完整结束才宣布恢复', () async {
+    var hits = 0;
+    final release = Completer<void>();
+    addTearDown(() {
+      if (!release.isCompleted) release.complete();
+    });
+    final a = await upstream((r) async {
+      hits++;
+      r.response.headers.set('content-type', 'text/event-stream');
+      r.response.bufferOutput = false;
+      r.response.write('data: {"type":"ping"}\n\n');
+      if (hits > 1) {
+        // 足够大的合法 SSE 注释，确保穿过下游 HTTP 缓冲后再检查断路器。
+        r.response.write(': ${'x' * 65536}\n\n');
+        await r.response.flush();
+        await release.future;
+        r.response.write('data: {"type":"message_stop"}\n\n');
+      }
+      await r.response.close();
+    });
+    await start([endpoint('a', a.port)], threshold: 1, recoveryMs: 20);
+    await http.Response.fromStream(await client().send(request(stream: true)));
+    expect(unavailable, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    final response = await client().send(request(stream: true));
+    final received = Completer<void>();
+    final done = response.stream.listen((_) {
+      if (!received.isCompleted) received.complete();
+    }).asFuture<void>();
+    await received.future;
+    expect(restored, 0);
+    release.complete();
+    await done;
+    expect(restored, 1);
+    expect(logs.last.statusCode, 200);
   });
 
   for (final status in [500, 502, 503]) {

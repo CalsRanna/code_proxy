@@ -6,6 +6,27 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const converter = OpenAiChatRequestConverter();
 
+  for (final model in [
+    'o1',
+    'o1-mini',
+    'o3',
+    'o3-2025-04-16',
+    'o4-mini',
+    'openai/o3',
+  ]) {
+    test('$model 使用兼容的输出上限参数', () {
+      final result = converter.convert({
+        'model': model,
+        'max_tokens': 1024,
+        'messages': [
+          {'role': 'user', 'content': 'hi'},
+        ],
+      });
+      expect(result['max_completion_tokens'], 1024);
+      expect(result.containsKey('max_tokens'), isFalse);
+    });
+  }
+
   Map<String, dynamic> convert(Map<String, dynamic> body) {
     return converter.convert(body);
   }
@@ -237,10 +258,7 @@ void main() {
       expect((msg['tool_calls'] as List)[0], {
         'id': 'toolu_01',
         'type': 'function',
-        'function': {
-          'name': 'read_file',
-          'arguments': '{"path":"/a.txt"}',
-        },
+        'function': {'name': 'read_file', 'arguments': '{"path":"/a.txt"}'},
       });
     });
 
@@ -251,11 +269,7 @@ void main() {
           {
             'role': 'assistant',
             'content': [
-              {
-                'type': 'thinking',
-                'thinking': 'internal',
-                'signature': 'sig',
-              },
+              {'type': 'thinking', 'thinking': 'internal', 'signature': 'sig'},
               {'type': 'text', 'text': 'answer'},
             ],
           },
@@ -271,19 +285,11 @@ void main() {
       final result = convert({
         'model': 'm',
         'messages': [
-          {
-            'role': 'user',
-            'content': 'list files',
-          },
+          {'role': 'user', 'content': 'list files'},
           {
             'role': 'assistant',
             'content': [
-              {
-                'type': 'tool_use',
-                'id': 'toolu_01',
-                'name': 'ls',
-                'input': {},
-              },
+              {'type': 'tool_use', 'id': 'toolu_01', 'name': 'ls', 'input': {}},
             ],
           },
           {
@@ -342,7 +348,9 @@ void main() {
             'description': 'Get weather',
             'input_schema': {
               'type': 'object',
-              'properties': {'city': {'type': 'string'}},
+              'properties': {
+                'city': {'type': 'string'},
+              },
             },
           },
         ],
@@ -372,7 +380,12 @@ void main() {
         'tools': [
           {'type': 'web_search_20250305', 'name': 'web_search'},
           {'name': '', 'description': '', 'input_schema': {}},
-          {'type': 'custom', 'name': 'ok', 'description': 'd', 'input_schema': {}},
+          {
+            'type': 'custom',
+            'name': 'ok',
+            'description': 'd',
+            'input_schema': {},
+          },
         ],
         'messages': [
           {'role': 'user', 'content': 'x'},
@@ -430,12 +443,12 @@ void main() {
 
     test('effort 不降级：xhigh/max 原样透传', () {
       Map<String, dynamic> withEffort(String effort) => convert({
-            'model': 'm',
-            'output_config': {'effort': effort},
-            'messages': [
-              {'role': 'user', 'content': 'x'},
-            ],
-          });
+        'model': 'm',
+        'output_config': {'effort': effort},
+        'messages': [
+          {'role': 'user', 'content': 'x'},
+        ],
+      });
       expect(withEffort('xhigh')['reasoning_effort'], 'xhigh');
       expect(withEffort('high')['reasoning_effort'], 'high');
       expect(withEffort('low')['reasoning_effort'], 'low');

@@ -94,6 +94,9 @@ class OpenAiChatSseStreamConverter implements OpenAiSseConverter {
   bool get isComplete => _done || _receivedFinishReason;
 
   @override
+  Object? get error => null;
+
+  @override
   bool get hasContentDelta => _writer.hasContentDelta;
 
   /// 取走当前累计的输出并清空缓冲。

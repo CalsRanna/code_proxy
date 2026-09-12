@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/service/proxy_settings_file.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:path/path.dart';
@@ -130,6 +131,18 @@ class ClaudeDesktopSettingService {
     String? authToken,
     int? port,
     bool? backgroundDataCollection,
+  }) => ProxySettingsFile.serialized(
+    () => _updateProxySetting(
+      authToken: authToken,
+      port: port,
+      backgroundDataCollection: backgroundDataCollection,
+    ),
+  );
+
+  Future<void> _updateProxySetting({
+    String? authToken,
+    int? port,
+    bool? backgroundDataCollection,
   }) async {
     if (!isClaudeDesktopInstalled) return;
 
@@ -137,7 +150,8 @@ class ClaudeDesktopSettingService {
     final resolvedPort = port ?? await instance.getPort();
     final token = authToken ?? await instance.getOrCreateProxyAuthToken();
     final backgroundDataCollectionEnabled =
-        backgroundDataCollection ?? await instance.getBackgroundDataCollection();
+        backgroundDataCollection ??
+        await instance.getBackgroundDataCollection();
 
     // 在产生任何写入之前解析全部共享配置。损坏的用户配置必须让更新
     // 失败关闭，不能退化为空对象后覆盖原文件。
@@ -210,17 +224,7 @@ class ClaudeDesktopSettingService {
 
   Future<void> _writeJsonFile(String path, Map<String, dynamic> data) async {
     final json = JsonEncoder.withIndent('  ').convert(data);
-    final tempPath = '$path.tmp';
-    final tempFile = File(tempPath);
-    try {
-      await tempFile.parent.create(recursive: true);
-      await tempFile.writeAsString(json, flush: true);
-      await tempFile.rename(path);
-    } finally {
-      if (await tempFile.exists()) {
-        await tempFile.delete();
-      }
-    }
+    await ProxySettingsFile.write(File(path), utf8.encode(json));
   }
 
   static Future<Map<String, dynamic>> _readJsonObject(File file) async {

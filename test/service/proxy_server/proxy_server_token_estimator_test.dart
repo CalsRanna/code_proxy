@@ -4,6 +4,50 @@ import 'package:code_proxy/service/proxy_server/proxy_server_token_estimator.dar
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('工具结果字符串和嵌套文本均参与估算，工具参数也参与估算', () {
+    final text = 'x' * 40000;
+    int count(Object content) => ProxyServerTokenEstimator.estimateRequestBody(
+      utf8.encode(
+        jsonEncode({
+          'messages': [
+            {'role': 'user', 'content': content},
+          ],
+        }),
+      ),
+    );
+    final expected = count(text);
+    expect(expected, 10005);
+    expect(
+      count([
+        {'type': 'tool_result', 'tool_use_id': 't1', 'content': text},
+      ]),
+      expected,
+    );
+    expect(
+      count([
+        {
+          'type': 'tool_result',
+          'tool_use_id': 't1',
+          'content': [
+            {'type': 'text', 'text': text},
+          ],
+        },
+      ]),
+      expected,
+    );
+    expect(
+      count([
+        {
+          'type': 'tool_use',
+          'id': 't1',
+          'name': 'write',
+          'input': {'text': text},
+        },
+      ]),
+      greaterThanOrEqualTo(expected),
+    );
+  });
+
   group('ProxyServerTokenEstimator', () {
     group('estimate', () {
       test('空字符串返回 0', () {
