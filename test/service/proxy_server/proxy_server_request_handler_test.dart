@@ -307,6 +307,19 @@ void main() {
       expect(prepared.mappedModel, 'unknown-model');
     });
 
+    for (final override in <String?>[null, '']) {
+      test('端点映射为 $override 时，日志模型与原样转发的请求模型一致', () {
+        const raw = '{"model":"claude-opus-5",  "max_tokens":16}';
+        final prepared = handler.prepareRequest(
+          shelfRequest(),
+          endpointOf('fallback', opusModel: override),
+          ProxyServerRequestBody(utf8.encode(raw)),
+        );
+        expect(prepared.request.bodyBytes, utf8.encode(raw));
+        expect(prepared.mappedModel, 'claude-opus-5');
+      });
+    }
+
     test('模型映射命中时改写 model，共享解析结果保持原值', () {
       const raw = '{"model":"claude-opus-5","max_tokens":16}';
       final body = ProxyServerRequestBody(utf8.encode(raw));

@@ -60,6 +60,30 @@ void main() {
       );
     });
 
+    for (final override in <String?>[null, '']) {
+      for (final field in DefaultModelConfig.familyFields) {
+        test('${field.family} 端点映射为 $override 时回退原始模型', () {
+          final endpoint = EndpointEntity(
+            id: 'empty',
+            name: 'Empty',
+            haikuModel: override,
+            sonnetModel: override,
+            opusModel: override,
+            fableModel: override,
+          );
+          final originalModel = globalConfig.valueFor(field);
+          expect(
+            ProxyServerModelMapper.mapModel(
+              originalModel,
+              endpoint: endpoint,
+              defaultConfig: globalConfig,
+            ),
+            originalModel,
+          );
+        });
+      }
+    }
+
     test('fable 入口且端点已配置映射 → 端点覆盖优先', () {
       expect(
         ProxyServerModelMapper.mapModel(

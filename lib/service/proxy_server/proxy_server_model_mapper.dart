@@ -6,8 +6,8 @@ class ProxyServerModelMapper {
   ///
   /// 入口(客户端发送的 model 名)为 default_model 中的真实模型 ID:
   /// CLI/Desktop 从 GET /v1/models(发现列表返回同一 ID)获得后原样回传。
-  /// 出口取**当前端点**的同族映射字段:端点未配置时原样透传
-  /// (入口 ID 即全局默认,`?? originalModel` 与"回退全局默认"数值等价)。
+  /// 出口取**当前端点**的同族映射字段:端点为 null 或空字符串时原样透传
+  /// (入口 ID 即全局默认,回退原始模型与"回退全局默认"数值等价)。
   /// 故障转移只重新解析出口,入口恒定 → 客户端无感。
   /// 未命中全局入口 ID 的模型原样透传,不按前缀或家族名推断映射。
   ///
@@ -24,7 +24,8 @@ class ProxyServerModelMapper {
     // 遍历元数据表(而非硬编码),新增家族自动生效。
     for (final field in DefaultModelConfig.familyFields) {
       if (originalModel == defaultConfig.valueFor(field)) {
-        return _endpointOverrideFor(endpoint, field.family) ?? originalModel;
+        final override = _endpointOverrideFor(endpoint, field.family);
+        return override == null || override.isEmpty ? originalModel : override;
       }
     }
 
