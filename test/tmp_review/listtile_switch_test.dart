@@ -6,22 +6,31 @@ void main() {
     var tileTaps = 0;
     var switchChanges = 0;
     var value = false;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: StatefulBuilder(
-          builder: (context, setState) => ListTile(
-            title: const Text('t'),
-            trailing: Switch(
-              value: value,
-              onChanged: (v) { switchChanges++; value = v; },
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => ListTile(
+              title: const Text('t'),
+              trailing: Switch(
+                value: value,
+                onChanged: (v) {
+                  switchChanges++;
+                  value = v;
+                },
+              ),
+              onTap: () {
+                tileTaps++;
+              },
             ),
-            onTap: () { tileTaps++; },
           ),
         ),
       ),
-    ));
+    );
     await tester.tap(find.byType(Switch));
     await tester.pump();
-    print('tileTaps=$tileTaps switchChanges=$switchChanges value=$value');
+    expect(tileTaps, 0);
+    expect(switchChanges, 1);
+    expect(value, isTrue);
   });
 }
