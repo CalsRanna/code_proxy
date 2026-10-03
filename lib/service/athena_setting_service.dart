@@ -139,13 +139,11 @@ class AthenaSettingService {
       // 更换默认模型时旧的能力元数据不再可信；未知上下文用 Athena 的 0 约定。
       'contextWindow':
           contextWindow ?? (changed ? 0 : existing['contextWindow'] ?? 0),
-      if (changed) ...{
-        'outputLimit': 0,
-        'reasoning': false,
-        'vision': false,
-        'inputPrice': '',
-        'outputPrice': '',
-      },
+      // 这些是代理的族入口，实际模型由端点映射决定。Athena 依此显示
+      // 推理强度与图片输入；每次同步纠正旧版生成的 false，不能按展示名关闭。
+      'reasoning': true,
+      'vision': true,
+      if (changed) ...{'outputLimit': 0, 'inputPrice': '', 'outputPrice': ''},
       'isPreset': false,
       'createdAt': existing['createdAt'] ?? now,
       'updatedAt': now,

@@ -87,6 +87,8 @@ void main() {
       ]);
       expect(models[2]['contextWindow'], 200000);
       expect(models[0]['contextWindow'], 0);
+      expect(models.every((model) => model['reasoning'] == true), isTrue);
+      expect(models.every((model) => model['vision'] == true), isTrue);
       if (!Platform.isWindows) expect((await file.stat()).mode & 0x1ff, 0x180);
     },
   );
@@ -182,9 +184,72 @@ void main() {
       expect(model['modelId'], 'new-opus');
       expect(model['contextWindow'], 0);
       expect(model['outputLimit'], 0);
-      expect(model['vision'], isFalse);
-      expect(model['reasoning'], isFalse);
+      expect(model['vision'], isTrue);
+      expect(model['reasoning'], isTrue);
       expect(model['inputPrice'], '');
+    },
+  );
+
+  test(
+    'existing disabled reasoning and vision flags are repaired while custom models stay unchanged',
+    () async {
+      await update();
+      final raw = await read();
+      final models = [
+        for (final model in raw['models'] as List)
+          {
+            ...Map<String, dynamic>.from(model),
+            'reasoning': false,
+            'vision': false,
+          },
+      ];
+      // 缺失标记与 false 在 Athena 中等价，都应在同步时纠正。
+      models.first.remove('reasoning');
+      models.first.remove('vision');
+      final custom = {
+        'id': 'custom-model',
+        'name': 'Custom',
+        'modelId': 'custom',
+        'reasoning': false,
+        'vision': false,
+      };
+      await seed({
+        ...Map<String, dynamic>.from(raw),
+        'enabled': false,
+        'models': [...models, custom],
+      });
+
+      await update();
+      final updated = await read();
+      final updatedModels = updated['models'] as List;
+      expect(updated['enabled'], isFalse);
+      expect(
+        updatedModels.take(4).every((model) => model['reasoning'] == true),
+        isTrue,
+      );
+      expect(
+        updatedModels.take(4).every((model) => model['vision'] == true),
+        isTrue,
+      );
+      expect(
+        updatedModels.take(4).map((model) => model['id']),
+        models.map((model) => model['id']),
+      );
+      expect(
+        updatedModels.take(4).map((model) => model['modelId']),
+        models.map((model) => model['modelId']),
+      );
+      expect(updatedModels.last, custom);
+      // 重复同步不会把推理与图像能力再次关闭。
+      await update();
+      expect(
+        ((await read())['models'] as List)
+            .take(4)
+            .every(
+              (model) => model['reasoning'] == true && model['vision'] == true,
+            ),
+        isTrue,
+      );
     },
   );
 
