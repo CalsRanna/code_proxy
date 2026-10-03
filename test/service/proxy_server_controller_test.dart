@@ -59,9 +59,21 @@ class _Server extends Fake implements ProxyServerService {
 
 class _ClientSettings extends Fake implements ProxyClientSettingsService {
   final ports = <int>[];
+  final athenaPorts = <int>[];
+  String? athenaError;
   bool fail = false;
   Completer<void>? barrier;
   final entered = Completer<void>();
+  @override
+  Future<String?> updateAthena({
+    required String authToken,
+    required int port,
+  }) async {
+    expect(authToken, 'local-test-token');
+    athenaPorts.add(port);
+    return athenaError;
+  }
+
   @override
   Future<void> update({required String authToken, required int port}) async {
     expect(authToken, 'local-test-token');
@@ -109,6 +121,21 @@ void main() {
     );
   });
   tearDown(() => controller.dispose());
+
+  test(
+    'model sync skips stopped proxy and uses running port after port scan',
+    () async {
+      expect(await controller.syncAthenaSettings(), isNull);
+      expect(settings.athenaPorts, isEmpty);
+      startError = (port) =>
+          port == 9000 ? const SocketException('occupied') : null;
+      await controller.start();
+      settings.athenaError = 'Athena warning';
+      expect(await controller.syncAthenaSettings(), 'Athena warning');
+      expect(settings.athenaPorts, [9001]);
+      expect(servers.last.running, isTrue);
+    },
+  );
 
   test('并发重启按顺序完成，始终保留唯一的活动实例', () async {
     await controller.start();

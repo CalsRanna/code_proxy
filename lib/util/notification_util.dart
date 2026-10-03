@@ -62,6 +62,16 @@ class NotificationUtil {
     _showNotification(title: '端点已恢复', body: '$endpointName 端点已恢复');
   }
 
+  Future<void> showAthenaSyncFailedNotification() async {
+    final enabled = await SharedPreferenceUtil.instance
+        .getNotificationEnabled();
+    if (!enabled) return;
+    await _showNotification(
+      title: 'Athena 配置同步失败',
+      body: '代理已启动，请检查 Athena 配置文件的格式和写入权限后重试。',
+    );
+  }
+
   Future<void> _showNotification({
     required String title,
     required String body,

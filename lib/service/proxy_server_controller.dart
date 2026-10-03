@@ -81,6 +81,14 @@ class ProxyServerController {
     }
   });
 
+  /// 模型保存后同步正在运行的实际端口；未启动时留到下次启动再写。
+  Future<String?> syncAthenaSettings() => _lifecycle.run(() async {
+    final port = _proxyServer?.boundPort;
+    if (port == null) return null;
+    final authToken = await _preferences.getOrCreateProxyAuthToken();
+    return _clientSettings.updateAthena(authToken: authToken, port: port);
+  });
+
   Future<ProxyServerService> _startConfiguredServer() async {
     ProxyServerService? server;
     try {

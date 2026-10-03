@@ -2,6 +2,7 @@ import 'package:code_proxy/database/database.dart';
 import 'package:code_proxy/repository/endpoint_repository.dart';
 import 'package:code_proxy/repository/request_log_repository.dart';
 import 'package:code_proxy/service/app_maintenance_service.dart';
+import 'package:code_proxy/service/athena_setting_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/dashboard_stats_loader.dart';
@@ -30,10 +31,14 @@ class DI {
     );
     instance.registerLazySingleton(() => ClaudeCodeSettingService());
     instance.registerLazySingleton(() => ClaudeDesktopSettingService());
+    instance.registerLazySingleton(() => AthenaSettingService());
     instance.registerLazySingleton(
       () => ProxyClientSettingsService(
         code: instance.get<ClaudeCodeSettingService>(),
         desktop: instance.get<ClaudeDesktopSettingService>(),
+        athena: instance.get<AthenaSettingService>(),
+        onAthenaSyncFailed:
+            NotificationUtil.instance.showAthenaSyncFailedNotification,
       ),
     );
     instance.registerLazySingleton(

@@ -283,9 +283,10 @@ class SettingViewModel {
       for (final field in DefaultModelConfig.familyFields) {
         defaultModelValues[field.family]!.value = config.valueFor(field);
       }
-      return null;
     } catch (error) {
       return '保存配置失败: $error';
     }
+    final syncError = await _proxy.syncAthenaSettings();
+    return syncError == null ? null : '默认模型配置已保存。$syncError';
   }
 }

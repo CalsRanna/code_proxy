@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  面向 Claude Code 与 Claude Desktop 的本地 Anthropic API 代理管理器。<br />
+  面向 Claude Code、Claude Desktop 与 Athena 的本地 Anthropic API 代理管理器。<br />
   多端点故障转移、模型映射、OpenAI 协议转换、用量与费用统计，一个桌面应用全部搞定。
 </p>
 
@@ -87,6 +87,13 @@ Code Proxy 在本机 `127.0.0.1` 上启动一个 HTTP 代理服务器，并自�
 
 设置页中可切换的 Claude 相关选项包括：API 超时、客户端归属标识、实验性 API 特性、后台数据收集、多代理协作、AI 提交署名。
 
+### Athena 集成
+
+- 检测到 `~/.athena/` 后，代理启动成功时自动创建或更新 `~/.athena/providers/code-proxy.yaml`，首次创建的「Code Proxy」Provider 默认启用。
+- 使用 Messages 协议、实际监听端口及本地认证令牌；模型显示名称和请求模型名均来自全局默认模型配置，本地模型 ID 按族固定，升级默认模型后会话引用保持有效。
+- 设置页保存默认模型时也同步正在运行的代理配置。用户的 Provider 名称、启停状态、自定义模型和其他字段按原值保留；同步使用 Athena 的跨进程文件锁与原子写入，新文件权限为 `0600`（Windows 沿用父目录 ACL）。
+- 未使用 Athena 时跳过；同步失败保留原文件，不影响代理与 Claude 客户端启动，并按通知设置提示。Athena 当前没有自动监听配置变化，写入后重启 Athena 即可刷新模型列表。
+
 ### 桌面体验
 
 - 关闭窗口时最小化到系统托盘，托盘菜单可退出；macOS 支持 `Cmd+W` 隐藏窗口。
@@ -148,6 +155,7 @@ Linux 构建依赖 GTK 3、SQLite 3、libayatana-appindicator3 与 libnotify，�
 | `~/.code_proxy/model_pricing.json` | 从 models.dev 拉取的模型定价缓存 |
 | `~/.code_proxy/audit/<日期>/<请求ID>/` | 审计日志（请求/响应头与正文） |
 | `~/.claude/settings.json` | Claude Code 配置，由代理维护 `env` 字段 |
+| `~/.athena/providers/code-proxy.yaml` | Athena Provider 与默认模型列表（检测到 Athena 数据目录后自动同步） |
 | `Claude-3p/configLibrary/` | Claude Desktop 3P 推理 Profile（按平台位于 Application Support / AppData / .config） |
 
 `default_model.yaml` 示例：

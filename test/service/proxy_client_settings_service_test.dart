@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:code_proxy/model/default_model_config.dart';
+import 'package:code_proxy/service/athena_setting_service.dart';
 import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/proxy_client_settings_service.dart';
@@ -112,4 +114,80 @@ void main() {
       expect(await desktopFile.exists(), isFalse);
     },
   );
+
+  test(
+    'Athena receives the same actual port and token after Claude commits',
+    () async {
+      final root = Directory('${dir.path}/.athena');
+      await root.create();
+      final athena = AthenaSettingService(
+        rootDirectory: root.path,
+        readModelConfig: () => DefaultModelConfig.defaultConfig,
+        getPricing: (_) => null,
+      );
+      service = ProxyClientSettingsService(
+        code: _CodeSettings(codeFile),
+        desktop: desktop,
+        athena: athena,
+      );
+      await service.update(authToken: 'cp-shared', port: 9100);
+      // YAML is checked by Athena's service tests; these unique values confirm wiring.
+      final yaml = await File(athena.settingsPath).readAsString();
+      expect(yaml, contains('http://127.0.0.1:9100/v1'));
+      expect(yaml, contains('cp-shared'));
+      expect(await codeFile.readAsString(), 'cp-shared:9100');
+      expect(await desktopFile.readAsString(), 'cp-shared:9100');
+    },
+  );
+
+  test(
+    'Athena failure preserves its file, keeps Claude committed and reports warning',
+    () async {
+      final file = File('${dir.path}/.athena/providers/code-proxy.yaml');
+      await file.parent.create(recursive: true);
+      const content = 'apiKey: [cp-secret';
+      await file.writeAsString(content);
+      var warnings = 0;
+      service = ProxyClientSettingsService(
+        code: _CodeSettings(codeFile),
+        desktop: desktop,
+        athena: AthenaSettingService(rootDirectory: '${dir.path}/.athena'),
+        onAthenaSyncFailed: () async {
+          warnings++;
+        },
+      );
+      await service.update(authToken: 'cp-shared', port: 9100);
+      expect(await file.readAsString(), content);
+      expect(await codeFile.readAsString(), 'cp-shared:9100');
+      expect(await desktopFile.readAsString(), 'cp-shared:9100');
+      expect(warnings, 1);
+      final error = await service.updateAthena(
+        authToken: 'cp-shared',
+        port: 9100,
+      );
+      expect(error, contains('Athena 配置同步失败'));
+      expect(error, isNot(contains('cp-secret')));
+    },
+  );
+
+  test('Claude failure rolls back before any Athena write', () async {
+    final root = Directory('${dir.path}/.athena');
+    await root.create();
+    final athena = AthenaSettingService(
+      rootDirectory: root.path,
+      readModelConfig: () => DefaultModelConfig.defaultConfig,
+    );
+    desktop.fail = true;
+    service = ProxyClientSettingsService(
+      code: _CodeSettings(codeFile),
+      desktop: desktop,
+      athena: athena,
+    );
+    await expectLater(
+      service.update(authToken: 'cp-shared', port: 9100),
+      throwsStateError,
+    );
+    expect(await File(athena.settingsPath).exists(), isFalse);
+    expect(await codeFile.readAsString(), 'original code');
+  });
 }
