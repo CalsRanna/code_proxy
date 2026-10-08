@@ -6,6 +6,7 @@ import 'package:code_proxy/model/model_pricing_entity.dart';
 import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
 import 'package:code_proxy/service/proxy_settings_file.dart';
+import 'package:code_proxy/util/model_display_name_util.dart';
 import 'package:code_proxy/util/path_util.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -134,7 +135,9 @@ class AthenaSettingService {
     return {
       ...existing,
       'id': id,
-      'name': modelId,
+      // 展示名由模型 ID 派生（与 /v1/models 的 display_name 同源）；
+      // 每次同步覆盖，Athena 里手动改过的展示名不会保留。
+      'name': modelDisplayName(modelId),
       'modelId': modelId,
       // 更换默认模型时旧的能力元数据不再可信；未知上下文用 Athena 的 0 约定。
       'contextWindow':

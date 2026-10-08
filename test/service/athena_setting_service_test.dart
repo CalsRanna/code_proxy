@@ -71,10 +71,13 @@ void main() {
       expect(raw['enabled'], isTrue);
       expect(raw['isPreset'], isFalse);
       final models = raw['models'] as List;
-      expect(
-        models.map((m) => m['name']),
-        config.familyEntries.map((e) => e.$2),
-      );
+      // 展示名由模型 ID 派生，请求模型名保持原样。
+      expect(models.map((m) => m['name']), [
+        'Claude Fable 5.1',
+        'Claude Opus 4.5',
+        'Claude Sonnet 4.5',
+        'Claude Haiku 4.5',
+      ]);
       expect(
         models.map((m) => m['modelId']),
         config.familyEntries.map((e) => e.$2),
@@ -180,7 +183,7 @@ void main() {
       final model = ((await read())['models'] as List)[1];
       expect(model['id'], old['id']);
       expect(model['createdAt'], old['createdAt']);
-      expect(model['name'], 'new-opus');
+      expect(model['name'], 'New Opus');
       expect(model['modelId'], 'new-opus');
       expect(model['contextWindow'], 0);
       expect(model['outputLimit'], 0);
