@@ -6,6 +6,7 @@ import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:code_proxy/util/logger_util.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
@@ -22,13 +23,15 @@ class SettingViewModel {
     required DefaultModelConfigService modelConfig,
     required ModelPricingService pricing,
     required AppMaintenanceService maintenance,
+    required ProxyAuditService audit,
   }) : _proxy = proxy,
        _preferences = preferences,
        _codeSettings = codeSettings,
        _desktopSettings = desktopSettings,
        _modelConfig = modelConfig,
        _pricing = pricing,
-       _maintenance = maintenance;
+       _maintenance = maintenance,
+       _audit = audit;
 
   final ProxyServerController _proxy;
   final SharedPreferenceUtil _preferences;
@@ -37,6 +40,7 @@ class SettingViewModel {
   final DefaultModelConfigService _modelConfig;
   final ModelPricingService _pricing;
   final AppMaintenanceService _maintenance;
+  final ProxyAuditService _audit;
 
   static const int minCircuitBreakerRecoveryTimeoutSeconds = 10;
   static const int maxCircuitBreakerRecoveryTimeoutSeconds = 3600;
@@ -258,6 +262,17 @@ class SettingViewModel {
       return error;
     } finally {
       pricingRefreshing.value = false;
+    }
+  }
+
+  /// 手动清理过期审计日志；App 长期驻留后台时，启动时那次清理会早已过期。
+  Future<String?> cleanExpiredAuditLogs() async {
+    try {
+      final deleted = await _audit.cleanExpiredLogs();
+      return '已清理 $deleted 个过期审计日志目录。';
+    } catch (error) {
+      LoggerUtil.instance.e('Failed to clean expired audit logs: $error');
+      return '清理过期审计日志失败: $error';
     }
   }
 

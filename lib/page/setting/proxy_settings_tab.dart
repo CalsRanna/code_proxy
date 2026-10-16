@@ -69,6 +69,12 @@ class ProxySettingsTab extends StatelessWidget {
         onTap: () => dialogs.editAuditRetainDays(context),
       );
     });
+    var cleanExpiredAuditTile = ListTile(
+      title: const Text('清理过期审计日志'),
+      subtitle: Text('删除超过保留天数的审计日志目录'),
+      trailing: const Icon(LucideIcons.chevronRight),
+      onTap: () => dialogs.confirmCleanExpiredAuditLogs(context),
+    );
     var sizeTile = Watch((context) {
       return ListTile(
         title: const Text('数据库文件大小'),
@@ -91,6 +97,7 @@ class ProxySettingsTab extends StatelessWidget {
         launchAtStartupTile,
         notificationEnabledTile,
         auditRetainDaysTile,
+        cleanExpiredAuditTile,
         sizeTile,
         resetTile,
         SettingVersion(viewModel: viewModel),

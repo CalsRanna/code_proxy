@@ -1,5 +1,6 @@
 import 'package:code_proxy/model/default_model_config.dart';
 import 'package:code_proxy/service/default_model_config_service.dart';
+import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,16 @@ class _Proxy extends Fake implements ProxyServerController {
   Future<void> restartProxyServer() async {
     restarts++;
     if (fail) throw StateError('bind failed');
+  }
+}
+
+class _Audit extends Fake implements ProxyAuditService {
+  int cleans = 0;
+  int deleted = 0;
+  @override
+  Future<int> cleanExpiredLogs() async {
+    cleans++;
+    return deleted;
   }
 }
 
@@ -129,4 +140,24 @@ void main() {
     expect(result.message, contains('重启代理服务器后生效'));
     expect(proxy.restarts, 0);
   });
+
+  test('手动清理过期审计日志会调用服务并报告删除数量', () async {
+    final audit = _Audit()..deleted = 3;
+    settings = createSettingViewModel(proxy: proxy, audit: audit);
+    final message = await settings.cleanExpiredAuditLogs();
+    expect(audit.cleans, 1);
+    expect(message, contains('3'));
+  });
+
+  test('清理失败时返回错误信息不抛出', () async {
+    final audit = _FailingAudit();
+    settings = createSettingViewModel(proxy: proxy, audit: audit);
+    final message = await settings.cleanExpiredAuditLogs();
+    expect(message, contains('清理过期审计日志失败'));
+  });
+}
+
+class _FailingAudit extends Fake implements ProxyAuditService {
+  @override
+  Future<int> cleanExpiredLogs() async => throw StateError('disk busy');
 }

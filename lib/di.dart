@@ -106,6 +106,7 @@ class DI {
         modelConfig: DefaultModelConfigService.instance,
         pricing: ModelPricingService.instance,
         maintenance: instance.get<AppMaintenanceService>(),
+        audit: ProxyAuditService.instance,
       ),
     );
   }

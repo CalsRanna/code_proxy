@@ -171,15 +171,20 @@ class ProxyAuditService {
     });
   }
 
-  Future<void> cleanExpiredLogs() async {
+  /// 删除早于「审计日志保留天数」的日期目录，返回删除的目录数。
+  ///
+  /// 清理失败只记录日志，不向上抛出：启动路径是 fire-and-forget 调用，
+  /// 手动触发路径由调用方决定如何提示。
+  Future<int> cleanExpiredLogs() async {
     try {
       final retainDays = await SharedPreferenceUtil.instance
           .getAuditRetainDays();
       final auditDir = Directory(_auditDirectory);
 
-      if (!await auditDir.exists()) return;
+      if (!await auditDir.exists()) return 0;
 
       final cutoffDate = DateTime.now().subtract(Duration(days: retainDays));
+      var deleted = 0;
 
       await for (final entity in auditDir.list()) {
         if (entity is Directory) {
@@ -188,12 +193,15 @@ class ProxyAuditService {
 
           if (dirDate != null && dirDate.isBefore(cutoffDate)) {
             await entity.delete(recursive: true);
+            deleted++;
             LoggerUtil.instance.i('Deleted expired audit directory: $dirName');
           }
         }
       }
+      return deleted;
     } catch (e) {
       LoggerUtil.instance.e('Failed to clean expired audit logs: $e');
+      return 0;
     }
   }
 }

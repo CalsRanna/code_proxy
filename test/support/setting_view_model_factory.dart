@@ -4,6 +4,7 @@ import 'package:code_proxy/service/claude_code_setting_service.dart';
 import 'package:code_proxy/service/claude_desktop_setting_service.dart';
 import 'package:code_proxy/service/default_model_config_service.dart';
 import 'package:code_proxy/service/model_pricing_service.dart';
+import 'package:code_proxy/service/proxy_audit_service.dart';
 import 'package:code_proxy/service/proxy_server_controller.dart';
 import 'package:code_proxy/util/shared_preference_util.dart';
 import 'package:code_proxy/view_model/setting_view_model.dart';
@@ -19,6 +20,8 @@ class _ModelConfig extends Fake implements DefaultModelConfigService {}
 
 class _Maintenance extends Fake implements AppMaintenanceService {}
 
+class _Audit extends Fake implements ProxyAuditService {}
+
 class _Pricing extends Fake implements ModelPricingService {
   @override
   List<ModelPricingEntity> get pricingModels => [];
@@ -30,6 +33,7 @@ SettingViewModel createSettingViewModel({
   AppMaintenanceService? maintenance,
   DefaultModelConfigService? modelConfig,
   ModelPricingService? pricing,
+  ProxyAuditService? audit,
 }) => SettingViewModel(
   proxy: proxy,
   preferences: preferences ?? _Preferences(),
@@ -38,4 +42,5 @@ SettingViewModel createSettingViewModel({
   modelConfig: modelConfig ?? _ModelConfig(),
   pricing: pricing ?? _Pricing(),
   maintenance: maintenance ?? _Maintenance(),
+  audit: audit ?? _Audit(),
 );

@@ -67,6 +67,41 @@ class SettingDialogs {
     onSave: viewModel.updateAuditRetainDays,
   );
 
+  Future<void> cleanExpiredAuditLogs(BuildContext context) async {
+    final message = await viewModel.cleanExpiredAuditLogs();
+    if (context.mounted && message != null) {
+      showSettingAlert(context, '清理过期审计日志', message);
+    }
+  }
+
+  void confirmCleanExpiredAuditLogs(BuildContext context) {
+    showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return ShadDialog(
+          title: const Text('清理过期审计日志'),
+          description: Text(
+            '将删除超过保留天数（当前 ${viewModel.auditRetainDays.value} 天）的审计日志目录，'
+            '此操作不可撤销。',
+          ),
+          actions: [
+            ShadButton.outline(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            ShadButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                cleanExpiredAuditLogs(context);
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> editDefaultModelMapping(BuildContext context) =>
       showShadDialog<void>(
         context: context,
