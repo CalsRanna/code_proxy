@@ -22,7 +22,8 @@ import 'sse_line_splitter.dart';
 /// - text block 惰性开启：收到首个 output_text.delta 才发 content_block_start，
 ///   纯工具调用响应不产生多余空块
 /// - reasoning summary delta → thinking block；output_text.delta 先关闭
-///   已打开的 thinking block（思考先于回答，与现有转换器一致）
+///   已打开的 thinking block（思考先于回答，与现有转换器一致）。
+///   另兼容部分网关按 item 类型命名的 `response.reasoning.delta` 变体
 /// - function_call item 按 item_id 跟踪：output_item.added 开块，
 ///   function_call_arguments.delta 发 input_json_delta，output_item.done 关块
 ///
@@ -138,6 +139,9 @@ class OpenAiResponsesSseStreamConverter implements OpenAiSseConverter {
         }
       case 'response.reasoning_summary_text.delta':
       case 'response.reasoning_text.delta':
+      // 非标准变体（如 Command Code 的 deepseek 网关）：按 item 类型命名，
+      // delta 语义与 reasoning_text.delta 相同
+      case 'response.reasoning.delta':
         final delta = eventJson['delta'];
         if (delta is String && delta.isNotEmpty) {
           _writer.writeThinking(delta);

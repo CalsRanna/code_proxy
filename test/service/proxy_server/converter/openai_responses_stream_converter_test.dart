@@ -144,6 +144,54 @@ void main() {
     expect(events[6].$2['content_block']['type'], 'text');
   });
 
+  test('非标准 response.reasoning.delta 变体同样转 thinking block', () {
+    final events = runStream([
+      sse([
+        {
+          'type': 'response.output_item.added',
+          'item': {'type': 'reasoning', 'id': 'rs_1', 'summary': <dynamic>[]},
+        },
+        {
+          'type': 'response.reasoning.delta',
+          'item_id': 'rs_1',
+          'output_index': 0,
+          'content_index': 0,
+          'delta': 'Check ',
+        },
+        {
+          'type': 'response.reasoning.delta',
+          'item_id': 'rs_1',
+          'output_index': 0,
+          'content_index': 0,
+          'delta': 'the logs.',
+        },
+        {'type': 'response.output_text.delta', 'delta': 'Answer'},
+      ]),
+    ]);
+
+    expect(events.map((e) => e.$1), [
+      'message_start',
+      'ping',
+      'content_block_start', // thinking @0
+      'content_block_delta',
+      'content_block_delta',
+      'content_block_stop', // thinking
+      'content_block_start', // text @1
+      'content_block_delta',
+      'content_block_stop',
+      'message_delta',
+      'message_stop',
+    ]);
+    expect(events[3].$2['delta'], {
+      'type': 'thinking_delta',
+      'thinking': 'Check ',
+    });
+    expect(events[4].$2['delta'], {
+      'type': 'thinking_delta',
+      'thinking': 'the logs.',
+    });
+  });
+
   group('工具调用流', () {
     test('工具参数中途达到输出限制时保留 max_tokens 停止原因', () {
       final events = runStream([

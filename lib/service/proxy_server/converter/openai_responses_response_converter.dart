@@ -60,7 +60,7 @@ class OpenAiResponsesResponseConverter {
 
   /// 按序遍历 output[] items → Anthropic content blocks。
   ///
-  /// - reasoning item：summary 数组中的文本拼接为 thinking block
+  /// - reasoning item：summary 数组或 content 中的推理文本转为 thinking block
   ///   （Anthropic 规范：thinking block 在 text 前，output[] 天然满足）
   /// - message item：content[].output_text / refusal 合并为 text block
   /// - function_call item：arguments 解析为 tool_use block 的 input
@@ -106,17 +106,31 @@ class OpenAiResponsesResponseConverter {
     return (blocks: blocks, hasToolUse: hasToolUse);
   }
 
-  /// reasoning item 的 summary 文本拼接。无 summary 时返回 null。
+  /// reasoning item 的思考文本。
+  ///
+  /// 优先拼 `summary[]` 的 summary_text；部分网关（如 deepseek 系）不产生
+  /// 摘要，而是把原始推理放进 `content[]` 的 reasoning_text，此时回退读取。
   String? _reasoningItemText(Map item) {
     final summary = item['summary'];
-    if (summary is! List || summary.isEmpty) return null;
+    if (summary is List && summary.isNotEmpty) {
+      final parts = <String>[];
+      for (final s in summary) {
+        if (s is Map && s['type'] == 'summary_text' && s['text'] is String) {
+          parts.add(s['text'] as String);
+        }
+      }
+      if (parts.isNotEmpty) return parts.join('\n');
+    }
+
+    final content = item['content'];
+    if (content is! List) return null;
     final parts = <String>[];
-    for (final s in summary) {
-      if (s is Map && s['type'] == 'summary_text' && s['text'] is String) {
-        parts.add(s['text'] as String);
+    for (final p in content) {
+      if (p is Map && p['type'] == 'reasoning_text' && p['text'] is String) {
+        parts.add(p['text'] as String);
       }
     }
-    return parts.join('\n');
+    return parts.isEmpty ? null : parts.join('\n');
   }
 
   /// message item 的 content parts 文本列表。

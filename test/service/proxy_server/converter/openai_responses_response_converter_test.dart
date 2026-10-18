@@ -74,6 +74,38 @@ void main() {
     });
   });
 
+  test('summary 为空时回退读取 content 中的 reasoning_text', () {
+    final out = converter.convertResponse({
+      'id': 'resp_1',
+      'model': 'deepseek/deepseek-v4.1-flash-fast',
+      'status': 'completed',
+      'output': [
+        {
+          'type': 'reasoning',
+          'id': 'rs_1',
+          'summary': <dynamic>[],
+          'content': [
+            {'type': 'reasoning_text', 'text': 'check the logs'},
+          ],
+        },
+        {
+          'type': 'message',
+          'role': 'assistant',
+          'status': 'completed',
+          'content': [
+            {'type': 'output_text', 'text': '{"decision":"allow"}'},
+          ],
+        },
+      ],
+      'usage': {'input_tokens': 10, 'output_tokens': 5},
+    }, originalModel: 'claude-fable-5-1');
+
+    expect(out['content'], [
+      {'type': 'thinking', 'thinking': 'check the logs'},
+      {'type': 'text', 'text': '{"decision":"allow"}'},
+    ]);
+  });
+
   test('function_call → tool_use block，stop_reason=tool_use', () {
     final out = converter.convertResponse({
       'id': 'resp_1',
