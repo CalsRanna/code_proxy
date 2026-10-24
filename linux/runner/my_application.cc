@@ -14,10 +14,11 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
-// Called when first Flutter frame received.
-static void first_frame_cb(MyApplication* self, FlView* view) {
-  gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
-}
+// 注意：这里不再连接 view 的 first-frame 信号去显示顶层窗口。
+// 应用启动后直接驻留系统托盘，由 Dart 侧（WindowUtil.show）在用户点击
+// 托盘图标、点击通知或启动失败需要提示时再显示窗口。
+// 引擎启动依赖的是 gtk_widget_realize（FlView 内部在 realize 时
+// fl_engine_start），与窗口是否 map 无关，因此窗口保持隐藏不影响代理运行。
 
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
@@ -67,10 +68,7 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 
-  // Show the window when Flutter renders.
-  // Requires the view to be realized so we can start rendering.
-  g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
-                           self);
+  // 视图必须先 realize 才能开始渲染；窗口本身保持隐藏，等待 Dart 侧显示。
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));

@@ -27,13 +27,13 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
-  });
-
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
+  // 首帧不再自动显示窗口：应用启动后直接驻留系统托盘。Win32Window::Create
+  // 创建的窗口在调用 Show() 前一直不可见，改由 Dart 侧（WindowUtil.show）
+  // 在用户点击托盘图标或启动失败需要提示时再显示。
+  //
+  // ForceRedraw 仍然需要：它保证首帧一定被排入队列，从而让 Flutter 侧的
+  // widget 树完成构建（代理服务器在首页 initState 中启动）。首帧尚未完成时
+  // 该调用是无操作。
   flutter_controller_->ForceRedraw();
 
   return true;

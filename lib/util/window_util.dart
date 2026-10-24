@@ -33,11 +33,14 @@ class WindowUtil with WindowListener {
       titleBarStyle: titleStyle,
       windowButtonVisibility: false,
       title: 'Code Proxy',
+      // 启动即驻留托盘：不进入任务栏 / Dock，避免图标一闪而过。
+      skipTaskbar: true,
     );
     windowManager.addListener(this);
+    // 启动时不显示主窗口，应用直接出现在系统托盘；用户点击托盘图标、
+    // 点击通知，或启动失败需要提示时再调用 show()。三端原生 runner 也都
+    // 改成了不在首帧自动显示窗口，否则会先闪出一个空白窗口。
     windowManager.waitUntilReadyToShow(options, () async {
-      await windowManager.show();
-      await windowManager.focus();
       await windowManager.setPreventClose(true);
     });
   }

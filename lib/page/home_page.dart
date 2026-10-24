@@ -68,6 +68,7 @@ class _HomePageState extends State<HomePage> {
     try {
       await viewModel.initSignals();
     } on ModelConfigException catch (error) {
+      await _showWindowForStartupError();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         showConfigErrorDialog(
@@ -78,6 +79,7 @@ class _HomePageState extends State<HomePage> {
       });
       return;
     } catch (error) {
+      await _showWindowForStartupError();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) showStartupErrorDialog(context, error);
       });
@@ -88,6 +90,13 @@ class _HomePageState extends State<HomePage> {
         dashboardViewModel.initSignals();
       }
     });
+  }
+
+  /// 启动时窗口默认隐藏在托盘里，出现启动错误必须先显示窗口，
+  /// 否则错误对话框会画在用户看不见的窗口上。
+  Future<void> _showWindowForStartupError() async {
+    if (!mounted) return;
+    await WindowUtil.instance.show();
   }
 
   void _selectTab(int index) {

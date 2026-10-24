@@ -26,7 +26,9 @@ CI（`.github/workflows/ci.yml`）锁定 Flutter 3.44.6，顺序执行 `pub get 
 
 ### 分层与状态
 
-`main.dart` 初始化顺序固定：SharedPreferences 迁移 → SQLite 迁移 → `DI.ensureInitialized()`（get_it 懒单例）→ 通知 / 窗口 / 托盘。页面通过 `GetIt.instance.get<XxxViewModel>()` 取 ViewModel，ViewModel 用 `signals` 暴露状态，页面用 `Watch` 订阅。ViewModel 不持有 UI 逻辑，页面不直接访问 Repository / Service。
+`main.dart` 初始化顺序固定：SharedPreferences 迁移 → SQLite 迁移 → `DI.ensureInitialized()`（get_it 懒单例）→ 通知 / 窗口 / 托盘。
+
+启动时**不显示主窗口**，应用直接驻留系统托盘：三端原生 runner 都不在首帧自动 show（macOS 用 `hiddenWindowAtLaunch()`，Windows/Linux 删掉了首帧显示回调），由 `WindowUtil.show()` 在点击托盘图标、点击通知或启动失败弹对话框时才显示。macOS 另以 `LSUIElement` 常驻菜单栏、不占 Dock；窗口隐藏时 `setSkipTaskbar(true)`。页面通过 `GetIt.instance.get<XxxViewModel>()` 取 ViewModel，ViewModel 用 `signals` 暴露状态，页面用 `Watch` 订阅。ViewModel 不持有 UI 逻辑，页面不直接访问 Repository / Service。
 
 只有一个路由 `HomeRoute`，四个页面（概览 / 端点 / 请求 / 设置）由 `HomePage` 内部 `IndexedStack` 切换；切页时调用各 ViewModel 的 `initSignals()` 刷新。
 
