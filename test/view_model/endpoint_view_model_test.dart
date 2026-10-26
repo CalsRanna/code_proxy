@@ -83,4 +83,42 @@ void main() {
       }
     });
   }
+
+  test('按网格拖拽后的顺序重排端点并持久化权重', () async {
+    final dir = await Directory.systemTemp.createTemp('endpoint-reorder-');
+    final db = Laconic.sqlite(SqliteConfig('${dir.path}/test.db'));
+    final proxy = _Proxy();
+    final vm = EndpointViewModel(
+      repository: EndpointRepository(_Database(db)),
+      proxy: proxy,
+    );
+    try {
+      await db.statement('''CREATE TABLE endpoints (
+          id TEXT PRIMARY KEY, name TEXT NOT NULL, note TEXT, enabled INTEGER DEFAULT 1,
+          weight INTEGER DEFAULT 1, auth_mode TEXT DEFAULT 'preserve', api_format TEXT DEFAULT 'anthropic',
+          anthropic_auth_token TEXT, anthropic_base_url TEXT, haiku_model TEXT,
+          sonnet_model TEXT, opus_model TEXT, fable_model TEXT)''');
+      await vm.initSignals();
+      for (final name in ['a', 'b', 'c']) {
+        await vm.addEndpoint(name: name);
+      }
+
+      final before = vm.endpoints.value;
+      // 把最后一个端点拖到最前：排序包回调给出的是整张新顺序表。
+      await vm.reorderEndpointsByOrder([before[2], before[0], before[1]]);
+
+      expect(vm.endpoints.value.map((e) => e.name), ['c', 'a', 'b']);
+      expect(vm.endpoints.value.map((e) => e.weight), [1, 2, 3]);
+      expect(proxy.endpoints.map((e) => e.name), ['c', 'a', 'b']);
+
+      // 重新从数据库读取，确认权重已经持久化。
+      await vm.initSignals();
+      expect(vm.endpoints.value.map((e) => e.name), ['c', 'a', 'b']);
+      expect(vm.endpoints.value.map((e) => e.weight), [1, 2, 3]);
+    } finally {
+      vm.dispose();
+      await db.close();
+      await dir.delete(recursive: true);
+    }
+  });
 }

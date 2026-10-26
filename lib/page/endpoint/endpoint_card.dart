@@ -4,7 +4,12 @@ import 'package:code_proxy/theme/shadcn_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-class EndpointCard extends StatefulWidget {
+/// 端点卡片（网格单元）。
+///
+/// 纵向三段式：标题行（名称、优先级）、徽章行、底行（地址与启用开关）。
+/// 拖拽排序由外层 ReorderableBuilder 承担，整张卡片都可以拖动；
+/// 编辑、克隆、删除等操作收在整卡右键菜单里。
+class EndpointCard extends StatelessWidget {
   final EndpointEntity endpoint;
   final bool isForbidden;
   final void Function()? onDelete;
@@ -26,181 +31,143 @@ class EndpointCard extends StatefulWidget {
   });
 
   @override
-  State<EndpointCard> createState() => _EndpointCardState();
-}
-
-class _EndpointCardState extends State<EndpointCard> {
-  final controller = ShadPopoverController();
-  final _buttonKey = GlobalKey();
-  bool _showAbove = false;
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  void _toggleMenu() {
-    final box = _buttonKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box != null) {
-      final position = box.localToGlobal(Offset.zero);
-      final screenHeight = MediaQuery.of(context).size.height;
-      final spaceBelow = screenHeight - position.dy - box.size.height;
-      final needAbove = spaceBelow < 150;
-      if (needAbove != _showAbove) {
-        setState(() => _showAbove = needAbove);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          controller.toggle();
-        });
-        return;
-      }
-    }
-    controller.toggle();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return ReorderableDragStartListener(
-      index: widget.index,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.grab,
-        child: Padding(
-          padding: EdgeInsetsGeometry.symmetric(
-            vertical: ShadcnSpacing.spacing8,
+    final theme = Theme.of(context);
+    final muted = ShadcnColors.mutedForeground(theme.brightness);
+    final endpoint = this.endpoint;
+
+    // 右键菜单直接挂在整张卡片上，菜单出现在鼠标位置，
+    // 不需要再手动判断向上还是向下弹出。
+    return ShadContextMenuRegion(
+      items: [
+        ShadContextMenuItem(
+          onPressed: onEdit,
+          child: Row(
+            children: [
+              Icon(LucideIcons.pencil),
+              SizedBox(width: 8),
+              Text('编辑'),
+            ],
           ),
-          child: ShadCard(
-            padding: EdgeInsets.all(ShadcnSpacing.spacing16),
+        ),
+        ShadContextMenuItem(
+          onPressed: onClone,
+          child: Row(
+            children: [Icon(LucideIcons.copy), SizedBox(width: 8), Text('克隆')],
+          ),
+        ),
+        ShadContextMenuItem(
+          onPressed: onDelete,
+          child: Row(
+            children: [
+              Icon(LucideIcons.trash2, color: Colors.red),
+              SizedBox(width: 8),
+              Text('删除', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+        if (isForbidden)
+          ShadContextMenuItem(
+            onPressed: onResetCircuitBreaker,
             child: Row(
               children: [
-                Icon(
-                  LucideIcons.gripVertical,
-                  color: ShadcnColors.mutedForeground(
-                    Theme.of(context).brightness,
-                  ),
-                ),
-                const SizedBox(width: ShadcnSpacing.spacing16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        spacing: ShadcnSpacing.spacing8,
-                        children: [
-                          Text(
-                            widget.endpoint.name,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          if (widget.endpoint.note != null &&
-                              widget.endpoint.note!.isNotEmpty) ...[
-                            ShadBadge.secondary(
-                              child: Text(
-                                widget.endpoint.note!,
-                                style: Theme.of(context).textTheme.bodySmall,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                          if (widget.isForbidden)
-                            ShadBadge.secondary(
-                              child: Text(
-                                '断路中',
-                                style: Theme.of(context).textTheme.bodySmall,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      if (widget.endpoint.baseUrl != null &&
-                          widget.endpoint.baseUrl!.isNotEmpty)
-                        Text(
-                          widget.endpoint.baseUrl!,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: ShadcnColors.mutedForeground(
-                                  Theme.of(context).brightness,
-                                ),
-                                fontFamily: 'monospace',
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: ShadcnSpacing.spacing16),
-                ShadSwitch(
-                  value: widget.endpoint.enabled,
-                  onChanged: widget.onToggleEnabled,
-                ),
-                const SizedBox(width: ShadcnSpacing.spacing16),
-                ShadContextMenu(
-                  anchor: ShadAnchor(
-                    childAlignment: _showAbove
-                        ? Alignment.bottomRight
-                        : Alignment.topRight,
-                    overlayAlignment: _showAbove
-                        ? Alignment.topRight
-                        : Alignment.bottomRight,
-                  ),
-                  controller: controller,
-                  items: [
-                    ShadContextMenuItem(
-                      onPressed: widget.onEdit,
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.pencil),
-                          SizedBox(width: 8),
-                          Text('编辑'),
-                        ],
-                      ),
-                    ),
-                    ShadContextMenuItem(
-                      onPressed: widget.onClone,
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.copy),
-                          SizedBox(width: 8),
-                          Text('克隆'),
-                        ],
-                      ),
-                    ),
-                    ShadContextMenuItem(
-                      onPressed: widget.onDelete,
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.trash2, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('删除', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                    if (widget.isForbidden)
-                      ShadContextMenuItem(
-                        onPressed: widget.onResetCircuitBreaker,
-                        child: Row(
-                          children: [
-                            Icon(LucideIcons.circlePower),
-                            SizedBox(width: 8),
-                            Text('恢复'),
-                          ],
-                        ),
-                      ),
-                  ],
-                  child: ShadIconButton.ghost(
-                    key: _buttonKey,
-                    icon: const Icon(LucideIcons.ellipsis),
-                    onPressed: _toggleMenu,
-                  ),
-                ),
+                Icon(LucideIcons.circlePower),
+                SizedBox(width: 8),
+                Text('恢复'),
               ],
             ),
+          ),
+      ],
+      child: MouseRegion(
+        cursor: SystemMouseCursors.grab,
+        child: ShadCard(
+          padding: const EdgeInsets.all(ShadcnSpacing.spacing16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      endpoint.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: ShadcnSpacing.spacing8),
+                  Text(
+                    '#${index + 1}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: ShadcnSpacing.spacing8),
+              Row(
+                spacing: ShadcnSpacing.spacing8,
+                children: [
+                  if (endpoint.note != null && endpoint.note!.isNotEmpty)
+                    Flexible(child: _badge(context, endpoint.note!)),
+                  if (endpoint.apiFormat != EndpointApiFormat.anthropic)
+                    _badge(context, _apiFormatLabel(endpoint.apiFormat)),
+                  if (isForbidden) _badge(context, '断路中'),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: endpoint.baseUrl == null || endpoint.baseUrl!.isEmpty
+                        ? const SizedBox.shrink()
+                        : ShadTooltip(
+                            builder: (context) => Text(endpoint.baseUrl!),
+                            child: Text(
+                              endpoint.baseUrl!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: muted,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: ShadcnSpacing.spacing8),
+                  ShadSwitch(
+                    value: endpoint.enabled,
+                    onChanged: onToggleEnabled,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _badge(BuildContext context, String text) {
+    return ShadBadge.secondary(
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
+  }
+}
+
+/// 协议格式徽章文案，与端点表单里的选项文案保持一致。
+String _apiFormatLabel(EndpointApiFormat format) {
+  switch (format) {
+    case EndpointApiFormat.anthropic:
+      return 'Anthropic';
+    case EndpointApiFormat.openaiChat:
+      return 'Chat Completions';
+    case EndpointApiFormat.openaiResponses:
+      return 'Responses';
   }
 }

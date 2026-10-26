@@ -152,30 +152,47 @@ class EndpointViewModel {
     return true;
   }
 
-  /// 重新排序端点列表并更新 weight 字段
+  /// 按拖拽后的顺序重排端点并持久化 weight。
   ///
-  /// 注意：newIndex 来自 onReorderItem 回调，已按移除 oldIndex 后的
-  /// 列表调整过，直接插入即可。
-  Future<void> reorderEndpoints(int oldIndex, int newIndex) async {
-    final currentEndpoints = List<EndpointEntity>.from(endpoints.value);
+  /// 排序包回调给出的是重排后的完整列表，而不是 ReorderableListView 的
+  /// (oldIndex, newIndex) 下标对。先更新内存 signal，让松手后的回弹动画
+  /// 立刻落在新位置，再逐条写库。
+  Future<void> reorderEndpointsByOrder(List<EndpointEntity> ordered) async {
+    final current = List<EndpointEntity>.of(endpoints.value);
+    final byId = {for (final endpoint in current) endpoint.id: endpoint};
 
-    // 移动元素
-    final movedEndpoint = currentEndpoints.removeAt(oldIndex);
-    currentEndpoints.insert(newIndex, movedEndpoint);
+    // 只按 id 认顺序，实体以上一帧的当前列表为准，避免拖拽期间发生的
+    // 列表刷新被旧实例覆盖。
+    final reordered = <EndpointEntity>[];
+    for (final item in ordered) {
+      final endpoint = byId.remove(item.id);
+      if (endpoint == null) return;
+      reordered.add(endpoint);
+    }
+    if (byId.isNotEmpty) return;
 
-    // 重新分配 weight 值（从1开始，按顺序递增）
-    final reorderedEndpoints = currentEndpoints.asMap().entries.map((entry) {
-      final index = entry.key;
-      final endpoint = entry.value;
-      return endpoint.copyWith(weight: index + 1);
-    }).toList();
+    var changed = false;
+    final updated = <EndpointEntity>[];
+    for (final (index, endpoint) in reordered.indexed) {
+      final weight = index + 1;
+      if (endpoint.weight == weight) {
+        updated.add(endpoint);
+      } else {
+        changed = true;
+        updated.add(endpoint.copyWith(weight: weight));
+      }
+    }
+    if (!changed) return;
 
-    // 批量更新数据库
-    for (final endpoint in reorderedEndpoints) {
+    endpoints.value = updated;
+    _notifyProxyServer();
+
+    final previousWeights = {
+      for (final endpoint in current) endpoint.id: endpoint.weight,
+    };
+    for (final endpoint in updated) {
+      if (previousWeights[endpoint.id] == endpoint.weight) continue;
       await _endpointRepository.update(endpoint);
     }
-
-    // 重新加载端点列表
-    await _loadEndpoints();
   }
 }
