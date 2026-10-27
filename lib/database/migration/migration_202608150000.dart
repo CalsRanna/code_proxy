@@ -11,8 +11,7 @@ class Migration202608150000 {
   static const name = 'migration_202608150000';
 
   Future<void> migrate(Laconic laconic) async {
-    final count =
-        await laconic.table('migrations').where('name', name).count();
+    final count = await laconic.table('migrations').where('name', name).count();
     if (count > 0) return;
 
     final tableInfo = await laconic.select("PRAGMA table_info('endpoints')");

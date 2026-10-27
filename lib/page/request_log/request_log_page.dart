@@ -195,8 +195,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
             var outputTokens = formatWithThousandsSeparator(
               log.outputTokens ?? 0,
             );
-            var tokenText =
-                '$inputTokens / $outputTokens';
+            var tokenText = '$inputTokens / $outputTokens';
             Widget child;
             switch (index.column) {
               case 0:

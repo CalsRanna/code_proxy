@@ -81,9 +81,9 @@ class _CodeProxyAppState extends State<CodeProxyApp> {
     }
 
     var shadThemeData = ShadThemeData(
-      textTheme:
-          ShadTextTheme(family: 'Montserrat')
-              .apply(fontFamilyFallback: fallbackFonts),
+      textTheme: ShadTextTheme(
+        family: 'Montserrat',
+      ).apply(fontFamilyFallback: fallbackFonts),
       sonnerTheme: ShadSonnerTheme(alignment: Alignment.topCenter),
       tooltipTheme: ShadTooltipTheme(decoration: shadDecoration),
     );

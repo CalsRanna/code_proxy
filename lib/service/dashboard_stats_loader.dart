@@ -58,38 +58,44 @@ DashboardStatsResult _compute(String dbPath, {DateTime? now}) {
         .subtract(const Duration(days: 15))
         .millisecondsSinceEpoch;
     // 热力图：今年 1 月 1 日到 12 月 31 日（含未来日期，由 UI 置灰）
-    final yearStart = DateTime(referenceNow.year, 1, 1)
-        .millisecondsSinceEpoch;
-    final yearEnd = DateTime(referenceNow.year, 12, 31, 23, 59, 59, 999)
-        .millisecondsSinceEpoch;
+    final yearStart = DateTime(referenceNow.year, 1, 1).millisecondsSinceEpoch;
+    final yearEnd = DateTime(
+      referenceNow.year,
+      12,
+      31,
+      23,
+      59,
+      59,
+      999,
+    ).millisecondsSinceEpoch;
 
     final dailyRequests = _toIntMap(
-      db.select(
-        DashboardAggregationSql.dailyRequestStats(modifier),
-        [recentStart, endTimestamp],
-      ),
+      db.select(DashboardAggregationSql.dailyRequestStats(modifier), [
+        recentStart,
+        endTimestamp,
+      ]),
       dateKey: 'date',
       countKey: 'request_count',
     );
     final heatmapRequests = _toIntMap(
-      db.select(
-        DashboardAggregationSql.dailyRequestStats(modifier),
-        [yearStart, yearEnd],
-      ),
+      db.select(DashboardAggregationSql.dailyRequestStats(modifier), [
+        yearStart,
+        yearEnd,
+      ]),
       dateKey: 'date',
       countKey: 'request_count',
     );
     final recentModelTokens = _toModelTokenStats(
-      db.select(
-        DashboardAggregationSql.modelDateTokenStats(modifier),
-        [recentStart, endTimestamp],
-      ),
+      db.select(DashboardAggregationSql.modelDateTokenStats(modifier), [
+        recentStart,
+        endTimestamp,
+      ]),
     );
     final allModelTokens = _toModelTokenStats(
-      db.select(
-        DashboardAggregationSql.modelDateTokenStats(modifier),
-        [0, endTimestamp],
-      ),
+      db.select(DashboardAggregationSql.modelDateTokenStats(modifier), [
+        0,
+        endTimestamp,
+      ]),
     );
     final overviewRows = db.select(
       DashboardAggregationSql.overviewStats(modifier),

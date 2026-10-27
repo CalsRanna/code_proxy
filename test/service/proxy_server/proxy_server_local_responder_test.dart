@@ -37,7 +37,10 @@ void main() {
           'HEAD',
           Uri.parse('http://localhost:9000/api/hello'),
         );
-        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
+        final response = responder.tryRespond(
+          request,
+          ProxyServerRequestBody.empty(),
+        );
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
       });
@@ -51,7 +54,10 @@ void main() {
           'HEAD',
           Uri.parse('http://localhost:9000/api/hello'),
         );
-        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
+        final response = responder.tryRespond(
+          request,
+          ProxyServerRequestBody.empty(),
+        );
         expect(response, isNotNull);
         expect(response!.statusCode, 503);
       });
@@ -75,7 +81,10 @@ void main() {
           'POST',
           Uri.parse('http://localhost:9000/v1/messages/count_tokens'),
         );
-        final response = responder.tryRespond(request, ProxyServerRequestBody(utf8.encode(body)));
+        final response = responder.tryRespond(
+          request,
+          ProxyServerRequestBody(utf8.encode(body)),
+        );
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
         final respBody = await response.readAsString();
@@ -95,7 +104,10 @@ void main() {
           'POST',
           Uri.parse('http://localhost:9000/v1/messages/count_tokens'),
         );
-        final response = responder.tryRespond(request, ProxyServerRequestBody(utf8.encode(body)));
+        final response = responder.tryRespond(
+          request,
+          ProxyServerRequestBody(utf8.encode(body)),
+        );
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
         final respBody = await response.readAsString();
@@ -118,7 +130,10 @@ void main() {
           'POST',
           Uri.parse('http://localhost:9000/v1/messages'),
         );
-        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
+        final response = responder.tryRespond(
+          request,
+          ProxyServerRequestBody.empty(),
+        );
         expect(response, isNull);
       });
 
@@ -136,7 +151,10 @@ void main() {
           'GET',
           Uri.parse('http://localhost:9000/v1/models'),
         );
-        final response = responder.tryRespond(request, ProxyServerRequestBody.empty());
+        final response = responder.tryRespond(
+          request,
+          ProxyServerRequestBody.empty(),
+        );
         expect(response, isNotNull);
         expect(response!.statusCode, 200);
         final respBody = await response.readAsString();

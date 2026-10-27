@@ -73,7 +73,9 @@ void main() {
     root.deleteSync(recursive: true);
   });
 
-  Future<HttpServer> upstream(Future<void> Function(HttpRequest) respond) async {
+  Future<HttpServer> upstream(
+    Future<void> Function(HttpRequest) respond,
+  ) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     servers.add(server);
     server.listen((request) async {
@@ -104,7 +106,10 @@ void main() {
     apiFormat: format,
   );
 
-  Future<void> start(List<EndpointEntity> endpoints, {int timeout = 3000}) async {
+  Future<void> start(
+    List<EndpointEntity> endpoints, {
+    int timeout = 3000,
+  }) async {
     proxy = ProxyServerService(
       config: ProxyServerConfig(port: 0, apiTimeoutMs: timeout),
       authToken: testProxyAuthToken,
@@ -125,7 +130,10 @@ void main() {
   }
 
   http.Request request({bool stream = true, String model = 'claude-test'}) =>
-      http.Request('POST', Uri.parse('http://127.0.0.1:${proxy!.boundPort}/v1/messages'))
+      http.Request(
+          'POST',
+          Uri.parse('http://127.0.0.1:${proxy!.boundPort}/v1/messages'),
+        )
         ..headers['content-type'] = 'application/json'
         ..body = jsonEncode({
           'model': model,
@@ -175,15 +183,15 @@ void main() {
   Future<List<String>> tempFiles() async {
     final tempDir = Directory(p.join(auditRoot.path, '.tmp'));
     if (!await tempDir.exists()) return const [];
-    return tempDir
-        .listSync()
-        .map((entity) => p.basename(entity.path))
-        .toList();
+    return tempDir.listSync().map((entity) => p.basename(entity.path)).toList();
   }
 
   test('流式正文边收边写：审计文件与客户端正文一致，临时目录为空', () async {
     final upstreamServer = await upstream((request) async {
-      request.response.headers.contentType = ContentType('text', 'event-stream');
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+      );
       request.response.bufferOutput = false;
       request.response.write(_sse);
       await request.response.close();
@@ -209,7 +217,10 @@ void main() {
 
   test('上游截断：审计文件保留半截正文与 error 事件', () async {
     final upstreamServer = await upstream((request) async {
-      request.response.headers.contentType = ContentType('text', 'event-stream');
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+      );
       request.response.bufferOutput = false;
       request.response.write(
         'event: content_block_delta\n'
@@ -283,7 +294,10 @@ void main() {
         '"completion_tokens":2,"total_tokens":5}}\n\n'
         'data: [DONE]\n\n';
     final upstreamServer = await upstream((request) async {
-      request.response.headers.contentType = ContentType('text', 'event-stream');
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+      );
       request.response.bufferOutput = false;
       request.response.write(openAiSse);
       await request.response.close();
@@ -315,7 +329,10 @@ void main() {
 
   test('gzip 上游 + 模型伪装：审计落盘的是解压后正文', () async {
     final upstreamServer = await upstream((request) async {
-      request.response.headers.contentType = ContentType('text', 'event-stream');
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+      );
       request.response.headers.set('content-encoding', 'gzip');
       request.response.bufferOutput = false;
       request.response.add(gzip.encode(utf8.encode(_sse)));
@@ -338,7 +355,10 @@ void main() {
   test('无法解压的压缩流（br）按原字节透传并落盘', () async {
     // 标注为 br 但实际是未压缩文本：代理不能解压，按原字节转发与落盘
     final upstreamServer = await upstream((request) async {
-      request.response.headers.contentType = ContentType('text', 'event-stream');
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+      );
       request.response.headers.set('content-encoding', 'br');
       request.response.bufferOutput = false;
       request.response.add(utf8.encode(_sse));
@@ -362,7 +382,10 @@ void main() {
     var hits = 0;
     final upstreamServer = await upstream((request) async {
       hits++;
-      request.response.headers.contentType = ContentType('text', 'event-stream');
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+      );
       if (hits == 1) {
         request.response.statusCode = 500;
         request.response.write('upstream failed');
@@ -384,7 +407,10 @@ void main() {
       bodies.add(await File(p.join(dir.path, 'response_body')).readAsString());
     }
     expect(bodies.where((body) => body == _sse), hasLength(1));
-    expect(bodies.where((body) => body.contains('upstream failed')), hasLength(1));
+    expect(
+      bodies.where((body) => body.contains('upstream failed')),
+      hasLength(1),
+    );
     expect(await tempFiles(), isEmpty);
   });
 }

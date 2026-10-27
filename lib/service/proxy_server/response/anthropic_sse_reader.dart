@@ -183,5 +183,7 @@ class AnthropicSseReader {
   ///
   /// 用 `[\s\S]*?` 而非 `.`：ECMAScript 的 `.` 不匹配 CR，若用 `.`，
   /// CRLF 流的所有 data 行都匹配不上，模型伪装会静默失效。
-  static final RegExp _dataLinePattern = RegExp(r'^(\s*data:)(\s*)([\s\S]*?)(\r?)$');
+  static final RegExp _dataLinePattern = RegExp(
+    r'^(\s*data:)(\s*)([\s\S]*?)(\r?)$',
+  );
 }

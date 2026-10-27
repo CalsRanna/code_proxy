@@ -149,6 +149,7 @@ class AnthropicResponseProcessor {
         responseChunks.add(text);
       }
     }
+
     final normalizedEncoding = contentEncoding?.trim().toLowerCase();
     var isCompressed =
         normalizedEncoding != null &&
@@ -286,7 +287,8 @@ class AnthropicResponseProcessor {
             LoggerUtil.instance.w('Upstream Anthropic stream error: $error');
             final errorEvent = buildSseError(error);
             if (bodyWriter != null) {
-              if (errorEvent.isNotEmpty) bodyWriter.addResponseBytes(errorEvent);
+              if (errorEvent.isNotEmpty)
+                bodyWriter.addResponseBytes(errorEvent);
               recordException(error, '');
             } else {
               final clientBody = errorEvent.isEmpty
@@ -317,7 +319,8 @@ class AnthropicResponseProcessor {
             final responseBody = responseChunks.join();
             final errorEvent = buildSseError(error);
             if (bodyWriter != null) {
-              if (errorEvent.isNotEmpty) bodyWriter.addResponseBytes(errorEvent);
+              if (errorEvent.isNotEmpty)
+                bodyWriter.addResponseBytes(errorEvent);
               recordException(error, '');
             } else {
               final clientBody = errorEvent.isEmpty

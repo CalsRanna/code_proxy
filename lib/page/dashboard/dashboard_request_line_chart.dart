@@ -31,11 +31,13 @@ class DashboardRequestsChart extends StatelessWidget {
               '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
           final requests = dailyStats[dateKey] ?? 0;
           final cost = dailyCost[dateKey] ?? 0;
-          data.add(_RequestChartEntry(
-            date: formattedDate,
-            requests: requests.toDouble(),
-            cost: cost,
-          ));
+          data.add(
+            _RequestChartEntry(
+              date: formattedDate,
+              requests: requests.toDouble(),
+              cost: cost,
+            ),
+          );
         }
 
         // ShadcnUI风格的配色
@@ -72,39 +74,45 @@ class DashboardRequestsChart extends StatelessWidget {
             legend: const Legend(isVisible: false),
             tooltipBehavior: TooltipBehavior(
               enable: true,
-              builder: (dynamic rawData, dynamic point, dynamic series,
-                  int pointIndex, int seriesIndex) {
-                if (pointIndex < 0 || pointIndex >= data.length) {
-                  return const SizedBox.shrink();
-                }
-                final entry = data[pointIndex];
-                return DashboardTooltip(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '请求: ${entry.requests.toInt()}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (entry.cost > 0) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          '费用: \$${entry.cost.toStringAsFixed(4)}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: ShadcnColors.violet300,
+              builder:
+                  (
+                    dynamic rawData,
+                    dynamic point,
+                    dynamic series,
+                    int pointIndex,
+                    int seriesIndex,
+                  ) {
+                    if (pointIndex < 0 || pointIndex >= data.length) {
+                      return const SizedBox.shrink();
+                    }
+                    final entry = data[pointIndex];
+                    return DashboardTooltip(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '请求: ${entry.requests.toInt()}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
+                          if (entry.cost > 0) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              '费用: \$${entry.cost.toStringAsFixed(4)}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: ShadcnColors.violet300,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
             ),
             series: <CartesianSeries<_RequestChartEntry, String>>[
               SplineAreaSeries<_RequestChartEntry, String>(

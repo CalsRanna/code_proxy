@@ -352,10 +352,7 @@ void main() {
         endpointOf('second', opusModel: 'up-b'),
         body,
       );
-      expect(
-        jsonDecode(utf8.decode(first.request.bodyBytes))['model'],
-        'up-a',
-      );
+      expect(jsonDecode(utf8.decode(first.request.bodyBytes))['model'], 'up-a');
       expect(
         jsonDecode(utf8.decode(second.request.bodyBytes))['model'],
         'up-b',
@@ -380,8 +377,10 @@ void main() {
         body,
         bodyCache: cache,
       );
-      expect(identical(first.request.bodyBytes, second.request.bodyBytes), isTrue);
+      expect(
+        identical(first.request.bodyBytes, second.request.bodyBytes),
+        isTrue,
+      );
     });
   });
-
 }

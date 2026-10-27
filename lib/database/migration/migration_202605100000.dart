@@ -9,8 +9,7 @@ class Migration202605100000 {
   static const name = 'migration_202605100000';
 
   Future<void> migrate(Laconic laconic) async {
-    final count =
-        await laconic.table('migrations').where('name', name).count();
+    final count = await laconic.table('migrations').where('name', name).count();
     if (count > 0) return;
 
     final tableInfo = await laconic.select("PRAGMA table_info('endpoints')");
@@ -57,8 +56,7 @@ class Migration202605100000 {
     await laconic.statement('BEGIN TRANSACTION');
     try {
       await laconic.statement('DROP TABLE endpoints');
-      await laconic.statement(
-          'ALTER TABLE endpoints_new RENAME TO endpoints');
+      await laconic.statement('ALTER TABLE endpoints_new RENAME TO endpoints');
       await laconic.table('migrations').insert([
         {'name': name},
       ]);

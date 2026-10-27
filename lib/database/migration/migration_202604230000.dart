@@ -12,12 +12,10 @@ class Migration202604230000 {
   static const name = 'migration_202604230000';
 
   Future<void> migrate(Laconic laconic) async {
-    final count =
-        await laconic.table('migrations').where('name', name).count();
+    final count = await laconic.table('migrations').where('name', name).count();
     if (count > 0) return;
 
-    final tableInfo =
-        await laconic.select("PRAGMA table_info('request_logs')");
+    final tableInfo = await laconic.select("PRAGMA table_info('request_logs')");
     final columns = tableInfo.map((r) => r['name'] as String).toSet();
 
     if (!columns.contains('endpoint_id')) {
@@ -93,7 +91,8 @@ class Migration202604230000 {
     try {
       await laconic.statement('DROP TABLE request_logs');
       await laconic.statement(
-          'ALTER TABLE request_logs_new RENAME TO request_logs');
+        'ALTER TABLE request_logs_new RENAME TO request_logs',
+      );
       // 重建时间戳索引（不再重建 endpoint_id 索引）
       await laconic.statement('''
         CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp

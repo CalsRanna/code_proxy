@@ -337,6 +337,5 @@ void main() {
       final result = converter.convertErrorBody('');
       expect(result['error']['type'], 'api_error');
     });
-
   });
 }

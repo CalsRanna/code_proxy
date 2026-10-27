@@ -217,13 +217,12 @@ void main() {
           'description': 'Get weather',
           'input_schema': {
             'type': 'object',
-            'properties': {'city': {'type': 'string'}},
+            'properties': {
+              'city': {'type': 'string'},
+            },
           },
         },
-        {
-          'type': 'web_search_20250305',
-          'name': 'web_search',
-        },
+        {'type': 'web_search_20250305', 'name': 'web_search'},
       ],
       'messages': [
         {'role': 'user', 'content': 'hi'},
@@ -237,7 +236,9 @@ void main() {
         'description': 'Get weather',
         'parameters': {
           'type': 'object',
-          'properties': {'city': {'type': 'string'}},
+          'properties': {
+            'city': {'type': 'string'},
+          },
         },
       },
     ]);
@@ -246,12 +247,12 @@ void main() {
   group('tool_choice', () {
     test('auto/any/none/tool 四种映射', () {
       Map<String, dynamic> tc(Map<String, dynamic> toolChoice) => convert({
-            'model': 'gpt-5',
-            'tool_choice': toolChoice,
-            'messages': [
-              {'role': 'user', 'content': 'hi'},
-            ],
-          });
+        'model': 'gpt-5',
+        'tool_choice': toolChoice,
+        'messages': [
+          {'role': 'user', 'content': 'hi'},
+        ],
+      });
 
       expect(tc({'type': 'auto'})['tool_choice'], 'auto');
       expect(tc({'type': 'any'})['tool_choice'], 'required');
@@ -277,12 +278,12 @@ void main() {
 
     test('effort 不降级：xhigh/max 原样透传', () {
       Map<String, dynamic> withEffort(String effort) => convert({
-            'model': 'gpt-5',
-            'output_config': {'effort': effort},
-            'messages': [
-              {'role': 'user', 'content': 'hi'},
-            ],
-          });
+        'model': 'gpt-5',
+        'output_config': {'effort': effort},
+        'messages': [
+          {'role': 'user', 'content': 'hi'},
+        ],
+      });
       expect(withEffort('xhigh')['reasoning'], {'effort': 'xhigh'});
       expect(withEffort('low')['reasoning'], {'effort': 'low'});
     });
@@ -342,7 +343,9 @@ void main() {
 
     final input = out['input'] as List;
     expect(input, hasLength(2));
-    expect((input[0]['content'] as List)[0],
-        {'type': 'input_text', 'text': ''});
+    expect((input[0]['content'] as List)[0], {
+      'type': 'input_text',
+      'text': '',
+    });
   });
 }

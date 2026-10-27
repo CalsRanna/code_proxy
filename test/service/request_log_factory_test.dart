@@ -201,5 +201,4 @@ void main() {
       expect(log.model, isNull);
     });
   });
-
 }

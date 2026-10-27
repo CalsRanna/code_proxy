@@ -139,8 +139,17 @@ void main() {
         'POST',
         Uri.parse('http://localhost/v1/messages'),
       );
-      expect(responder.tryRespond(request, ProxyServerRequestBody(utf8.encode('{invalid'))), isNull);
-      expect(responder.tryRespond(request, ProxyServerRequestBody([0xff])), isNull);
+      expect(
+        responder.tryRespond(
+          request,
+          ProxyServerRequestBody(utf8.encode('{invalid')),
+        ),
+        isNull,
+      );
+      expect(
+        responder.tryRespond(request, ProxyServerRequestBody([0xff])),
+        isNull,
+      );
     });
 
     test('uses the current configured Haiku model', () {
