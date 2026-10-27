@@ -23,13 +23,14 @@ String formatDurationMs(int ms) {
   return '${(ms / 1000).toStringAsFixed(2)}s';
 }
 
-/// 请求列表「响应时间」列文案：总用时 / 首字用时，如 `7.39s / 548ms`。
+/// 请求列表「响应时间」列文案：首字用时 / 总用时，如 `548ms / 7.39s`。
 ///
-/// 总用时固定以秒展示（沿用历史列格式）；首字用时缺失（非流式、失败、
-/// 历史记录）时不显示首字用时段。
-String formatResponseTiming(int? responseTime, int? ttftMs) {
-  final total = '${((responseTime ?? 0) / 1000).toStringAsFixed(2)}s';
-  if (ttftMs == null) return total;
-  final ttft = formatDurationMs(ttftMs);
-  return '$total / $ttft';
+/// 总用时固定以秒展示（沿用历史列格式）；任一时长缺失（非流式、失败、
+/// 历史记录）时该段显示`-`，两者都缺失即 `- / -`。
+String formatResponseTiming(int? ttftMs, int? responseTime) {
+  final total = responseTime == null
+      ? '-'
+      : '${(responseTime / 1000).toStringAsFixed(2)}s';
+  final ttft = ttftMs == null ? '-' : formatDurationMs(ttftMs);
+  return '$ttft / $total';
 }

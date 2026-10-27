@@ -226,9 +226,9 @@ class _RequestLogPageState extends State<RequestLogPage> {
                     : ShadBadge.destructive(child: Text(statusCode.toString()));
                 break;
               case 4:
-                // 总用时 / 首字用时，如 7.39s / 548ms；无首字用时不显示
+                // 首字用时 / 总用时，如 548ms / 7.39s；无首字用时不显示
                 child = Text(
-                  formatResponseTiming(log.responseTime, log.ttftMs),
+                  formatResponseTiming(log.ttftMs, log.responseTime),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 );
@@ -272,7 +272,7 @@ class _RequestLogPageState extends State<RequestLogPage> {
               0 => '请求时间',
               1 => '端点',
               2 => '模型',
-              4 => '响应 / 首字用时',
+              4 => '用时',
               5 => 'Token',
               _ => '',
             };

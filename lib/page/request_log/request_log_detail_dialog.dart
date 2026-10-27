@@ -42,8 +42,8 @@ class RequestLogDetailDialog extends StatelessWidget {
             ),
             _buildListItem(
               icon: LucideIcons.timer,
-              label: '响应 / 首字用时',
-              value: formatResponseTiming(log.responseTime, log.ttftMs),
+              label: '用时',
+              value: formatResponseTiming(log.ttftMs, log.responseTime),
             ),
             if (log.originalModel != null && log.originalModel!.isNotEmpty)
               _buildListItem(

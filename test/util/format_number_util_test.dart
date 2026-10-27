@@ -35,14 +35,18 @@ void main() {
   });
 
   group('formatResponseTiming', () {
-    test('总用时与首字用时并排展示', () {
-      expect(formatResponseTiming(7390, 548), '7.39s / 548ms');
-      expect(formatResponseTiming(12340, 1250), '12.34s / 1.25s');
+    test('首字用时在前、总用时在后，并排展示', () {
+      expect(formatResponseTiming(548, 7390), '548ms / 7.39s');
+      expect(formatResponseTiming(1250, 12340), '1.25s / 12.34s');
     });
 
-    test('首字用时缺失时只显示总用时', () {
-      expect(formatResponseTiming(7390, null), '7.39s');
-      expect(formatResponseTiming(null, null), '0.00s');
+    test('首字用时缺失时用 - 占位，总用时照常展示', () {
+      expect(formatResponseTiming(null, 7390), '- / 7.39s');
+    });
+
+    test('总用时缺失时用 - 占位，两者都缺失即 - / -', () {
+      expect(formatResponseTiming(548, null), '548ms / -');
+      expect(formatResponseTiming(null, null), '- / -');
     });
   });
 }
