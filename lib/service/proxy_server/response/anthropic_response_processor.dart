@@ -287,8 +287,9 @@ class AnthropicResponseProcessor {
             LoggerUtil.instance.w('Upstream Anthropic stream error: $error');
             final errorEvent = buildSseError(error);
             if (bodyWriter != null) {
-              if (errorEvent.isNotEmpty)
+              if (errorEvent.isNotEmpty) {
                 bodyWriter.addResponseBytes(errorEvent);
+              }
               recordException(error, '');
             } else {
               final clientBody = errorEvent.isEmpty
@@ -319,8 +320,9 @@ class AnthropicResponseProcessor {
             final responseBody = responseChunks.join();
             final errorEvent = buildSseError(error);
             if (bodyWriter != null) {
-              if (errorEvent.isNotEmpty)
+              if (errorEvent.isNotEmpty) {
                 bodyWriter.addResponseBytes(errorEvent);
+              }
               recordException(error, '');
             } else {
               final clientBody = errorEvent.isEmpty
